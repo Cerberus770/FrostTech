@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== Users & Auth =====
+enum Role {
+  CUSTOMER
+  ADMIN
+  TECHNICIAN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  password     String   // bcrypt hashed
+  firstName    String
+  lastName     String
+  phone        String?
+  role         Role     @default(CUSTOMER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  orders            Order[]
+  installments      Installment[]
+  maintenanceJobs   MaintenanceSchedule[] @relation("CustomerMaintenance")
+  assignedJobs      MaintenanceSchedule[] @relation("TechnicianMaintenance")
+  dispatchAssigned  DispatchItem[]        @relation("TechnicianDispatch")
+
+  @@map("users")
+}
+
+// ===== Products (Storefront) =====
+model Product {
+  id             String   @id @default(cuid())
+  slug           String   @unique // e.g. "panasonic-premium-15"
+  name           String
+  brand          String
+  category       String
+  price          Float
+  originalPrice  Float?
+  rating         Float    @default(0)
+  sold           Int      @default(0)
+  image          String
+  badge          String?
+  specs          String[] // PostgreSQL array
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("products")
+}
+
+// ===== Inventory (Admin) =====
+model InventoryItem {
+  id        String   @id @default(cuid())
+  sku       String   @unique // e.g. "AC-INV-15"
+  brand     String
+  model     String
+  category  String
+  stock     Int      @default(0)
+  price     Float
+  image     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("inventory_items")
+}
+
+// ===== Orders =====
+model Order {
+  id        String   @id @default(cuid())
+  orderNo   String   @unique // e.g. "ORD-8821"
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  name      String
+  location  String
+  item      String
+  payment   String
+  status    String   @default("Processing")
+  date      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("orders")
+}
+
+// ===== Installment Applications =====
+enum InstallmentStatus {
+  PENDING
+  REPENDING
+  COMPLETED
+  REJECTED
+}
+
+model Installment {
+  id        String            @id @default(cuid())
+  appId     String            @unique // e.g. "APP-0992"
+  userId    String
+  user      User              @relation(fields: [userId], references: [id])
+  name      String
+  item      String
+  date      String
+  status    InstallmentStatus @default(PENDING)
+  issue     String            @default("")
+  term      Int
+  employer  String
+  income    String
+  idType    String
+  location  String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@map("installments")
+}
+
+// ===== Dispatch Queue =====
+model DispatchItem {
+  id           String  @id @default(cuid())
+  dispatchNo   String  @unique // e.g. "DIS-001"
+  type         String  // "New Installation", "Deep Cleaning", "Repair"
+  customerId   String
+  name         String
+  location     String
+  item         String
+  notes        String  @default("")
+  status       String  @default("Queued")
+  technicianId String?
+  technician   User?   @relation("TechnicianDispatch", fields: [technicianId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("dispatch_items")
+}
+
+// ===== Maintenance Schedule =====
+enum MaintenanceStatus {
+  SCHEDULED
+  OVERDUE
+  COMPLETED
+}
+
+model MaintenanceSchedule {
+  id            String            @id @default(cuid())
+  scheduleNo    String            @unique // e.g. "MNT-001"
+  customerId    String
+  customer      User              @relation("CustomerMaintenance", fields: [customerId], references: [id])
+  name          String
+  phone         String
+  address       String
+  item          String
+  serviceType   String
+  scheduledDate String
+  technicianId  String?
+  technician    User?             @relation("TechnicianMaintenance", fields: [technicianId], references: [id])
+  technicianName String           @default("")
+  status        MaintenanceStatus @default(SCHEDULED)
+  notes         String            @default("")
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@map("maintenance_schedules")
+}
+
+// ===== Calendar Events =====
+model CalendarEvent {
+  id         String @id @default(cuid())
+  title      String
+  date       String
+  technician String
+  type       String
+  createdAt  DateTime @default(now())
+
+  @@map("calendar_events")
+}

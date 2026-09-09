@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: frostech_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: frostech
+      POSTGRES_PASSWORD: frostech123
+      POSTGRES_DB: frostech_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - frostech_pgdata:/var/lib/postgresql/data
+
+volumes:
+  frostech_pgdata:
