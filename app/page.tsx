@@ -35,7 +35,7 @@ export default function HomePage() {
     fetch('/api/products')
       .then(res => res.json())
       .then((data: DBProduct[]) => setStoreInventory(data))
-      .catch(() => setStoreInventory(fallbackProducts.map(p => ({ ...p, slug: p.id, originalPrice: p.originalPrice ?? null, badge: p.badge ?? null, description: p.description ?? null }))));
+      .catch(() => setStoreInventory(fallbackProducts.map(p => ({ ...p, slug: p.id, originalPrice: p.originalPrice ?? null, badge: p.badge ?? null, description: p.description ?? null, specs: p.specs ?? [] }))));
   }, []);
 
   const handleBrandChange = (brand: string) => {

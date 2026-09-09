@@ -4,14 +4,15 @@ import { prisma } from '@/lib/prisma';
 // GET /api/products/[id]
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const product = await prisma.product.findFirst({
       where: {
         OR: [
-          { id: params.id },
-          { slug: params.id },
+          { id: id },
+          { slug: id },
         ],
       },
     });
