@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 // GET /api/installments
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+
     const installments = await prisma.installment.findMany({
+      where: userId ? { userId } : {},
       include: { user: { select: { firstName: true, lastName: true, email: true } } },
       orderBy: { createdAt: 'desc' },
     });

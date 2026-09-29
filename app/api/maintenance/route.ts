@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 // GET /api/maintenance
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+
     const schedules = await prisma.maintenanceSchedule.findMany({
+      where: userId ? { customerId: userId } : {},
       include: {
         customer: { select: { firstName: true, lastName: true, email: true } },
         technician: { select: { firstName: true, lastName: true } },

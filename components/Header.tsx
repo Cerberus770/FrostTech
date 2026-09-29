@@ -7,17 +7,26 @@ import { useRouter } from 'next/navigation';
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   useEffect(() => {
-    // Get cart count
-    try {
-      const cart = JSON.parse(sessionStorage.getItem('productCart') || '[]');
-      setCartCount(cart.length);
-    } catch {
-      setCartCount(0);
-    }
+    // Get cart count from localStorage (matching cart page)
+    const updateCartCount = () => {
+      try {
+        const cart = JSON.parse(localStorage.getItem('frostTechCart') || '[]');
+        setCartCount(cart.length);
+      } catch {
+        setCartCount(0);
+      }
+    };
+
+    updateCartCount();
+    setIsLoggedIn(sessionStorage.getItem('isLoggedIn') === 'true');
+
+    // Listen for storage events (fired by addToCart)
+    window.addEventListener('storage', updateCartCount);
 
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -25,7 +34,10 @@ export default function Header() {
       }
     };
     document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('storage', updateCartCount);
+    };
   }, []);
 
   const handleLogout = (e: React.MouseEvent) => {
@@ -61,7 +73,11 @@ export default function Header() {
             <Link href="/cart"><i className="fa-solid fa-cart-shopping"></i> My Cart (<span id="cart-count">{cartCount}</span>)</Link>
             <div className="divider"></div>
             <Link href="/profile#settings"><i className="fa-solid fa-gear"></i> Settings</Link>
-            <a href="#" id="logout-link" onClick={handleLogout}><i className="fa-solid fa-right-from-bracket"></i> Log Out</a>
+            {isLoggedIn ? (
+              <a href="#" id="logout-link" onClick={handleLogout}><i className="fa-solid fa-right-from-bracket"></i> Log Out</a>
+            ) : (
+              <Link href="/login"><i className="fa-solid fa-right-to-bracket"></i> Log In</Link>
+            )}
           </div>
         </div>
       </div>

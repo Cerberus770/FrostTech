@@ -1,108 +1,146 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import React, { useState, useEffect, useRef } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
-const containerStyle = {
-  width: '100%',
-  height: '100%',
-  minHeight: '200px',
-  borderRadius: '8px'
-};
+// Fix default marker icon issue with webpack/next.js
+const defaultIcon = L.icon({
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
 
 // Default center: Manila, Philippines
-const defaultCenter = {
-  lat: 14.5995,
-  lng: 120.9842
-};
+const defaultCenter: [number, number] = [14.5995, 120.9842];
 
 interface MapComponentProps {
   center?: { lat: number; lng: number };
   markerPosition?: { lat: number; lng: number };
   onLocationSelect?: (coords: { lat: number; lng: number }) => void;
-  onMapClick?: (e: google.maps.MapMouseEvent) => void;
   height?: string;
   pinnable?: boolean;
 }
 
 export default function MapComponent({
-  center = defaultCenter,
+  center,
   markerPosition,
   onLocationSelect,
-  onMapClick,
-  height,
+  height = '350px',
   pinnable = true,
 }: MapComponentProps) {
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-  });
-
-  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(markerPosition || null);
 
-  const onLoad = useCallback(function callback(map: google.maps.Map) {
-    setMap(map);
-  }, []);
+  useEffect(() => {
+    if (!mapRef.current || mapInstanceRef.current) return;
 
-  const onUnmount = useCallback(function callback() {
-    setMap(null);
-  }, []);
+    const mapCenter: [number, number] = center 
+      ? [center.lat, center.lng] 
+      : defaultCenter;
 
-  const handleClick = useCallback(
-    (e: google.maps.MapMouseEvent) => {
-      if (onMapClick) {
-        onMapClick(e);
-      }
+    const map = L.map(mapRef.current, {
+      center: mapCenter,
+      zoom: 12,
+      zoomControl: true,
+    });
 
-      if (pinnable && e.latLng) {
-        const coords = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(map);
+
+    if (pinnable) {
+      map.on('click', (e: L.LeafletMouseEvent) => {
+        const coords = { lat: e.latlng.lat, lng: e.latlng.lng };
         setPin(coords);
+
+        if (markerRef.current) {
+          markerRef.current.setLatLng(e.latlng);
+        } else {
+          markerRef.current = L.marker(e.latlng, { icon: defaultIcon }).addTo(map);
+        }
+
         if (onLocationSelect) {
           onLocationSelect(coords);
         }
-      }
-    },
-    [onMapClick, onLocationSelect, pinnable]
-  );
+      });
+    }
 
-  if (!isLoaded)
-    return (
-      <div
-        style={{
-          ...containerStyle,
-          height: height || '100%',
-          background: 'rgba(255,255,255,0.05)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--text-light, #888)',
-          border: '1px solid var(--border-color, #ddd)',
-        }}
-      >
-        <i className="fa-solid fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
-        Loading map...
-      </div>
-    );
+    // Add initial marker if provided
+    if (markerPosition) {
+      markerRef.current = L.marker([markerPosition.lat, markerPosition.lng], { icon: defaultIcon }).addTo(map);
+    }
+
+    mapInstanceRef.current = map;
+
+    // Fix map rendering in hidden containers — multiple attempts + observer
+    const fixSize = () => map.invalidateSize();
+    setTimeout(fixSize, 100);
+    setTimeout(fixSize, 300);
+    setTimeout(fixSize, 600);
+    setTimeout(fixSize, 1000);
+
+    // Watch for container becoming visible/resized
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    observer.observe(mapRef.current);
+
+    return () => {
+      observer.disconnect();
+      map.remove();
+      mapInstanceRef.current = null;
+      markerRef.current = null;
+    };
+  }, []);
+
+  // Update pin display and center when props change
+  const markerKey = markerPosition ? `${markerPosition.lat},${markerPosition.lng}` : '';
+  const centerKey = center ? `${center.lat},${center.lng}` : '';
+
+  useEffect(() => {
+    if (markerPosition) {
+      setPin({ lat: markerPosition.lat, lng: markerPosition.lng });
+    }
+  }, [markerKey]);
+
+  useEffect(() => {
+    if (pin && mapInstanceRef.current) {
+      if (markerRef.current) {
+        markerRef.current.setLatLng([pin.lat, pin.lng]);
+      } else {
+        markerRef.current = L.marker([pin.lat, pin.lng], { icon: defaultIcon }).addTo(mapInstanceRef.current);
+      }
+    }
+  }, [pin]);
+
+  // Update center when prop changes
+  useEffect(() => {
+    if (center && mapInstanceRef.current) {
+      mapInstanceRef.current.setView([center.lat, center.lng], 15);
+      setTimeout(() => mapInstanceRef.current?.invalidateSize(), 100);
+    }
+  }, [centerKey]);
 
   return (
     <div style={{ position: 'relative' }}>
-      <GoogleMap
-        mapContainerStyle={{ ...containerStyle, height: height || '100%' }}
-        center={pin || center}
-        zoom={12}
-        onLoad={onLoad}
-        onUnmount={onUnmount}
-        onClick={handleClick}
-        options={{
-          disableDefaultUI: true,
-          zoomControl: true,
-          streetViewControl: false,
-          mapTypeControl: false,
+      <div
+        ref={mapRef}
+        style={{
+          width: '100%',
+          height: height,
+          minHeight: '200px',
+          borderRadius: '8px',
+          overflow: 'hidden',
         }}
-      >
-        {pin && <Marker position={pin} />}
-      </GoogleMap>
+      />
 
       {/* Coordinates display */}
       {pin && (
@@ -117,7 +155,7 @@ export default function MapComponent({
             borderRadius: '4px',
             fontSize: '0.8rem',
             fontWeight: 500,
-            zIndex: 5,
+            zIndex: 1000,
           }}
         >
           📍 {pin.lat.toFixed(6)}, {pin.lng.toFixed(6)}

@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  engineType = "binary"
 }
 
 datasource db {
@@ -22,6 +23,7 @@ model User {
   lastName     String
   phone        String?
   role         Role     @default(CUSTOMER)
+  techRank     String?  @default("Tech")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -31,29 +33,86 @@ model User {
   maintenanceJobs   MaintenanceSchedule[] @relation("CustomerMaintenance")
   assignedJobs      MaintenanceSchedule[] @relation("TechnicianMaintenance")
   dispatchAssigned  DispatchItem[]        @relation("TechnicianDispatch")
+  techRequests      TechRequest[]         @relation("TechnicianRequests")
+  addresses         Address[]
+  cartItems         CartItem[]
+  registeredACs     RegisteredAC[]
 
   @@map("users")
 }
 
+// ===== Registered AC Units =====
+model RegisteredAC {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  location          String   // "Living Room", "Master Bedroom"
+  brandModel        String   // "Carrier Inverter"
+  acType            String   // "Window Type", "Split Type", "Floor Standing"
+  horsepower        String   // "1.0 HP", "1.5 HP", etc.
+  paymentType       String   // "Cash" or "Installment"
+  totalPrice        Float?   // Total price of the AC
+  months            Int?     // Number of installment months (null if Cash)
+  pricePerMonth     Float?   // Monthly payment (null if Cash)
+  lat               Float?   // Pinpointed latitude
+  lng               Float?   // Pinpointed longitude
+  fullAddress       String?  // Full address text
+  purchasedFromStore Boolean @default(false) // true = bought from FrostTech, false = manually added
+  isPaused          Boolean  @default(false) // true = maintenance paused
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("registered_acs")
+}
+
 // ===== Products (Storefront) =====
 model Product {
-  id             String   @id @default(cuid())
-  slug           String   @unique // e.g. "panasonic-premium-15"
+  id             String           @id @default(cuid())
+  slug           String           @unique // e.g. "panasonic-premium-15"
   name           String
   brand          String
   category       String
-  price          Float
+  price          Float            // Lowest/default price (used for card display)
   originalPrice  Float?
-  rating         Float    @default(0)
-  sold           Int      @default(0)
+  rating         Float            @default(0)
+  sold           Int              @default(0)
   image          String
   badge          String?
-  specs          String[] // PostgreSQL array
+  specs          String[]         // PostgreSQL array
   description    String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  variants       ProductVariant[]
 
   @@map("products")
+}
+
+// ===== Product Condition Variants =====
+model ProductVariant {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  condition String   // "Brand New", "Second Hand", "On-Hand"
+  price     Float
+  stock     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("product_variants")
+}
+
+// ===== Product Reviews =====
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  userId    String
+  userName  String   // Denormalized for easy display
+  rating    Int      // 1-5 stars
+  comment   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("reviews")
 }
 
 // ===== Inventory (Admin) =====
@@ -74,18 +133,19 @@ model InventoryItem {
 
 // ===== Orders =====
 model Order {
-  id        String   @id @default(cuid())
-  orderNo   String   @unique // e.g. "ORD-8821"
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  name      String
-  location  String
-  item      String
-  payment   String
-  status    String   @default("Processing")
-  date      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(cuid())
+  orderNo          String   @unique // e.g. "ORD-8821"
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  name             String
+  location         String
+  item             String
+  payment          String
+  status           String   @default("Processing")
+  date             String
+  downpaymentProof String?  // Store base64 string or file path for proof of payment
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@map("orders")
 }
@@ -130,8 +190,8 @@ model DispatchItem {
   item         String
   notes        String  @default("")
   status       String  @default("Queued")
-  technicianId String?
-  technician   User?   @relation("TechnicianDispatch", fields: [technicianId], references: [id])
+  scheduledDate String?
+  technicians  User[]  @relation("TechnicianDispatch")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -177,4 +237,54 @@ model CalendarEvent {
   createdAt  DateTime @default(now())
 
   @@map("calendar_events")
+}
+
+// ===== Technician Requests =====
+model TechRequest {
+  id           String   @id @default(cuid())
+  reqId        String   @unique // e.g. "REQ-101"
+  technicianId String
+  technician   User     @relation("TechnicianRequests", fields: [technicianId], references: [id])
+  itemNeeded   String
+  quantity     Int
+  reason       String
+  status       String   @default("Pending") // "Pending", "Approved", "Declined"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("tech_requests")
+}
+
+// ===== Saved Addresses =====
+model Address {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  label       String
+  fullAddress String
+  phone       String
+  lat         Float?
+  lng         Float?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("addresses")
+}
+
+// ===== Cart Items =====
+model CartItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  name      String
+  price     Float
+  image     String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId])
+  @@map("cart_items")
 }

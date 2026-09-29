@@ -84,7 +84,8 @@ export interface AppState {
 
 // ===== Cart =====
 export interface CartItem {
-  id: number;
+  id: string | number;
+  productId?: string;
   name: string;
   brand: string;
   price: number;

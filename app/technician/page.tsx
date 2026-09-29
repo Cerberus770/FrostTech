@@ -7,18 +7,53 @@ import GoogleMap from '@/components/GoogleMap';
 
 interface DispatchItem {
   id: string; dispatchNo: string; type: string; name: string; location: string; item: string; notes: string; status: string;
-  technician?: { firstName: string; lastName: string } | null;
+  technicians?: { firstName: string; lastName: string }[];
+  scheduledDate?: string;
+}
+
+function GeocodedMap({ address }: { address: string }) {
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    if (!address) return;
+    
+    // Check if coordinates were passed from checkout
+    if (address.includes('| COORDS:')) {
+      const coordsPart = address.split('| COORDS:')[1];
+      if (coordsPart) {
+        const [lat, lng] = coordsPart.split(',').map(Number);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          setCoords({ lat, lng });
+          return;
+        }
+      }
+    }
+
+    // Geocode the address using Nominatim (free, no API key needed)
+    const cleanAddress = address.split('| COORDS:')[0].trim();
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanAddress + ', Philippines')}&limit=1`)
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.length > 0) {
+          setCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+        }
+      })
+      .catch(console.error);
+  }, [address]);
+
+  return <GoogleMap height="300px" center={coords || undefined} markerPosition={coords || undefined} pinnable={false} />;
 }
 
 export default function TechnicianDashboard() {
   const [tasks, setTasks] = useState<DispatchItem[]>([]);
   const [filter, setFilter] = useState('All');
-  const [techName, setTechName] = useState('Carlos Rivera');
+  const [techName, setTechName] = useState('');
 
   const [showClientModal, setShowClientModal] = useState(false);
   const [showSuppliesModal, setShowSuppliesModal] = useState(false);
   const [selectedJob, setSelectedJob] = useState<DispatchItem | null>(null);
   const [kebabOpen, setKebabOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const router = useRouter();
 
   const handleLogout = (e: React.MouseEvent) => {
@@ -29,7 +64,7 @@ export default function TechnicianDashboard() {
   };
 
   useEffect(() => {
-    // Attempt to get user name from session, fallback to Carlos Rivera for demo
+    setIsLoggedIn(sessionStorage.getItem('userName') !== null);
     const sessionName = sessionStorage.getItem('userName');
     if (sessionName) setTechName(sessionName);
 
@@ -38,19 +73,26 @@ export default function TechnicianDashboard() {
       .then((data: DispatchItem[]) => {
         // Filter tasks assigned to this technician
         const myTasks = data.filter(d => 
-          d.technician && `${d.technician.firstName} ${d.technician.lastName}` === (sessionName || 'Carlos Rivera')
+          d.technicians?.some(t => `${t.firstName} ${t.lastName}` === (sessionName || ''))
         );
         setTasks(myTasks);
       })
       .catch(console.error);
   }, []);
 
-  const handleUpdateStatus = (jobId: string, newStatus: string) => {
+  const handleUpdateStatus = async (jobId: string, newStatus: string) => {
     // Optimistically update the state
     setTasks(prev => prev.map(t => t.id === jobId ? { ...t, status: newStatus } : t));
     
-    // In a real app we'd make a PATCH request here:
-    // fetch(`/api/dispatch/${jobId}`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) })
+    try {
+      await fetch(`/api/dispatch`, { 
+        method: 'PATCH', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: jobId, status: newStatus }) 
+      });
+    } catch (error) {
+      console.error("Failed to update status", error);
+    }
   };
 
   const pendingCount = tasks.filter(t => t.status === 'PENDING').length;
@@ -84,11 +126,15 @@ export default function TechnicianDashboard() {
             <div className="kebab-menu">
                 <button className="kebab-btn" onClick={() => setKebabOpen(!kebabOpen)}><i className="fa-solid fa-bars"></i></button>
                 <div className={`kebab-dropdown ${kebabOpen ? 'active' : ''}`} id="kebab-dropdown">
-                    <a href="technician.html"><i className="fa-solid fa-screwdriver-wrench"></i> My Dashboard</a>
-                    <a href="tech-calendar.html"><i className="fa-regular fa-calendar-days"></i> My Calendar</a>
+                    <Link href="/technician"><i className="fa-solid fa-screwdriver-wrench"></i> My Dashboard</Link>
+                    <Link href="/technician/calendar"><i className="fa-regular fa-calendar-days"></i> My Calendar</Link>
                     <div className="divider"></div>
-                    <a href="technician.html#settings"><i className="fa-solid fa-gear"></i> Settings</a>
-                    <a href="#" id="logout-link" onClick={handleLogout}><i className="fa-solid fa-right-from-bracket"></i> Log Out</a>
+                    <Link href="/technician#settings"><i className="fa-solid fa-gear"></i> Settings</Link>
+                    {isLoggedIn ? (
+                        <a href="#" id="logout-link" onClick={handleLogout}><i className="fa-solid fa-right-from-bracket"></i> Log Out</a>
+                    ) : (
+                        <Link href="/login"><i className="fa-solid fa-right-to-bracket"></i> Log In</Link>
+                    )}
                 </div>
             </div>
         </div>
@@ -171,7 +217,7 @@ export default function TechnicianDashboard() {
                         <span className={`job-status ${job.status === 'PENDING' ? 'pending' : job.status === 'COMPLETED' ? 'completed' : 'in-progress'}`}>{job.status === 'ASSIGNED' ? 'In Progress' : job.status}</span>
                     </div>
                     <div className="job-detail-row"><i className="fa-solid fa-user"></i> {job.name}</div>
-                    <div className="job-detail-row"><i className="fa-solid fa-location-dot"></i> {job.location}</div>
+                    <div className="job-detail-row"><i className="fa-solid fa-location-dot"></i> {job.location?.split('| COORDS:')[0].trim()}</div>
                     <div className="job-detail-row"><i className="fa-solid fa-fan"></i> {job.item}</div>
                     <div className="job-detail-row"><i className="fa-regular fa-clipboard"></i> {job.notes || 'No extra notes'}</div>
                     <div className="job-actions">
@@ -192,48 +238,47 @@ export default function TechnicianDashboard() {
         {/*  Today's Schedule  */}
         <div className="schedule-panel" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
             <h3 style={{ marginBottom: '1rem', color: 'var(--text-dark)' }}><i className="fa-regular fa-calendar" style={{"marginRight":"8px", color: 'var(--primary)'}}></i> Today's Schedule</h3>
-            <p style={{"fontSize":"0.85rem","color":"var(--text-light)","marginBottom":"1.5rem"}}>Friday, June 27, 2026</p>
+            <p style={{"fontSize":"0.85rem","color":"var(--text-light)","marginBottom":"1.5rem"}}>
+                {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+            </p>
 
-            <div className="schedule-slot">
-                <div className="slot-time">8:00<br />AM</div>
-                <div className="slot-info">
-                    <h5>Lisa Cruz</h5>
-                    <p>BGC, Taguig</p>
-                </div>
-                <span className="slot-type cleaning">Cleaning</span>
-            </div>
-            <div className="schedule-slot">
-                <div className="slot-time">9:30<br />AM</div>
-                <div className="slot-info">
-                    <h5>Ben Reyes</h5>
-                    <p>Mandaluyong</p>
-                </div>
-                <span className="slot-type repair">Repair</span>
-            </div>
-            <div className="schedule-slot">
-                <div className="slot-time">10:00<br />AM</div>
-                <div className="slot-info">
-                    <h5>John Doe</h5>
-                    <p>Makati City</p>
-                </div>
-                <span className="slot-type cleaning">Cleaning</span>
-            </div>
-            <div className="schedule-slot">
-                <div className="slot-time">1:00<br />PM</div>
-                <div className="slot-info">
-                    <h5>Maria Santos</h5>
-                    <p>Quezon City</p>
-                </div>
-                <span className="slot-type repair">Repair</span>
-            </div>
-            <div className="schedule-slot">
-                <div className="slot-time">3:30<br />PM</div>
-                <div className="slot-info">
-                    <h5>Andrew Lim</h5>
-                    <p>Pasig City</p>
-                </div>
-                <span className="slot-type deep-cleaning">Deep Clean</span>
-            </div>
+            {(() => {
+                // Format today to match YYYY-MM-DD which is what input type="date" produces and what we store
+                const today = new Date();
+                const offset = today.getTimezoneOffset();
+                const localToday = new Date(today.getTime() - (offset*60*1000)).toISOString().split('T')[0];
+                
+                const todaysTasks = tasks.filter(t => t.scheduledDate?.startsWith(localToday));
+                
+                // Sort by time block
+                todaysTasks.sort((a, b) => {
+                    const aIsMorning = a.scheduledDate?.includes('Morning') ? 0 : 1;
+                    const bIsMorning = b.scheduledDate?.includes('Morning') ? 0 : 1;
+                    return aIsMorning - bIsMorning;
+                });
+
+                if (todaysTasks.length === 0) {
+                    return <p style={{ color: 'var(--text-light)', fontStyle: 'italic' }}>No jobs scheduled for today.</p>;
+                }
+
+                return todaysTasks.map(task => {
+                    const isMorning = task.scheduledDate?.includes('Morning');
+                    const timeLabel = isMorning ? '8:00\nAM' : '1:00\nPM';
+                    
+                    return (
+                        <div key={`sched-${task.id}`} className="schedule-slot">
+                            <div className="slot-time" style={{ whiteSpace: 'pre-line' }}>{timeLabel}</div>
+                            <div className="slot-info">
+                                <h5>{task.name}</h5>
+                                <p>{task.location?.split('| COORDS:')[0].trim()}</p>
+                            </div>
+                            <span className={`slot-type ${task.type === 'Deep Cleaning' ? 'deep-cleaning' : task.type === 'Repair' ? 'repair' : 'cleaning'}`}>
+                                {task.type === 'New Installation' ? 'Install' : task.type === 'Deep Cleaning' ? 'Deep Clean' : 'Repair'}
+                            </span>
+                        </div>
+                    );
+                });
+            })()}
         </div>
 
     </div>
@@ -263,11 +308,13 @@ export default function TechnicianDashboard() {
                 </div>
                 
                 <h4 style={{"color":"var(--text-dark)","marginBottom":"0.8rem","fontSize":"0.95rem"}}><i className="fa-solid fa-location-dot" style={{"color":"var(--accent-red)","marginRight":"5px"}}></i> Location</h4>
-                <p style={{"fontSize":"0.9rem","marginBottom":"1rem"}}>{selectedJob?.location}</p>
+                <p style={{"fontSize":"0.9rem","marginBottom":"1rem"}}>{selectedJob?.location?.split('| COORDS:')[0].trim()}</p>
                 
                 {/*  Map Container  */}
                 <div style={{height: "300px", zIndex: 1, marginBottom: '1.5rem'}}>
-                    <GoogleMap height="300px" />
+                    {selectedJob?.location && showClientModal && (
+                      <GeocodedMap key={selectedJob.id} address={selectedJob.location} />
+                    )}
                 </div>
                 
                 <div style={{"marginTop":"1.5rem","display":"flex","justifyContent":"flex-end"}}>

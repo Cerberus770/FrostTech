@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 // GET /api/dispatch
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+
     const items = await prisma.dispatchItem.findMany({
-      include: { technician: { select: { firstName: true, lastName: true } } },
+      where: userId ? { customerId: userId } : undefined,
+      include: { technicians: { select: { id: true, firstName: true, lastName: true } } },
       orderBy: { createdAt: 'desc' },
     });
     return NextResponse.json(items);
@@ -31,10 +35,18 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, ...data } = body;
+    const { id, technicianIds, ...data } = body;
+    
+    const updateData: any = { ...data };
+    if (technicianIds && Array.isArray(technicianIds)) {
+      updateData.technicians = {
+        set: technicianIds.map((techId: string) => ({ id: techId }))
+      };
+    }
+
     const item = await prisma.dispatchItem.update({
       where: { id },
-      data,
+      data: updateData,
     });
     return NextResponse.json(item);
   } catch (error) {

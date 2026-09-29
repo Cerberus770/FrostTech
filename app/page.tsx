@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import { useAppState } from '@/context/AppStateContext';
 import { products as fallbackProducts } from '@/lib/products';
@@ -23,24 +24,60 @@ interface DBProduct {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const { state } = useAppState();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedPrices, setSelectedPrices] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState('Featured');
+  const [viewMode, setViewMode] = useState('grid');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const [storeInventory, setStoreInventory] = useState<DBProduct[]>([]);
+  
+  // Downpayment state
+  const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [showDownpaymentModal, setShowDownpaymentModal] = useState(false);
+  const [pendingCartItem, setPendingCartItem] = useState<any>(null);
 
   useEffect(() => {
     fetch('/api/products')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch');
+        return res.json();
+      })
       .then((data: DBProduct[]) => setStoreInventory(data))
       .catch(() => setStoreInventory(fallbackProducts.map(p => ({ ...p, slug: p.id, originalPrice: p.originalPrice ?? null, badge: p.badge ?? null, description: p.description ?? null, specs: p.specs ?? [] }))));
+
+    const userId = sessionStorage.getItem('userId');
+    if (userId) {
+      fetch(`/api/user/status?userId=${userId}`)
+        .then(r => r.json())
+        .then(data => setIsNewCustomer(data.isNewCustomer))
+        .catch(console.error);
+    } else {
+      setIsNewCustomer(true);
+    }
   }, []);
 
   const handleBrandChange = (brand: string) => {
     setSelectedBrands(prev => 
       prev.includes(brand) ? prev.filter(b => b !== brand) : [...prev, brand]
+    );
+  };
+
+  const handleTypeChange = (type: string) => {
+    setSelectedTypes(prev => 
+      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+    );
+  };
+
+  const handlePriceChange = (priceRange: string) => {
+    setSelectedPrices(prev => 
+      prev.includes(priceRange) ? prev.filter(p => p !== priceRange) : [...prev, priceRange]
     );
   };
 
@@ -50,12 +87,65 @@ export default function HomePage() {
     setTimeout(() => { setToastVisible(false); }, 2500);
   };
 
-  const addToCart = (name: string, price: number) => {
-    const cart = JSON.parse(sessionStorage.getItem('productCart') || '[]');
-    cart.push({ id: Date.now(), name, price });
-    sessionStorage.setItem('productCart', JSON.stringify(cart));
-    // Dispatch an event so Header can update if needed
-    window.dispatchEvent(new Event('storage'));
+    const addToCart = async (name: string, price: number, brand?: string, image?: string, productId?: string, skipModal?: boolean) => {
+    const userId = sessionStorage.getItem('userId');
+    
+    // Check if it's an AC (price > 10000 heuristic)
+    if (price > 10000 && !skipModal) {
+      // Dynamically fetch status to ensure it's up-to-date
+      let isNew = isNewCustomer;
+      if (userId) {
+        try {
+          const res = await fetch(`/api/user/status?userId=${userId}`);
+          const data = await res.json();
+          isNew = data.isNewCustomer;
+          setIsNewCustomer(isNew);
+        } catch (e) {}
+      } else {
+        isNew = true; // Guests are considered new customers for downpayment purposes
+      }
+
+      if (isNew) {
+        setPendingCartItem({ name, price, brand, image, productId });
+        setShowDownpaymentModal(true);
+        return;
+      }
+    }
+
+    const actualProductId = productId || 'PROD-' + Date.now();
+    const itemImage = image || '/hero-bg.png';
+    const itemBrand = brand || '';
+
+    if (userId) {
+      try {
+        await fetch('/api/cart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            productId: actualProductId,
+            name,
+            brand: itemBrand,
+            price,
+            image: itemImage,
+            quantity: 1
+          })
+        });
+      } catch (err) {
+        console.error('Failed to add to cart API', err);
+      }
+    } else {
+      const cart = JSON.parse(localStorage.getItem('frostTechCart') || '[]');
+      const existing = cart.find((i: any) => i.productId === actualProductId || i.name === name);
+      if (existing) {
+        existing.quantity += 1;
+      } else {
+        cart.push({ id: Date.now(), productId: actualProductId, name, brand: itemBrand, price, quantity: 1, image: itemImage });
+      }
+      localStorage.setItem('frostTechCart', JSON.stringify(cart));
+    }
+    
+    // Toast notification
     showToast('<i class="fa-solid fa-check-circle"></i> ' + name + ' added to cart!');
   };
 
@@ -64,8 +154,51 @@ export default function HomePage() {
                           item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           item.category.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesBrand = selectedBrands.length === 0 || selectedBrands.includes(item.brand);
-    return matchesSearch && matchesBrand;
+    const matchesCategory = selectedCategory === 'All' 
+      ? !(item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories')
+      : (
+          item.category.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+          (selectedCategory === 'Second Hand Deals' && item.badge === 'Used') ||
+          (selectedCategory === 'Spare Parts' && (item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories'))
+        );
+    
+    const matchesPrice = selectedPrices.length === 0 || selectedPrices.some(range => {
+      if (range === 'under-20k') return item.price < 20000;
+      if (range === '20k-40k') return item.price >= 20000 && item.price <= 40000;
+      if (range === '40k-60k') return item.price > 40000 && item.price <= 60000;
+      if (range === 'over-60k') return item.price > 60000;
+      return false;
+    });
+    
+    const matchesType = selectedTypes.length === 0 || selectedTypes.some(type => {
+      const isPart = item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories';
+      if (type === 'Spare Parts') return isPart;
+      if (type === 'Air Conditioners') return !isPart;
+      return false;
+    });
+
+    return matchesSearch && matchesBrand && matchesCategory && matchesPrice && matchesType;
   });
+
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    switch (sortBy) {
+      case 'Price, low to high':
+        return a.price - b.price;
+      case 'Price, high to low':
+        return b.price - a.price;
+      case 'Best Selling':
+        return b.sold - a.sold;
+      case 'Date, new to old':
+        return b.rating - a.rating; // fallback to rating since no date
+      case 'Featured':
+      default:
+        return 0;
+    }
+  });
+
+  const sparePartProducts = storeInventory.filter(item => 
+    item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories'
+  );
 
   return (
     <>
@@ -74,12 +207,12 @@ export default function HomePage() {
       {/* Category Nav */}
       <nav className="category-nav">
         <ul className="nav-links">
-          <li><Link href="#">All Air Conditioners</Link></li>
-          <li><Link href="#">Window Type</Link></li>
-          <li><Link href="#">Split Type Inverter</Link></li>
-          <li><Link href="#">Floor Standing</Link></li>
-          <li><Link href="#">Second Hand Deals</Link></li>
-          <li><Link href="#spare-parts">Spare Parts</Link></li>
+          <li className={selectedCategory === 'All' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('All'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>All Air Conditioners</a></li>
+          <li className={selectedCategory === 'Window' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Window'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Window Type</a></li>
+          <li className={selectedCategory === 'Split' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Split'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Split Type Inverter</a></li>
+          <li className={selectedCategory === 'Floor' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Floor'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Floor Standing</a></li>
+          <li className={selectedCategory === 'Second Hand Deals' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Second Hand Deals'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Second Hand Deals</a></li>
+          <li className={selectedCategory === 'Spare Parts' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Spare Parts'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Spare Parts</a></li>
         </ul>
       </nav>
 
@@ -135,13 +268,31 @@ export default function HomePage() {
             <i className="fa-solid fa-filter"></i> Filters
           </h3>
 
+          {/* Product Type Filter */}
+          <div className="filter-section">
+            <div className="filter-title">
+              <span>Product Type</span>
+              <i className="fa-solid fa-chevron-up" style={{ fontSize: '0.8rem' }}></i>
+            </div>
+            {['Air Conditioners', 'Spare Parts'].map(type => (
+              <label key={type} className="filter-option">
+                <input 
+                  type="checkbox" 
+                  value={type}
+                  checked={selectedTypes.includes(type)}
+                  onChange={() => handleTypeChange(type)}
+                /> {type}
+              </label>
+            ))}
+          </div>
+
           {/* Brand Filter */}
           <div className="filter-section">
             <div className="filter-title">
               <span>Brand</span>
               <i className="fa-solid fa-chevron-up" style={{ fontSize: '0.8rem' }}></i>
             </div>
-            {['Panasonic', 'LG', 'Carrier', 'Daikin'].map(brand => (
+            {['Carrier', 'Chiq', 'iFFALCON', 'Midea', 'Samsung', 'TCL'].map(brand => (
               <label key={brand} className="filter-option">
                 <input 
                   type="checkbox" 
@@ -160,10 +311,18 @@ export default function HomePage() {
               <span>Price Range</span>
               <i className="fa-solid fa-chevron-up" style={{ fontSize: '0.8rem' }}></i>
             </div>
-            <label className="filter-option"><input type="checkbox" /> Under ₱20,000</label>
-            <label className="filter-option"><input type="checkbox" defaultChecked /> ₱20,000 - ₱40,000</label>
-            <label className="filter-option"><input type="checkbox" /> ₱40,000 - ₱60,000</label>
-            <label className="filter-option"><input type="checkbox" /> Over ₱60,000</label>
+            <label className="filter-option">
+              <input type="checkbox" checked={selectedPrices.includes('under-20k')} onChange={() => handlePriceChange('under-20k')} /> Under ₱20,000
+            </label>
+            <label className="filter-option">
+              <input type="checkbox" checked={selectedPrices.includes('20k-40k')} onChange={() => handlePriceChange('20k-40k')} /> ₱20,000 - ₱40,000
+            </label>
+            <label className="filter-option">
+              <input type="checkbox" checked={selectedPrices.includes('40k-60k')} onChange={() => handlePriceChange('40k-60k')} /> ₱40,000 - ₱60,000
+            </label>
+            <label className="filter-option">
+              <input type="checkbox" checked={selectedPrices.includes('over-60k')} onChange={() => handlePriceChange('over-60k')} /> Over ₱60,000
+            </label>
           </div>
         </aside>
 
@@ -172,7 +331,7 @@ export default function HomePage() {
           {/* Top Toolbar */}
           <div className="product-toolbar">
             <div className="toolbar-count">
-              Showing {filteredProducts.length} products
+              Showing {sortedProducts.length} products
             </div>
             <div className="toolbar-actions">
               <button 
@@ -184,7 +343,7 @@ export default function HomePage() {
               </button>
               <div className="sort-group">
                 <label>Sort By:</label>
-                <select className="sort-select">
+                <select className="sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
                   <option>Featured</option>
                   <option>Best Selling</option>
                   <option>Price, low to high</option>
@@ -193,8 +352,8 @@ export default function HomePage() {
                 </select>
               </div>
               <div className="view-toggles">
-                <button className="view-btn active"><i className="fa-solid fa-table-cells"></i></button>
-                <button className="view-btn"><i className="fa-solid fa-list"></i></button>
+                <button className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`} onClick={() => setViewMode('grid')}><i className="fa-solid fa-table-cells"></i></button>
+                <button className={`view-btn ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')}><i className="fa-solid fa-list"></i></button>
               </div>
             </div>
           </div>
@@ -202,26 +361,52 @@ export default function HomePage() {
           <div className="facets__active-filters" id="active-filters-container"></div>
 
           {/* Product Grid */}
-          <div className="product-grid" id="dynamic-products">
-            {filteredProducts.length === 0 ? (
+          <div className={`product-grid ${viewMode === 'list' ? 'list-view' : ''}`} id="dynamic-products">
+            {sortedProducts.length === 0 ? (
               <div className="empty-cart-msg" style={{ gridColumn: '1 / -1' }}>No products found matching your criteria.</div>
             ) : (
-              filteredProducts.map(item => {
+              sortedProducts.map(item => {
                 const price = item.price;
                 const imgPlaceholder = item.image;
                 
                 return (
-                  <div key={item.id} className="product-card">
-                    <img src={imgPlaceholder} alt={item.name} className="product-image" />
-                    <div className="product-brand">{item.brand}</div>
-                    <h3 className="product-title">{item.name}</h3>
-                    <div className="product-price">₱ {price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-                    <div className="product-stock">{item.sold} Ratings &bull; {item.rating} Stars</div>
-                    <div className="product-actions">
-                      <Link href={`/product/${item.slug || item.id}`} className="btn btn-secondary">Details &rarr;</Link>
-                      <button className="btn btn-buy" onClick={() => addToCart(`${item.brand} ${item.name}`, price)}>
-                        <i className="fa-solid fa-cart-plus"></i> Add
-                      </button>
+                  <div 
+                    key={item.id} 
+                    className="product-card" 
+                    onClick={() => router.push(`/product/${item.slug || item.id}`)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className="product-image-wrapper">
+                      {item.badge && <span className="product-badge">{item.badge}</span>}
+                      <img src={imgPlaceholder} alt={item.name} className="product-image" />
+                    </div>
+                    <div className="product-card-body">
+                      <div className="product-brand">{item.brand}</div>
+                      <h3 className="product-title">{item.name}</h3>
+                      <div className="product-price">
+                        {(item as any).variants && (item as any).variants.length > 1 && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginRight: '4px' }}>From</span>
+                        )}
+                        ₱ {price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {item.originalPrice && item.originalPrice > price && (
+                          <span className="original-price">₱ {item.originalPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                        )}
+                      </div>
+                      <div className="product-rating">
+                        <span className="stars">
+                          {'★'.repeat(Math.floor(item.rating))}{'☆'.repeat(5 - Math.floor(item.rating))}
+                        </span>
+                        <span>{item.rating}</span>
+                        <span className="sold-count">&bull; {item.sold} sold</span>
+                      </div>
+                      <div className="product-actions" onClick={(e) => e.stopPropagation()}>
+                        <Link href={`/product/${item.slug || item.id}`} className="btn btn-secondary">
+                          <i className="fa-solid fa-eye"></i> Details
+                        </Link>
+                        <button className="btn btn-buy" onClick={(e) => { e.stopPropagation(); addToCart(`${item.brand} ${item.name}`, price, item.brand, imgPlaceholder, item.id); }}>
+                          <i className="fa-solid fa-cart-plus"></i> Add to Cart
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -231,70 +416,76 @@ export default function HomePage() {
         </main>
       </section>
 
-      {/* Brands Section */}
-      <section className="section-container">
-        <h2 className="section-title">Shop by Top Brands</h2>
-        <div className="brand-grid">
-          <div className="brand-tile">DAIKIN</div>
-          <div className="brand-tile">LG</div>
-          <div className="brand-tile">CARRIER</div>
-          <div className="brand-tile">PANASONIC</div>
-        </div>
-      </section>
-
       {/* Genuine Spare Parts Section */}
       <section id="spare-parts" className="section-container" style={{ background: 'rgba(15, 31, 56, 0.4)', scrollMarginTop: '80px' }}>
         <h2 className="section-title">Genuine Spare Parts</h2>
         <p style={{ color: 'var(--text-light)', marginBottom: '2rem' }}>Keep your units running efficiently with original replacement parts.</p>
         <div className="product-grid">
-          <div className="product-card">
-            <img src="/hero-bg.png" alt="AC Compressor" className="product-image" style={{ height: '150px' }} />
-            <div className="product-brand">Panasonic</div>
-            <h3 className="product-title">Inverter Compressor Unit</h3>
-            <div className="product-price">₱ 8,500.00</div>
-            <div className="product-stock">15 in stock</div>
-            <div className="product-actions">
-              <button className="btn btn-buy" onClick={() => addToCart('Panasonic Inverter Compressor', 8500)}>
-                <i className="fa-solid fa-cart-plus"></i> Add
-              </button>
-            </div>
-          </div>
-          <div className="product-card">
-            <img src="/service-bg.png" alt="Air Filter" className="product-image" style={{ height: '150px' }} />
-            <div className="product-brand">Carrier</div>
-            <h3 className="product-title">High-Efficiency Air Filter</h3>
-            <div className="product-price">₱ 1,200.00</div>
-            <div className="product-stock">45 in stock</div>
-            <div className="product-actions">
-              <button className="btn btn-buy" onClick={() => addToCart('Carrier Air Filter', 1200)}>
-                <i className="fa-solid fa-cart-plus"></i> Add
-              </button>
-            </div>
-          </div>
-          <div className="product-card">
-            <img src="/hero-bg.png" alt="Remote Control" className="product-image" style={{ height: '150px' }} />
-            <div className="product-brand">Universal</div>
-            <h3 className="product-title">Universal Smart AC Remote</h3>
-            <div className="product-price">₱ 850.00</div>
-            <div className="product-stock">100+ in stock</div>
-            <div className="product-actions">
-              <button className="btn btn-buy" onClick={() => addToCart('Universal Smart Remote', 850)}>
-                <i className="fa-solid fa-cart-plus"></i> Add
-              </button>
-            </div>
-          </div>
-          <div className="product-card">
-            <img src="/service-bg.png" alt="Capacitor" className="product-image" style={{ height: '150px' }} />
-            <div className="product-brand">LG</div>
-            <h3 className="product-title">Dual Run Capacitor 45+5 uF</h3>
-            <div className="product-price">₱ 600.00</div>
-            <div className="product-stock">30 in stock</div>
-            <div className="product-actions">
-              <button className="btn btn-buy" onClick={() => addToCart('LG Dual Capacitor', 600)}>
-                <i className="fa-solid fa-cart-plus"></i> Add
-              </button>
-            </div>
-          </div>
+          {sparePartProducts.length === 0 ? (
+            <div className="empty-cart-msg" style={{ gridColumn: '1 / -1' }}>No spare parts available.</div>
+          ) : (
+            sparePartProducts.map(item => {
+              const price = item.price;
+              const imgPlaceholder = item.image || '/hero-bg.png';
+              
+              return (
+                <div 
+                  key={item.id} 
+                  className="product-card" 
+                  onClick={() => router.push(`/product/${item.slug || item.id}`)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="product-image-wrapper">
+                    <img src={imgPlaceholder} alt={item.name} className="product-image" />
+                    {item.badge && <span className="product-badge">{item.badge}</span>}
+                  </div>
+                  <div className="product-card-body">
+                    <div className="product-brand">{item.brand}</div>
+                    <h3 className="product-title">{item.name}</h3>
+                    <div className="product-price">
+                      ₱ {price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {item.originalPrice && item.originalPrice > price && (
+                        <span className="original-price">₱ {item.originalPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      )}
+                    </div>
+                    <div className="product-rating">
+                      <span className="stars">
+                        {'★'.repeat(Math.floor(item.rating))}{'☆'.repeat(5 - Math.floor(item.rating))}
+                      </span>
+                      <span>{item.rating}</span>
+                      <span className="sold-count">&bull; {item.sold} sold</span>
+                    </div>
+                    {/* Optional feedback/description area if it's a spare part */}
+                    <div className="product-feedback" style={{ fontStyle: 'italic', fontSize: '0.8rem', color: 'var(--text-light)', marginTop: '0.5rem', marginBottom: '0.5rem', padding: '0.4rem', background: 'rgba(255,255,255,0.03)', borderRadius: '4px' }}>
+                      <i className="fa-solid fa-quote-left" style={{ opacity: 0.5, marginRight: '4px' }}></i>
+                      {item.description ? item.description.substring(0, 50) + "..." : "High-quality genuine replacement part."}
+                    </div>
+                    <div className="product-actions" onClick={(e) => e.stopPropagation()}>
+                      <Link href={`/product/${item.slug || item.id}`} className="btn btn-secondary">
+                        <i className="fa-solid fa-eye"></i> Details
+                      </Link>
+                      <button className="btn btn-buy" onClick={(e) => { e.stopPropagation(); addToCart(`${item.brand} ${item.name}`, price, item.brand, imgPlaceholder, item.id); }}>
+                        <i className="fa-solid fa-cart-plus"></i> Add to Cart
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </section>
+
+      {/* Brands Section */}
+      <section className="section-container">
+        <h2 className="section-title">Shop by Top Brands</h2>
+        <div className="brand-grid">
+          <div className="brand-tile">CARRIER</div>
+          <div className="brand-tile">CHIQ</div>
+          <div className="brand-tile">iFFALCON</div>
+          <div className="brand-tile">MIDEA</div>
+          <div className="brand-tile">SAMSUNG</div>
+          <div className="brand-tile">TCL</div>
         </div>
       </section>
 
@@ -332,6 +523,42 @@ export default function HomePage() {
           &copy; 2026 FrostTech Cooling Solutions Co. All rights reserved.
         </div>
       </footer>
+
+      {/* Downpayment Modal */}
+      {showDownpaymentModal && pendingCartItem && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: 'var(--radius-lg)', maxWidth: '500px', width: '90%', border: '1px solid var(--border-color)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+              <i className="fa-solid fa-circle-exclamation" style={{ fontSize: '3rem', color: 'var(--accent-blue)', marginBottom: '1rem' }}></i>
+              <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem', border: 'none', padding: 0 }}>Downpayment Required</h2>
+              <p style={{ color: 'var(--text-light)', fontSize: '0.95rem' }}>As a first-time buyer of Air Conditioning units, a 15% downpayment is required.</p>
+            </div>
+            
+            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1.2rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <span style={{ color: 'var(--text-light)' }}>{pendingCartItem.name}</span>
+                <span style={{ fontWeight: 'bold' }}>₱ {pendingCartItem.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--border-color)', paddingTop: '0.5rem', marginTop: '0.5rem', color: 'var(--accent-blue)', fontWeight: 'bold' }}>
+                <span>15% Downpayment</span>
+                <span>₱ {(pendingCartItem.price * 0.15).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => {
+                setShowDownpaymentModal(false);
+                setPendingCartItem(null);
+              }}>Cancel</button>
+              <button className="btn btn-buy" style={{ flex: 1 }} onClick={() => {
+                setShowDownpaymentModal(false);
+                addToCart(pendingCartItem.name, pendingCartItem.price, pendingCartItem.brand, pendingCartItem.image, pendingCartItem.productId, true);
+                setPendingCartItem(null);
+              }}>I Understand, Add to Cart</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification */}
       <div id="toast" className={`toast ${toastVisible ? 'visible' : ''}`} dangerouslySetInnerHTML={{ __html: toastMessage }}></div>
