@@ -7,6 +7,7 @@ import { useAppState } from '@/context/AppStateContext';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import { useRouter } from 'next/navigation';
 import GoogleMap from '@/components/GoogleMap';
+import { useConfirmModal } from '@/components/ConfirmModal';
 
 interface MaintenanceItem {
   id: string;
@@ -23,6 +24,7 @@ interface MaintenanceItem {
 export default function ProfilePage() {
   const { state } = useAppState();
   const router = useRouter();
+  const { confirm, showAlert, ModalComponent } = useConfirmModal();
   
   const [activeTab, setActiveTab] = useState('tab-personal');
   const [sidebarActive, setSidebarActive] = useState(false);
@@ -37,17 +39,24 @@ export default function ProfilePage() {
 
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersPage, setOrdersPage] = useState(1);
+  const [myAcsPage, setMyAcsPage] = useState(1);
   const [installments, setInstallments] = useState<any[]>([]);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [maintenance, setMaintenance] = useState<MaintenanceItem[]>([]);
   const [dispatch, setDispatch] = useState<any[]>([]);
+  const [userPhone, setUserPhone] = useState('');
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
 
   const [serviceCart, setServiceCart] = useState<{unit: string, service: string, price: number, note: string, id: number}[]>([]);
   const [toastMsg, setToastMsg] = useState('');
 
   // Calendar state
   const [calendarDate, setCalendarDate] = useState(new Date());
+  const [selectedCalendarEvent, setSelectedCalendarEvent] = useState<any>(null);
 
   // Registered ACs state
   const [registeredACs, setRegisteredACs] = useState<any[]>([]);
@@ -84,6 +93,9 @@ export default function ProfilePage() {
     } else {
       setUserName(sessionStorage.getItem('userName') || 'John Doe');
       setUserEmail(sessionStorage.getItem('userEmail') || 'test@frosttech.com');
+      const storedName = sessionStorage.getItem('userName') || 'John Doe';
+      setEditFirstName(storedName.split(' ')[0]);
+      setEditLastName(storedName.split(' ').slice(1).join(' '));
     }
 
     // Fetch user data
@@ -111,6 +123,15 @@ export default function ProfilePage() {
 
       fetch(`/api/registered-acs?userId=${userId}`).then(r => r.json()).then(data => {
         setRegisteredACs(data);
+      }).catch(console.error);
+
+      // Fetch user phone from database
+      fetch(`/api/users/customers`).then(r => r.json()).then((customers: any[]) => {
+        const me = customers.find((c: any) => c.id === userId);
+        if (me && me.phone && me.phone !== 'N/A') {
+          setUserPhone(me.phone);
+          setEditPhone(me.phone);
+        }
       }).catch(console.error);
     }
   }, [router]);
@@ -187,10 +208,16 @@ export default function ProfilePage() {
 
   const handleUpdatePassword = async () => {
     if (!currentPassword || !newPassword) {
-      alert('Please fill out both password fields');
+      showAlert({ title: 'Validation Error', message: 'Please fill out both password fields', type: 'warning' });
       return;
     }
     
+    const isConfirmed = await confirm({
+      title: 'Update Password',
+      message: 'Are you sure you want to change your password?'
+    });
+    if (!isConfirmed) return;
+
     const userId = sessionStorage.getItem('userId');
     if (!userId) return;
 
@@ -208,11 +235,11 @@ export default function ProfilePage() {
         setTimeout(() => setToastMsg(''), 2500);
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to update password');
+        showAlert({ title: 'Error', message: data.error || 'Failed to update password', type: 'error' });
       }
     } catch (err) {
       console.error(err);
-      alert('Error updating password');
+      showAlert({ title: 'Error', message: 'Error updating password', type: 'error' });
     }
   };
 
@@ -334,7 +361,8 @@ export default function ProfilePage() {
 
   return (
     <>
-      <Header />
+      <ModalComponent />
+      <Header hideSearch />
 
       {/* Toast Notification */}
       {toastMsg && (
@@ -362,6 +390,13 @@ export default function ProfilePage() {
       </div>
 
       <section className="profile-container">
+        {/* Mobile Sidebar Toggle Button */}
+        <div className="mobile-only" style={{ display: 'flex', justifyContent: 'flex-start', width: '100%', marginBottom: '10px' }}>
+          <button onClick={toggleSidebar} style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)', cursor: 'pointer', fontSize: '1.2rem' }}>
+            <i className="fa-solid fa-ellipsis-vertical"></i>
+          </button>
+        </div>
+
         {/* Sidebar */}
         <aside className={`profile-sidebar ${sidebarActive ? 'active' : ''}`}>
           <h3><i className="fa-solid fa-circle-user" style={{ fontSize: '3rem', marginBottom: '10px', display: 'block' }}></i> My Account</h3>
@@ -378,32 +413,96 @@ export default function ProfilePage() {
 
         {/* Main Content */}
         <div className="profile-content">
-          <button className="btn mobile-only" onClick={toggleSidebar} style={{ marginBottom: '1rem', background: 'var(--secondary)', color: 'var(--text-dark)', border: 'none' }}>
-            <i className="fa-solid fa-bars"></i> Profile Menu
-          </button>
           
-          {/* Personal Info Tab */}
           <div id="tab-personal" className={`tab-content ${activeTab === 'tab-personal' ? 'active' : ''}`}>
-            <h2>Personal Information</h2>
-            <div className="profile-details-grid">
-              <div className="detail-group">
-                <label>First Name</label>
-                <p>{userName.split(' ')[0]}</p>
-              </div>
-              <div className="detail-group">
-                <label>Last Name</label>
-                <p>{userName.split(' ').slice(1).join(' ')}</p>
-              </div>
-              <div className="detail-group">
-                <label>Email Address</label>
-                <p>{userEmail}</p>
-              </div>
-              <div className="detail-group">
-                <label>Phone Number</label>
-                <p>+63 912 345 6789</p>
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2 style={{ border: 'none', padding: 0, margin: 0 }}>Personal Information</h2>
+              {!isEditingProfile && (
+                <button className="btn btn-sm" onClick={() => {
+                  setEditFirstName(userName.split(' ')[0]);
+                  setEditLastName(userName.split(' ').slice(1).join(' '));
+                  setEditPhone(userPhone);
+                  setIsEditingProfile(true);
+                }}>
+                  <i className="fa-solid fa-pen-to-square" style={{ marginRight: '6px' }}></i>Edit Information
+                </button>
+              )}
             </div>
-            <button className="btn" style={{ marginTop: '2rem' }}>Edit Information</button>
+
+            {isEditingProfile ? (
+              <>
+                <div className="profile-details-grid">
+                  <div className="detail-group">
+                    <label>First Name</label>
+                    <input type="text" value={editFirstName} onChange={e => setEditFirstName(e.target.value)} style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.95rem', background: 'var(--bg-input, white)', color: 'var(--text-dark)', fontFamily: 'inherit' }} />
+                  </div>
+                  <div className="detail-group">
+                    <label>Last Name</label>
+                    <input type="text" value={editLastName} onChange={e => setEditLastName(e.target.value)} style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.95rem', background: 'var(--bg-input, white)', color: 'var(--text-dark)', fontFamily: 'inherit' }} />
+                  </div>
+                  <div className="detail-group">
+                    <label>Email Address</label>
+                    <p style={{ color: 'var(--text-light)', fontStyle: 'italic' }}>{userEmail} <span style={{ fontSize: '0.75rem' }}>(cannot be changed)</span></p>
+                  </div>
+                  <div className="detail-group">
+                    <label>Phone Number</label>
+                    <input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="e.g. 09171234567" style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--primary)', borderRadius: '6px', fontSize: '0.95rem', background: 'var(--bg-input, white)', color: 'var(--text-dark)', fontFamily: 'inherit', boxShadow: '0 0 0 2px rgba(0,155,213,0.15)' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                  <button className="btn" onClick={async () => {
+                    const userId = sessionStorage.getItem('userId');
+                    if (!userId) return;
+                    try {
+                      const res = await fetch('/api/users/customers', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: userId, firstName: editFirstName, lastName: editLastName, phone: editPhone })
+                      });
+                      if (res.ok) {
+                        const updated = await res.json();
+                        const newName = `${updated.firstName} ${updated.lastName}`;
+                        setUserName(newName);
+                        setUserPhone(updated.phone || '');
+                        sessionStorage.setItem('userName', newName);
+                        setIsEditingProfile(false);
+                        setToastMsg('Profile updated successfully!');
+                        setTimeout(() => setToastMsg(''), 3000);
+                      } else {
+                        alert('Failed to update profile.');
+                      }
+                    } catch (err) {
+                      console.error(err);
+                      alert('Error saving profile.');
+                    }
+                  }}>
+                    <i className="fa-solid fa-floppy-disk" style={{ marginRight: '6px' }}></i>Save Changes
+                  </button>
+                  <button className="btn btn-secondary" onClick={() => setIsEditingProfile(false)}>Cancel</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="profile-details-grid">
+                  <div className="detail-group">
+                    <label>First Name</label>
+                    <p>{userName.split(' ')[0]}</p>
+                  </div>
+                  <div className="detail-group">
+                    <label>Last Name</label>
+                    <p>{userName.split(' ').slice(1).join(' ')}</p>
+                  </div>
+                  <div className="detail-group">
+                    <label>Email Address</label>
+                    <p>{userEmail}</p>
+                  </div>
+                  <div className="detail-group">
+                    <label>Phone Number</label>
+                    <p>{userPhone || <span style={{ color: 'var(--text-light)', fontStyle: 'italic' }}>Not set — click Edit to add</span>}</p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Registered ACs Tab */}
@@ -475,29 +574,6 @@ export default function ProfilePage() {
                           </div>
                           <p>{ac.brandModel}</p>
                           <p style={{ fontSize: '0.8rem', color: '#888', marginTop: '5px' }}>Registered: {new Date(ac.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                          {ac.purchasedFromStore && !ac.isPaused && (
-                            <p style={{ fontSize: '0.85rem', color: 'var(--primary)', marginTop: '5px', fontWeight: 600 }}>
-                              <i className="fa-solid fa-calendar-check" style={{ marginRight: '5px' }}></i> 
-                              Free Maintenance: {
-                                (() => {
-                                  const d = new Date(ac.createdAt);
-                                  d.setMonth(d.getMonth() + 3);
-                                  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-                                })()
-                              }
-                            </p>
-                          )}
-                          {ac.purchasedFromStore && ac.isPaused && (
-                            <p style={{ fontSize: '0.85rem', color: 'var(--accent-red)', marginTop: '5px', fontWeight: 600 }}>
-                              <i className="fa-solid fa-circle-pause" style={{ marginRight: '5px' }}></i> 
-                              Maintenance Paused
-                            </p>
-                          )}
-                          {!ac.purchasedFromStore && (
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginTop: '5px', fontStyle: 'italic' }}>
-                              <i className="fa-solid fa-circle-info" style={{ marginRight: '4px' }}></i> Free 3-month maintenance not included — not purchased from FrostTech
-                            </p>
-                          )}
                         </div>
                         <div className="ac-actions" style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                           <button className="btn btn-sm btn-secondary" onClick={() => {
@@ -515,11 +591,6 @@ export default function ProfilePage() {
                           <button className="btn btn-sm btn-secondary" onClick={() => addToCart(`${ac.location} — ${ac.brandModel}`, 'Repair', 500, `note-${ac.id}`)} style={{ color: 'var(--accent-red)', borderColor: 'var(--accent-red)' }}>
                             <i className="fa-solid fa-wrench"></i> Repair
                           </button>
-                          {ac.purchasedFromStore && (
-                            <button className="btn btn-sm btn-secondary" onClick={() => handleTogglePause(ac.id, ac.isPaused)} style={{ borderColor: 'var(--border-color)', color: 'var(--text-light)' }} title={ac.isPaused ? "Resume Maintenance" : "Pause Maintenance"}>
-                              <i className={`fa-solid ${ac.isPaused ? 'fa-play' : 'fa-pause'}`}></i> {ac.isPaused ? 'Resume' : 'Pause'}
-                            </button>
-                          )}
                         </div>
                       </div>
                       <input type="text" id={`note-${ac.id}`} placeholder="Optional: Add a note (e.g. leaking water, strange noise...)" style={{ width: '100%', padding: '0.6rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-input, rgba(255,255,255,0.05))', fontSize: '0.85rem', color: 'var(--text-dark)' }} />
@@ -614,7 +685,7 @@ export default function ProfilePage() {
                       position: 'relative',
                       minHeight: '50px',
                       cursor: hasEvent ? 'pointer' : 'default'
-                    }}>
+                    }} onClick={() => { if (hasEvent) setSelectedCalendarEvent(dayEvents[0]); }}>
                       {day}
                       {dayEvents.map(evt => (
                         <div key={evt.id} style={{
@@ -635,35 +706,26 @@ export default function ProfilePage() {
               </div>
             </div>
             
-            <div style={{ marginTop: '2rem' }}>
-              <h3 style={{ marginBottom: '1rem' }}>Upcoming Appointments</h3>
-              {upcomingAppointments.length === 0 ? (
-                <p style={{ color: 'var(--text-light)' }}>No upcoming appointments scheduled.</p>
-              ) : (
-                upcomingAppointments.map(apt => {
-                  const isCleaning = apt.serviceType?.includes('Cleaning');
-                  return (
-                    <div key={apt.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1.5rem', marginBottom: '1rem', borderLeft: `4px solid ${isCleaning ? 'var(--primary)' : 'var(--accent-red)'}` }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
-                          <h4 style={{ marginBottom: '5px', color: isCleaning ? 'var(--primary)' : 'var(--accent-red)' }}>{apt.serviceType}</h4>
-                          <p style={{ fontSize: '0.9rem', color: 'var(--text-dark)', marginBottom: '5px' }}><strong>Unit:</strong> {apt.item}</p>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>
-                            <i className="fa-regular fa-clock"></i> {new Date(apt.scheduledDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                          </p>
-                          {apt.technicianName && (
-                            <p style={{ fontSize: '0.85rem', color: 'var(--text-light)', marginTop: '3px' }}>
-                              <i className="fa-solid fa-user-gear" style={{ marginRight: '4px' }}></i> {apt.technicianName}
-                            </p>
-                          )}
-                        </div>
-                        <button className="btn btn-sm btn-secondary">Reschedule</button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+            {selectedCalendarEvent && (
+              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setSelectedCalendarEvent(null)}>
+                <div style={{ background: 'var(--bg-card, white)', borderRadius: '12px', padding: '2rem', maxWidth: '400px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', position: 'relative', borderLeft: `4px solid ${selectedCalendarEvent.serviceType?.includes('Cleaning') ? 'var(--primary)' : 'var(--accent-red)'}` }} onClick={e => e.stopPropagation()}>
+                  <button onClick={() => setSelectedCalendarEvent(null)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', color: 'var(--text-light)' }}>&times;</button>
+                  <h4 style={{ marginBottom: '5px', color: selectedCalendarEvent.serviceType?.includes('Cleaning') ? 'var(--primary)' : 'var(--accent-red)' }}>{selectedCalendarEvent.serviceType}</h4>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-dark)', marginBottom: '5px' }}><strong>Unit:</strong> {selectedCalendarEvent.item}</p>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '15px' }}>
+                    <i className="fa-regular fa-clock"></i> {new Date(selectedCalendarEvent.scheduledDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  </p>
+                  {selectedCalendarEvent.technicianName && (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-light)', marginTop: '3px', marginBottom: '15px' }}>
+                      <i className="fa-solid fa-user-gear" style={{ marginRight: '4px' }}></i> {selectedCalendarEvent.technicianName}
+                    </p>
+                  )}
+                  <button className="btn btn-sm btn-secondary" style={{ width: '100%', marginTop: '10px' }} onClick={() => {
+                    setSelectedCalendarEvent(null);
+                  }}>Reschedule</button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Booking Modal */}
@@ -720,28 +782,36 @@ export default function ProfilePage() {
                   <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowBookingModal(false)}>Cancel</button>
                   <button className="btn" style={{ flex: 1 }} onClick={async () => {
                     if (!bookingDate) { setToastMsg('Please select a date.'); setTimeout(() => setToastMsg(''), 2500); return; }
+                    
+                    const isConfirmed = await confirm({
+                      title: 'Confirm Booking',
+                      message: `Book ${bookingService} for ${bookingUnit.split(' — ')[0]} on ${new Date(bookingDate).toLocaleDateString()} at ${bookingTime}?`
+                    });
+                    if (!isConfirmed) return;
+
                     setShowBookingModal(false);
                     
                     const userId = sessionStorage.getItem('userId');
                     if (userId) {
-                      await fetch('/api/dispatch', {
+                      await fetch('/api/maintenance', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                          dispatchNo: 'DIS-' + Math.floor(1000 + Math.random() * 9000),
-                          type: bookingService,
+                          scheduleNo: 'MNT-' + Math.floor(1000 + Math.random() * 9000),
                           customerId: userId,
                           name: userName,
-                          location: 'Default Address',
+                          phone: userPhone || 'N/A', // Uses saved phone from profile
+                          address: 'Default Address',
                           item: bookingUnit,
-                          notes: bookingNotes,
-                          status: 'Queued'
+                          serviceType: bookingService,
+                          scheduledDate: `${bookingDate} ${bookingTime}`,
+                          status: 'SCHEDULED',
+                          notes: bookingNotes
                         })
                       });
                     }
 
-                    setToastMsg(`${bookingService} for ${bookingUnit.split(' — ')[0]} booked on ${new Date(bookingDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${bookingTime}!`);
-                    setTimeout(() => setToastMsg(''), 3500);
+                    showAlert({ title: 'Booking Confirmed', message: `${bookingService} for ${bookingUnit.split(' — ')[0]} booked on ${new Date(bookingDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${bookingTime}!` });
                     setBookingDate(''); setBookingNotes('');
                   }}><i className="fa-solid fa-check" style={{ marginRight: '6px' }}></i>Confirm Booking</button>
                 </div>
@@ -788,7 +858,7 @@ export default function ProfilePage() {
                           <div style={{ background: 'rgba(0,155,213,0.05)', padding: '0.8rem', borderRadius: '4px', borderLeft: '3px solid var(--primary)' }}>
                             <p style={{ fontSize: '0.9rem', marginBottom: '4px', color: 'var(--text-dark)' }}>
                               <i className="fa-regular fa-calendar-check" style={{ marginRight: '6px', color: 'var(--primary)' }}></i>
-                              <strong>Scheduled Date:</strong> {new Date(dispatchItem.scheduledDate).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}
+                              <strong>Scheduled Date:</strong> {dispatchItem.scheduledDate ? new Date(dispatchItem.scheduledDate).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }) : 'Pending Assignment'}
                             </p>
                             {dispatchItem.technicians && dispatchItem.technicians.length > 0 && (
                               <p style={{ fontSize: '0.9rem', color: 'var(--text-dark)' }}>
@@ -839,7 +909,8 @@ export default function ProfilePage() {
             {registeredACs.length === 0 ? (
                 <p style={{ color: 'var(--text-light)', textAlign: 'center', padding: '2rem' }}>No registered ACs yet. Go to "Registered ACs" to add your units.</p>
             ) : (
-                registeredACs.map(ac => (
+              <>
+                {registeredACs.slice((myAcsPage - 1) * 2, myAcsPage * 2).map(ac => (
                     <div key={ac.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', marginBottom: '1.5rem', boxShadow: 'var(--shadow-sm)', borderLeft: ac.paymentType === 'Cash' ? '4px solid #28a745' : '4px solid #f59e0b' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -875,8 +946,66 @@ export default function ProfilePage() {
                           </div>
                         )}
                       </div>
+
+                      {ac.purchasedFromStore && (
+                        <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                          {!ac.isPaused && (
+                            <>
+                              <button className="btn btn-sm" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', width: 'auto' }} onClick={() => {
+                                setBookingUnit(`${ac.location} — ${ac.brandModel}`);
+                                setBookingService('Free Quarterly Maintenance');
+                                setShowBookingModal(true);
+                              }}>
+                                <i className="fa-solid fa-bell-concierge"></i> Request Maintenance
+                              </button>
+                              <span style={{ fontSize: '0.85rem', color: 'var(--text-light)', fontWeight: 500 }}>
+                                Next Free Maintenance: {
+                                  (() => {
+                                    const d = new Date(ac.createdAt);
+                                    d.setMonth(d.getMonth() + 3);
+                                    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                                  })()
+                                }
+                              </span>
+                            </>
+                          )}
+                          <button className="btn btn-sm btn-secondary" onClick={() => handleTogglePause(ac.id, ac.isPaused)} style={{ borderColor: 'var(--border-color)', color: 'var(--text-light)', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} title={ac.isPaused ? "Resume Maintenance" : "Pause Maintenance"}>
+                            <i className={`fa-solid ${ac.isPaused ? 'fa-play' : 'fa-pause'}`}></i> {ac.isPaused ? 'Resume' : 'Pause'}
+                          </button>
+                          {ac.isPaused && (
+                            <span style={{ fontSize: '0.85rem', color: 'var(--accent-red)', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                              <i className="fa-solid fa-circle-pause" style={{ marginRight: '5px' }}></i> Maintenance Paused
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                ))
+                ))}
+
+                {registeredACs.length > 2 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
+                    <button 
+                      className="btn btn-secondary" 
+                      disabled={myAcsPage === 1}
+                      onClick={() => setMyAcsPage(p => Math.max(1, p - 1))}
+                      style={{ padding: '0.5rem 1rem' }}
+                    >
+                      <i className="fa-solid fa-chevron-left" style={{ marginRight: '8px' }}></i> Previous
+                    </button>
+                    <span style={{ color: 'var(--text-light)', fontSize: '0.9rem' }}>
+                      Page {myAcsPage} of {Math.ceil(registeredACs.length / 2)}
+                    </span>
+                    <button 
+                      className="btn btn-secondary" 
+                      disabled={myAcsPage >= Math.ceil(registeredACs.length / 2)}
+                      onClick={() => setMyAcsPage(p => p + 1)}
+                      style={{ padding: '0.5rem 1rem' }}
+                    >
+                      Next <i className="fa-solid fa-chevron-right" style={{ marginLeft: '8px' }}></i>
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -9,12 +9,73 @@ export default function SignupPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('CUSTOMER');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const router = useRouter();
+  const googleBtnRef = useRef<HTMLDivElement>(null);
+
+  // Initialize Google Sign-In
+  useEffect(() => {
+    const clientId = '1037203276384-91thq0li7fl7n49hljrf3dte0ickuv04.apps.googleusercontent.com';
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      if (window.google && googleBtnRef.current) {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleResponse,
+        });
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: 'outline',
+          size: 'large',
+          width: 380,
+          text: 'signup_with',
+          shape: 'rectangular',
+          logo_alignment: 'left',
+        });
+      }
+    };
+    document.head.appendChild(script);
+    return () => {
+      const s = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+      if (s) s.remove();
+    };
+  }, []);
+
+  const handleGoogleResponse = async (response: { credential: string }) => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: response.credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Google sign up failed');
+        setLoading(false);
+        return;
+      }
+      sessionStorage.setItem('isLoggedIn', 'true');
+      sessionStorage.setItem('userId', data.id);
+      sessionStorage.setItem('userEmail', data.email);
+      sessionStorage.setItem('userName', `${data.firstName} ${data.lastName}`);
+      sessionStorage.setItem('userRole', data.role);
+      sessionStorage.setItem('isCustomer', 'true');
+      router.push('/');
+    } catch {
+      setError('Google sign up failed. Please try again.');
+      setLoading(false);
+    }
+  };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,8 +87,13 @@ export default function SignupPage() {
       setError('Password must be at least 6 characters.');
       return;
     }
+    if (role === 'TECHNICIAN' && !phone) {
+      setError('Phone number is required for technician accounts.');
+      return;
+    }
     setLoading(true);
     setError('');
+    setSuccess('');
 
     try {
       const res = await fetch('/api/auth', {
@@ -35,10 +101,11 @@ export default function SignupPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'signup',
-          email,
+          email: email.toLowerCase(),
           password,
           firstName,
           lastName,
+          phone: phone || null,
           role,
         }),
       });
@@ -46,30 +113,47 @@ export default function SignupPage() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 403) {
+          // Technician pending approval
+          setSuccess('Your technician account has been submitted! Please wait for admin approval before logging in.');
+          setLoading(false);
+          return;
+        }
         setError(data.error || 'Signup failed');
         setLoading(false);
         return;
       }
 
-      // Auto-login after signup
+      // Auto-login after signup (only for customers)
       sessionStorage.setItem('isLoggedIn', 'true');
-      if (data.role === 'CUSTOMER') {
-        sessionStorage.setItem('isCustomer', 'true');
-      }
       sessionStorage.setItem('userId', data.id);
       sessionStorage.setItem('userEmail', data.email);
       sessionStorage.setItem('userName', `${data.firstName} ${data.lastName}`);
       sessionStorage.setItem('userRole', data.role);
-      
+
       if (data.role === 'TECHNICIAN') {
+        sessionStorage.setItem('isTech', 'true');
         router.push('/technician');
       } else {
+        sessionStorage.setItem('isCustomer', 'true');
         router.push('/');
       }
     } catch {
       setError('Network error. Please try again.');
       setLoading(false);
     }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '0.8rem 1rem',
+    borderRadius: 'var(--radius-pill)',
+    border: '1px solid var(--border-color)',
+    background: 'var(--bg-input)',
+    color: 'white',
+    outline: 'none',
+    fontSize: '0.95rem',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
   };
 
   return (
@@ -99,10 +183,79 @@ export default function SignupPage() {
 
       {/* Sign Up Form */}
       <section className="login-section">
-        <div className="login-card" style={{ maxWidth: '500px' }}>
+        <div className="login-card" style={{ maxWidth: '520px' }}>
           <h2>Create an Account</h2>
+
+          {/* Role Toggle Tabs */}
+          <div style={{ 
+            display: 'flex', 
+            gap: '0', 
+            marginBottom: '1.5rem', 
+            borderRadius: 'var(--radius-pill)', 
+            overflow: 'hidden', 
+            border: '1px solid var(--border-color)',
+            background: 'var(--bg-input)'
+          }}>
+            <button 
+              type="button"
+              onClick={() => setRole('CUSTOMER')}
+              style={{ 
+                flex: 1, 
+                padding: '0.75rem', 
+                border: 'none', 
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                transition: 'all 0.3s ease',
+                background: role === 'CUSTOMER' ? 'var(--primary)' : 'transparent',
+                color: role === 'CUSTOMER' ? 'white' : 'var(--text-light)',
+              }}
+            >
+              <i className="fa-solid fa-user" style={{ marginRight: '6px' }}></i> Customer
+            </button>
+            <button 
+              type="button"
+              onClick={() => setRole('TECHNICIAN')}
+              style={{ 
+                flex: 1, 
+                padding: '0.75rem', 
+                border: 'none', 
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                transition: 'all 0.3s ease',
+                background: role === 'TECHNICIAN' ? 'var(--secondary)' : 'transparent',
+                color: role === 'TECHNICIAN' ? 'white' : 'var(--text-light)',
+              }}
+            >
+              <i className="fa-solid fa-wrench" style={{ marginRight: '6px' }}></i> Technician
+            </button>
+          </div>
+
+          {/* Technician Info Banner */}
+          {role === 'TECHNICIAN' && (
+            <div style={{
+              background: 'rgba(255, 107, 53, 0.1)',
+              border: '1px solid rgba(255, 107, 53, 0.3)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.75rem 1rem',
+              marginBottom: '1.25rem',
+              fontSize: '0.85rem',
+              color: 'var(--secondary)',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px',
+            }}>
+              <i className="fa-solid fa-circle-info" style={{ marginTop: '2px' }}></i>
+              <span>Technician accounts require <strong>admin approval</strong> before you can access the dashboard. You&apos;ll be notified once approved.</span>
+            </div>
+          )}
+
           <form onSubmit={handleSignup}>
             {error && <div style={{background: 'rgba(220,53,69,0.1)', color: '#dc3545', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem', border: '1px solid rgba(220,53,69,0.3)'}}><i className="fa-solid fa-circle-exclamation" style={{marginRight: '6px'}}></i>{error}</div>}
+            {success && <div style={{background: 'rgba(40,167,69,0.1)', color: '#28a745', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem', border: '1px solid rgba(40,167,69,0.3)'}}><i className="fa-solid fa-circle-check" style={{marginRight: '6px'}}></i>{success}</div>}
+            
+            {/* Name Row */}
             <div className="form-row">
               <div className="form-group">
                 <label htmlFor="fname">First Name</label>
@@ -127,6 +280,8 @@ export default function SignupPage() {
                 />
               </div>
             </div>
+
+            {/* Email */}
             <div className="form-group">
               <label htmlFor="email">Email Address</label>
               <input 
@@ -138,17 +293,35 @@ export default function SignupPage() {
                 required 
               />
             </div>
+
+            {/* Phone Number */}
+            <div className="form-group">
+              <label htmlFor="phone">Phone Number {role === 'TECHNICIAN' && <span style={{ color: 'var(--secondary)', fontSize: '0.8rem' }}>(Required)</span>}</label>
+              <input 
+                type="tel" 
+                id="phone" 
+                placeholder="e.g. 09123456789" 
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required={role === 'TECHNICIAN'}
+                style={inputStyle}
+              />
+            </div>
+
+            {/* Password */}
             <div className="form-group">
               <label htmlFor="password">Password</label>
               <input 
                 type="password" 
                 id="password" 
-                placeholder="Create a password" 
+                placeholder="Create a password (min 6 chars)" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required 
               />
             </div>
+
+            {/* Confirm Password */}
             <div className="form-group">
               <label htmlFor="confirm-password">Confirm Password</label>
               <input 
@@ -160,49 +333,33 @@ export default function SignupPage() {
                 required 
               />
             </div>
-            <div className="form-group">
-              <label htmlFor="role">Account Type</label>
-              <select 
-                id="role"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                style={{ width: '100%', padding: '0.8rem', borderRadius: 'var(--radius-pill)', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'white', outline: 'none' }}
-              >
-                <option value="CUSTOMER">Customer</option>
-                <option value="TECHNICIAN">Technician</option>
-              </select>
-            </div>
-            <button type="submit" className="btn login-btn" disabled={loading}>{loading ? 'Creating account...' : 'Sign Up'}</button>
-            
-            <div style={{ display: 'flex', alignItems: 'center', margin: '1.5rem 0', color: 'var(--text-light)', fontSize: '0.85rem' }}>
-              <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }}></div>
-              <span style={{ padding: '0 10px' }}>OR</span>
-              <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }}></div>
-            </div>
 
-            <button type="button" className="btn" style={{ background: 'white', color: '#333', border: '1px solid #ddd', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }} onClick={async () => {
-              setLoading(true);
-              try {
-                const res = await fetch('/api/auth/google', { method: 'POST' });
-                const data = await res.json();
-                if (res.ok) {
-                  sessionStorage.setItem('userId', data.id);
-                  sessionStorage.setItem('userRole', data.role);
-                  sessionStorage.setItem('userName', `${data.firstName} ${data.lastName}`);
-                  sessionStorage.setItem('userEmail', data.email);
-                  router.push(data.role === 'ADMIN' ? '/admin' : data.role === 'TECHNICIAN' ? '/technician' : '/profile');
-                } else {
-                  setError(data.error);
-                }
-              } catch (e) {
-                setError('Google sign up failed');
-              } finally {
-                setLoading(false);
-              }
-            }}>
-              <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.7 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-              Sign up with Google
+            {/* Submit */}
+            <button 
+              type="submit" 
+              className="btn login-btn" 
+              disabled={loading}
+              style={{
+                background: role === 'TECHNICIAN' ? 'var(--secondary)' : undefined,
+              }}
+            >
+              {loading ? 'Creating account...' : role === 'TECHNICIAN' ? 'Apply as Technician' : 'Sign Up'}
             </button>
+            
+            {/* Google Sign-In (only for customers) */}
+            {role === 'CUSTOMER' && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', margin: '1.5rem 0', color: 'var(--text-light)', fontSize: '0.85rem' }}>
+                  <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }}></div>
+                  <span style={{ padding: '0 10px' }}>OR</span>
+                  <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }}></div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <div ref={googleBtnRef}></div>
+                </div>
+              </>
+            )}
           </form>
           <div className="signup-link">
             Already have an account? <Link href="/login">Sign In</Link>

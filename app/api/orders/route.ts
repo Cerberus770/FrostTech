@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { sendPhilSMS } from '@/lib/philsms';
 
 // GET /api/orders
 export async function GET(request: NextRequest) {
@@ -40,6 +41,29 @@ export async function PATCH(request: NextRequest) {
       where: { id },
       data,
     });
+
+    // Send SMS notification on order status change
+    if (data.status === 'Approved' || data.status === 'Completed') {
+      try {
+        const customer = await prisma.user.findUnique({
+          where: { id: order.userId },
+          select: { phone: true, firstName: true }
+        });
+
+        if (customer && customer.phone) {
+          let msg = '';
+          if (data.status === 'Approved') {
+            msg = `Hi ${customer.firstName}! Your FrostTech order (${order.orderNo}) for "${order.item}" has been APPROVED and is now being processed. We'll update you once it's ready. Thank you!`;
+          } else {
+            msg = `Hi ${customer.firstName}! Your FrostTech order (${order.orderNo}) has been COMPLETED. Thank you for choosing FrostTech Cooling Solutions!`;
+          }
+          await sendPhilSMS(customer.phone, msg);
+        }
+      } catch (smsError) {
+        console.error('Failed to send order SMS:', smsError);
+      }
+    }
+
     return NextResponse.json(order);
   } catch (error) {
     console.error('Order update error:', error);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { sendPhilSMS } from '@/lib/philsms';
 
 // GET /api/dispatch
 export async function GET(request: NextRequest) {
@@ -48,6 +49,27 @@ export async function PATCH(request: NextRequest) {
       where: { id },
       data: updateData,
     });
+
+    // If status is changed to Assigned, send an SMS to the customer
+    if (data.status === 'Assigned') {
+      try {
+        const customer = await prisma.user.findUnique({
+          where: { id: item.customerId },
+          select: { phone: true, firstName: true }
+        });
+
+        if (customer && customer.phone) {
+          const techNames = technicianIds ? 'our technicians' : 'your assigned technician';
+          const msg = `Hi ${customer.firstName}, your FrostTech service (${item.type}) has been scheduled. ${techNames} will be arriving at your location on ${item.scheduledDate || 'the agreed date'}. Thank you!`;
+          
+          await sendPhilSMS(customer.phone, msg);
+        }
+      } catch (smsError) {
+        console.error('Failed to send SMS during dispatch:', smsError);
+        // We don't throw here to avoid failing the DB update
+      }
+    }
+
     return NextResponse.json(item);
   } catch (error) {
     console.error('Dispatch update error:', error);

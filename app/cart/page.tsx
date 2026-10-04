@@ -353,6 +353,20 @@ FrostTech Representative: ______________  Date: ___________
           )}
         </h1>
 
+        {/* Continue Shopping - always visible at top */}
+        <Link href="/" style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          color: 'var(--primary)',
+          fontSize: '0.9rem',
+          fontWeight: 600,
+          marginBottom: '1.5rem',
+          textDecoration: 'none',
+        }}>
+          <i className="fa-solid fa-arrow-left"></i> Continue Shopping
+        </Link>
+
         {cartItems.length === 0 ? (
           /* Empty Cart State */
           <div style={{
@@ -387,7 +401,7 @@ FrostTech Representative: ______________  Date: ___________
           </div>
         ) : (
           /* Cart Content */
-          <div style={{
+          <div className="cart-grid" style={{
             display: 'grid',
             gridTemplateColumns: '1fr 340px',
             gap: '2rem',
@@ -396,7 +410,7 @@ FrostTech Representative: ______________  Date: ___________
             {/* Cart Items */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {cartItems.map((item) => (
-                <div key={item.id} style={{
+                <div key={item.id} className="cart-item-card" style={{
                   background: 'var(--bg-card)',
                   border: '1px solid rgba(255,255,255,0.06)',
                   borderRadius: 'var(--radius-lg)',
@@ -526,20 +540,6 @@ FrostTech Representative: ______________  Date: ___________
                   </div>
                 </div>
               ))}
-
-              {/* Continue Shopping */}
-              <Link href="/" style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                color: 'var(--primary)',
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                marginTop: '0.5rem',
-                textDecoration: 'none',
-              }}>
-                <i className="fa-solid fa-arrow-left"></i> Continue Shopping
-              </Link>
             </div>
 
             {/* Order Summary */}

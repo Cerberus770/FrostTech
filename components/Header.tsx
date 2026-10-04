@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-export default function Header() {
+export default function Header({ hideSearch = false }: { hideSearch?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -60,10 +60,20 @@ export default function Header() {
         <span className="logo-text">FrostTech</span>
       </Link>
 
-      <div className="search-bar">
-        <input type="text" id="search-input" placeholder="Search for air conditioners, brands..." />
-        <button id="search-btn"><i className="fa-solid fa-magnifying-glass"></i></button>
-      </div>
+      {!hideSearch && (
+        <form className="search-bar" onSubmit={(e) => {
+          e.preventDefault();
+          const query = (document.getElementById('search-input') as HTMLInputElement).value;
+          if (query.trim()) {
+            router.push(`/?q=${encodeURIComponent(query.trim())}`);
+          } else {
+            router.push('/');
+          }
+        }}>
+          <input type="text" id="search-input" placeholder="Search for air conditioners, brands..." />
+          <button type="submit" id="search-btn"><i className="fa-solid fa-magnifying-glass"></i></button>
+        </form>
+      )}
 
       <div className="header-icons">
         <div className="kebab-menu" ref={menuRef}>

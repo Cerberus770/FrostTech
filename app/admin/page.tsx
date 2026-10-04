@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import GoogleMap from '@/components/GoogleMap';
+import { useConfirmModal } from '@/components/ConfirmModal';
 
 interface InventoryItem {
   id: string; sku: string; brand: string; model: string; category: string; stock: number; price: number; image?: string | null;
@@ -29,6 +30,7 @@ interface MaintenanceItem {
 }
 
 export default function AdminDashboard() {
+  const { confirm, showAlert, ModalComponent } = useConfirmModal();
   const [activeTab, setActiveTab] = useState('tab-inventory');
   const [activeInstTab, setActiveInstTab] = useState('inst-pending');
   const [activeDispatchTab, setActiveDispatchTab] = useState('all');
@@ -40,6 +42,7 @@ export default function AdminDashboard() {
   const [installments, setInstallments] = useState<Installment[]>([]);
   const [dispatch, setDispatch] = useState<DispatchItem[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceItem[]>([]);
+  const [maintenancePage, setMaintenancePage] = useState(1);
   const [technicians, setTechnicians] = useState<{id: string, firstName: string, lastName: string}[]>([]);
   const [assignSelections, setAssignSelections] = useState<{[key: string]: string[]}>({});
   const [dateSelections, setDateSelections] = useState<{[key: string]: string}>({});
@@ -51,6 +54,7 @@ export default function AdminDashboard() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [techRequests, setTechRequests] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [storefrontProducts, setStorefrontProducts] = useState<Product[]>([]);
   const [selectedStorefrontProduct, setSelectedStorefrontProduct] = useState<Product | null>(null);
@@ -60,6 +64,7 @@ export default function AdminDashboard() {
   // POS State
   const [posCart, setPosCart] = useState<(InventoryItem & { cartQty: number })[]>([]);
   const [posSearch, setPosSearch] = useState('');
+  const [showPosCustomerModal, setShowPosCustomerModal] = useState(false);
   
   const handleAddToPos = (item: InventoryItem) => {
     setPosCart(prev => {
@@ -75,10 +80,91 @@ export default function AdminDashboard() {
     setPosCart(prev => prev.filter(p => p.id !== id));
   };
 
-  const handlePosCheckout = () => {
-    if (posCart.length === 0) return alert('Cart is empty!');
-    alert('POS Transaction Completed Successfully!');
-    setPosCart([]);
+  const handlePosCheckout = async () => {
+    if (posCart.length === 0) return showAlert({ title: 'Empty Cart', message: 'Cart is empty!', type: 'warning' });
+    const paymentMethod = (document.getElementById('pos-payment-method') as HTMLSelectElement).value;
+
+    if (paymentMethod === 'cash') {
+      const customerName = window.prompt("Enter Customer Name for the Cash Order:");
+      if (!customerName) return;
+
+      const isConfirmed = await confirm({
+        title: 'Confirm POS Order',
+        message: `Process cash transaction for ${customerName}?`
+      });
+      if (!isConfirmed) return;
+
+      try {
+        const itemNames = posCart.map(item => `${item.brand} ${item.model}`).join(', ');
+        
+        await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: 'guest',
+            name: customerName,
+            location: 'Walk-in / POS',
+            item: itemNames,
+            payment: 'Cash',
+            date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+            status: 'PENDING',
+            orderNo: 'ORD-' + Math.floor(1000 + Math.random() * 9000)
+          })
+        });
+        
+        showAlert({ title: 'Success', message: 'POS Transaction Completed! Added to Pending Orders.' });
+        setPosCart([]);
+        fetch('/api/orders').then(r => r.json()).then(setOrders).catch(() => {});
+      } catch (err) {
+        console.error(err);
+        showAlert({ title: 'Error', message: 'Failed to process POS cash transaction.', type: 'error' });
+      }
+    } else {
+      setShowPosCustomerModal(true);
+    }
+  };
+
+  const handlePosInstallmentSubmit = async () => {
+    const nameEl = document.getElementById('pos-cust-name') as HTMLInputElement;
+    const incomeEl = document.getElementById('pos-cust-income') as HTMLInputElement;
+    const employerEl = document.getElementById('pos-cust-employer') as HTMLInputElement;
+    const idTypeEl = document.getElementById('pos-cust-idtype') as HTMLSelectElement;
+    const termEl = document.getElementById('pos-cust-term') as HTMLSelectElement;
+
+    if (!nameEl?.value || !incomeEl?.value || !employerEl?.value) {
+      return alert('Please fill in all customer fields for the installment application.');
+    }
+
+    try {
+      const itemNames = posCart.map(item => `${item.brand} ${item.model}`).join(', ');
+
+      await fetch('/api/installments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: 'guest',
+          appId: 'APP-' + Math.floor(1000 + Math.random() * 9000),
+          name: nameEl.value,
+          item: itemNames,
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          term: parseInt(termEl?.value || '6', 10),
+          employer: employerEl.value,
+          income: incomeEl.value,
+          idType: idTypeEl?.value || 'UMID',
+          location: 'Walk-in / POS',
+          status: 'PENDING',
+          issue: ''
+        })
+      });
+
+      alert('Installment application submitted successfully to Installment Approvals!');
+      setShowPosCustomerModal(false);
+      setPosCart([]);
+      fetch('/api/installments').then(r => r.json()).then(setInstallments).catch(() => {});
+    } catch (err) {
+      console.error(err);
+      alert('Failed to submit installment application.');
+    }
   };
 
   // Calendar state
@@ -135,8 +221,44 @@ export default function AdminDashboard() {
     fetch('/api/users/technicians').then(r => r.json()).then(setTechnicians).catch(() => {});
     fetch('/api/users/customers').then(r => r.json()).then(setCustomers).catch(() => {});
     fetch('/api/tech-requests').then(r => r.json()).then(setTechRequests).catch(() => {});
+    fetch('/api/invoices').then(r => r.json()).then(setInvoices).catch(() => {});
     fetch('/api/products').then(r => r.json()).then(setStorefrontProducts).catch(() => {});
   }, []);
+
+  const handleSendMaintReminder = async (m: MaintenanceItem) => {
+    let phoneToUse = m.phone;
+
+    // If phone is missing or invalid, prompt the admin to enter one
+    if (!phoneToUse || phoneToUse === 'N/A' || phoneToUse.replace(/[^0-9]/g, '').length < 10) {
+      const entered = window.prompt(`No valid phone number on file for ${m.name}.\nPlease enter their PH mobile number (e.g. 09171234567):`);
+      if (!entered) return; // cancelled
+      phoneToUse = entered.trim();
+    }
+
+    if (!window.confirm(`Send SMS reminder to ${m.name} (${phoneToUse})?`)) return;
+    
+    try {
+      const res = await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'SMS_CUSTOMER',
+          to: phoneToUse,
+          subject: 'Maintenance Reminder',
+          message: `Hi ${m.name}, this is FrostTech reminding you of your scheduled ${m.serviceType} on ${m.scheduledDate}. Tech: ${m.technicianName || 'TBA'}. Thank you!`
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || 'SMS sent successfully!');
+      } else {
+        alert(data.error || 'Failed to send SMS');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error sending SMS reminder.');
+    }
+  };
 
   const q = searchQuery.toLowerCase();
   
@@ -181,6 +303,12 @@ export default function AdminDashboard() {
   };
 
   const handleAcceptOrder = async (order: Order) => {
+    const isConfirmed = await confirm({
+      title: 'Accept Order',
+      message: `Are you sure you want to accept order ${order.orderNo}?`
+    });
+    if (!isConfirmed) return;
+    
     try {
       // 1. Update order status
       await fetch('/api/orders', {
@@ -233,10 +361,10 @@ export default function AdminDashboard() {
       setOrders(orders.filter(o => o.id !== order.id));
       fetch('/api/dispatch').then(r => r.json()).then(setDispatch).catch(() => {});
       if (selectedOrder?.id === order.id) setSelectedOrder(null);
-      alert(`Order accepted, sent to dispatch, and AC registered!`);
+      showAlert({ title: 'Order Accepted', message: 'Order accepted, sent to dispatch, and AC registered!' });
     } catch (err) {
       console.error('Failed to accept order', err);
-      alert('Failed to accept order.');
+      showAlert({ title: 'Error', message: 'Failed to accept order.', type: 'error' });
     }
   };
 
@@ -267,8 +395,8 @@ export default function AdminDashboard() {
     const techIds = assignSelections[item.id] || [];
     const date = dateSelections[item.id];
     const timeBlock = timeBlockSelections[item.id] || 'Morning (8AM - 12PM)';
-    if (techIds.length === 0) return alert('Please select at least one technician.');
-    if (!date) return alert('Please select a date.');
+    if (techIds.length === 0) return showAlert({ title: 'Validation Error', message: 'Please select at least one technician.', type: 'warning' });
+    if (!date) return showAlert({ title: 'Validation Error', message: 'Please select a date.', type: 'warning' });
 
     const finalDate = `${date} ${timeBlock}`;
 
@@ -282,8 +410,19 @@ export default function AdminDashboard() {
     );
 
     if (hasConflict) {
-      const proceed = window.confirm('Warning: One or more selected technicians are already scheduled for this specific date and time block.\n\nDo you want to proceed with this assignment anyway?');
+      const proceed = await confirm({
+        title: 'Schedule Conflict',
+        message: 'Warning: One or more selected technicians are already scheduled for this specific date and time block.\n\nDo you want to proceed with this assignment anyway?',
+        type: 'warning',
+        confirmText: 'Proceed'
+      });
       if (!proceed) return;
+    } else {
+      const isConfirmed = await confirm({
+        title: 'Assign Technician',
+        message: `Assign selected technicians to ${item.dispatchNo} on ${finalDate}?`
+      });
+      if (!isConfirmed) return;
     }
     
     try {
@@ -327,12 +466,13 @@ export default function AdminDashboard() {
 
         // Refetch to get updated relations (technician name)
         fetch('/api/dispatch').then(r => r.json()).then(setDispatch).catch(() => {});
+        showAlert({ title: 'Assigned', message: 'Technicians assigned successfully!' });
       } else {
         throw new Error('Failed');
       }
     } catch (err) {
       console.error(err);
-      alert('Failed to assign technician.');
+      showAlert({ title: 'Error', message: 'Failed to assign technician.', type: 'error' });
     }
   };
 
@@ -441,6 +581,12 @@ export default function AdminDashboard() {
   };
 
   const handleDispatchInstallment = async (inst: Installment) => {
+    const isConfirmed = await confirm({
+      title: 'Dispatch Installment',
+      message: `Send ${inst.appId} to dispatch and register the AC unit?`
+    });
+    if (!isConfirmed) return;
+
     try {
       await fetch('/api/dispatch', {
         method: 'POST',
@@ -484,10 +630,10 @@ export default function AdminDashboard() {
 
       fetch('/api/dispatch').then(r => r.json()).then(setDispatch).catch(() => {});
       setDispatchedInstallments(prev => new Set(prev).add(inst.id));
-      alert(`Installment for ${inst.name} has been sent to Dispatch and AC registered to their profile!`);
+      showAlert({ title: 'Success', message: `Installment for ${inst.name} has been sent to Dispatch and AC registered to their profile!` });
     } catch (err) {
       console.error(err);
-      alert('Failed to send to dispatch.');
+      showAlert({ title: 'Error', message: 'Failed to send to dispatch.', type: 'error' });
     }
   };
 
@@ -567,6 +713,13 @@ export default function AdminDashboard() {
     const formData = new FormData(e.currentTarget);
     const baseSku = formData.get('sku') as string;
     const condition = formData.get('condition') as string || 'Brand New';
+    
+    const isConfirmed = await confirm({
+      title: 'Add Product',
+      message: `Are you sure you want to add ${formData.get('brand')} ${formData.get('model')} to inventory?`
+    });
+    if (!isConfirmed) return;
+
     // Auto-append condition suffix to SKU to avoid duplicates
     const condSuffix = condition === 'Brand New' ? '-NEW' : condition === 'Second Hand' ? '-2ND' : '-OH';
     const sku = baseSku.includes(condSuffix) ? baseSku : baseSku + condSuffix;
@@ -596,13 +749,14 @@ export default function AdminDashboard() {
         if (newItem.publishToStorefront) {
           fetch('/api/products').then(r => r.json()).then(setStorefrontProducts).catch(() => {});
         }
+        showAlert({ title: 'Success', message: 'Product added successfully!' });
       } else {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || 'Failed to add product');
       }
     } catch (err: any) {
       console.error(err);
-      alert(err.message || 'Failed to add product.');
+      showAlert({ title: 'Error', message: err.message || 'Failed to add product.', type: 'error' });
     }
   };
 
@@ -644,6 +798,7 @@ export default function AdminDashboard() {
     </header>
 
     <div className="admin-layout">
+        <ModalComponent />
 
         {/*  Sidebar  */}
         <aside className="admin-sidebar">
@@ -654,15 +809,16 @@ export default function AdminDashboard() {
                 <p style={{"fontSize":"0.85rem","color":"var(--text-light)"}}>Owner Access</p>
             </div>
             <ul className="admin-nav">
+                <li><a href="#" className={`tab-btn ${activeTab === 'tab-inventory' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-inventory'); }}><i className="fa-solid fa-boxes-stacked"></i> Inventory</a></li>
                 <li><a href="#" className={`tab-btn ${activeTab === 'tab-pos' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-pos'); }}><i className="fa-solid fa-cash-register"></i> Point of Sale</a></li>
                 <li><a href="#" className={`tab-btn ${activeTab === 'tab-installations' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-installations'); }}><i className="fa-solid fa-clipboard-check"></i> Pending Orders</a></li>
                 <li><a href="#" className={`tab-btn ${activeTab === 'tab-installments' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-installments'); }}><i className="fa-solid fa-file-invoice-dollar"></i> Installment Approvals</a></li>
                 <li><a href="#" className={`tab-btn ${activeTab === 'tab-dispatch' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-dispatch'); }}><i className="fa-solid fa-truck-fast"></i> Dispatch & Schedule</a></li>
                 <li><a href="#" className={`tab-btn ${activeTab === 'tab-tech-requests' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-tech-requests'); }}><i className="fa-solid fa-toolbox"></i> Tech Requests</a></li>
+                <li><a href="#" className={`tab-btn ${activeTab === 'tab-invoices' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-invoices'); }}><i className="fa-solid fa-file-invoice"></i> Invoices</a></li>
                 <li><a href="#" className={`tab-btn ${activeTab === 'tab-maintenance' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-maintenance'); }}><i className="fa-solid fa-calendar-check"></i> Maintenance Schedule</a></li>
                 <li><a href="#" className={`tab-btn ${activeTab === 'tab-calendar' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-calendar'); }}><i className="fa-regular fa-calendar-days"></i> Master Calendar</a></li>
                 <li><a href="#" className={`tab-btn ${activeTab === 'tab-customers' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-customers'); }}><i className="fa-solid fa-users"></i> Customer Directory</a></li>
-                <li><a href="#" className={`tab-btn ${activeTab === 'tab-inventory' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-inventory'); }}><i className="fa-solid fa-boxes-stacked"></i> Inventory</a></li>
                 <li><a href="#" className={`tab-btn ${activeTab === 'tab-storefront' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-storefront'); }}><i className="fa-solid fa-store"></i> Storefront Products</a></li>
                 <li><a href="#" className={`tab-btn ${activeTab === 'tab-technicians' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-technicians'); }}><i className="fa-solid fa-user-gear"></i> Technicians</a></li>
             </ul>
@@ -1011,16 +1167,6 @@ export default function AdminDashboard() {
                                     <p style={{marginBottom: '5px'}}><strong>Item:</strong> {inst.item}</p>
                                     <p style={{marginBottom: '15px'}}><strong>Status:</strong> <span className="status-badge status-good">Approved</span></p>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                      <button 
-                                        className="btn" 
-                                        style={{background: 'var(--accent-green)', padding: '0.6rem 1rem', width: '100%', display: 'flex', justifyContent: 'center', gap: '8px'}} 
-                                        onClick={() => {
-                                          // Use the selectedInstallment state to open the payment modal
-                                          setSelectedInstallment({...inst, isPayment: true} as any);
-                                        }}
-                                      >
-                                        <i className="fa-solid fa-file-invoice-dollar"></i> Post Payment
-                                      </button>
                                       {!dispatchedInstallments.has(inst.id) && (
                                         <button 
                                           className="btn btn-secondary" 
@@ -1204,7 +1350,17 @@ export default function AdminDashboard() {
                 }}>
                     {(() => {
                         const items = filteredDispatch.filter(item => activeDispatchTab === 'all' || item.type === activeDispatchTab);
-                        const paginatedItems = items.slice((dispatchPage - 1) * 6, dispatchPage * 6);
+                        const sortedItems = [...items].sort((a, b) => {
+                            const getRank = (s: string) => {
+                                const lower = s.toLowerCase();
+                                if (lower === 'queued') return 1;
+                                if (lower === 'pending') return 2;
+                                if (lower === 'completed') return 4;
+                                return 3;
+                            };
+                            return getRank(a.status) - getRank(b.status);
+                        });
+                        const paginatedItems = sortedItems.slice((dispatchPage - 1) * 6, dispatchPage * 6);
                         return paginatedItems.map(item => (
                         <div key={item.id} className="dispatch-card admin-card" style={{"position":"relative","paddingLeft":"4.5rem"}}>
                             <div className="dispatch-icon" style={{"position":"absolute","left":"1.2rem","top":"1.5rem","width":"40px","height":"40px","borderRadius":"8px","display":"flex","alignItems":"center","justifyContent":"center","fontSize":"1.2rem","color":"white", "background": item.type === 'New Installation' ? 'var(--primary)' : item.type === 'Deep Cleaning' ? 'var(--accent-red)' : '#e67e22'}}>
@@ -1497,7 +1653,14 @@ export default function AdminDashboard() {
                             </tr>
                         </thead>
                         <tbody id="maint-table-body">
-                            {filteredMaintenance.map(m => (
+                            {(() => {
+                                const sortedMaint = [...filteredMaintenance].sort((a, b) => {
+                                    if (a.technicianName && !b.technicianName) return 1;
+                                    if (!a.technicianName && b.technicianName) return -1;
+                                    return 0;
+                                });
+                                const paginatedMaint = sortedMaint.slice((maintenancePage - 1) * 5, maintenancePage * 5);
+                                return paginatedMaint.map(m => (
                                 <tr key={m.id}>
                                     <td>
                                         <div style={{"fontWeight":"600","color":"var(--text-dark)"}}>{new Date(m.scheduledDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
@@ -1546,14 +1709,43 @@ export default function AdminDashboard() {
                                                 <button className="btn" style={{ background: 'var(--primary)', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }} onClick={() => handleAssignMaintenanceTech(m)}>Assign</button>
                                             </div>
                                         ) : (
-                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}><i className="fa-solid fa-check" style={{ color: 'var(--accent-green)' }}></i> Assigned</span>
+                                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                <span style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}><i className="fa-solid fa-check" style={{ color: '#28a745' }}></i> Assigned</span>
+                                                <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem' }} onClick={() => handleSendMaintReminder(m)} title="Send SMS Reminder">
+                                                    <i className="fa-solid fa-comment-sms"></i> Remind
+                                                </button>
+                                            </div>
                                         )}
                                     </td>
                                 </tr>
-                            ))}
+                                ));
+                            })()}
                             {maintenance.length === 0 && <tr><td colSpan={7} style={{textAlign: 'center', color: 'var(--text-light)', padding: '2rem'}}>No upcoming maintenance.</td></tr>}
                         </tbody>
                     </table>
+                    {filteredMaintenance.length > 5 && (
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1.5rem' }}>
+                            <button 
+                                className="btn btn-secondary" 
+                                disabled={maintenancePage === 1} 
+                                onClick={() => setMaintenancePage(prev => Math.max(prev - 1, 1))}
+                                style={{ opacity: maintenancePage === 1 ? 0.5 : 1, pointerEvents: maintenancePage === 1 ? 'none' : 'auto' }}
+                            >
+                                <i className="fa-solid fa-chevron-left"></i> Prev
+                            </button>
+                            <span style={{ display: 'flex', alignItems: 'center', fontWeight: 'bold' }}>
+                                Page {maintenancePage} of {Math.ceil(filteredMaintenance.length / 5)}
+                            </span>
+                            <button 
+                                className="btn btn-secondary" 
+                                disabled={maintenancePage >= Math.ceil(filteredMaintenance.length / 5)} 
+                                onClick={() => setMaintenancePage(prev => prev + 1)}
+                                style={{ opacity: maintenancePage >= Math.ceil(filteredMaintenance.length / 5) ? 0.5 : 1, pointerEvents: maintenancePage >= Math.ceil(filteredMaintenance.length / 5) ? 'none' : 'auto' }}
+                            >
+                                Next <i className="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -1648,11 +1840,11 @@ export default function AdminDashboard() {
             </div>
 
             {/*  POS Installment Customer Info Modal  */}
-            <div className="modal-overlay" id="pos-customer-modal">
+            <div className={`modal-overlay ${showPosCustomerModal ? 'show' : ''}`} style={{ display: showPosCustomerModal ? 'flex' : 'none' }}>
                 <div className="modal-content" style={{"maxWidth":"500px"}}>
                     <div className="modal-header">
                         <h2 style={{"fontSize":"1.5rem","color":"var(--primary)"}}>Customer Information</h2>
-                        <button className="close-modal" onClick={() => {}}>&times;</button>
+                        <button className="close-modal" onClick={() => setShowPosCustomerModal(false)}>&times;</button>
                     </div>
                     <div className="modal-body">
                         <div style={{"display":"flex","flexDirection":"column","gap":"1rem"}}>
@@ -1697,7 +1889,7 @@ export default function AdminDashboard() {
                                 <span id="pos-selected-coords" style={{"fontSize":"0.8rem","color":"var(--text-light)","fontWeight":"500"}}>Click on the map to pinpoint. Selected: TBD</span>
                                 <input type="hidden" id="pos-cust-coords" value="" />
                             </div>
-                            <button className="btn" id="confirm-pos-installment-btn" style={{"width":"100%","marginTop":"1rem","background":"var(--primary)"}}>Confirm & Apply &rarr;</button>
+                            <button className="btn" id="confirm-pos-installment-btn" style={{"width":"100%","marginTop":"1rem","background":"var(--primary)"}} onClick={handlePosInstallmentSubmit}>Confirm & Apply &rarr;</button>
                         </div>
                     </div>
                 </div>
@@ -2003,6 +2195,113 @@ export default function AdminDashboard() {
                             {technicians.length === 0 && (
                                 <tr>
                                     <td colSpan={4} style={{textAlign: 'center', padding: '2rem'}}>No technicians found.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/*  Invoices Tab  */}
+            <div id="tab-invoices" className={`tab-panel ${activeTab === 'tab-invoices' ? 'active' : ''}`}>
+                <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                        <h2>Invoices & Receipts</h2>
+                        <p>View all invoices sent by technicians for completed jobs.</p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <span className="status-badge status-online" style={{ fontSize: '0.85rem' }}><i className="fa-solid fa-file-invoice" style={{marginRight: '4px'}}></i> {invoices.filter(i => i.type === 'ADMIN').length} Admin</span>
+                        <span className="status-badge status-medium" style={{ fontSize: '0.85rem' }}><i className="fa-solid fa-receipt" style={{marginRight: '4px'}}></i> {invoices.filter(i => i.type === 'CUSTOMER').length} Customer</span>
+                    </div>
+                </div>
+
+                {/* Invoice Stats */}
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1.2rem', marginBottom: '2rem'}}>
+                    <div className="admin-card" style={{textAlign: 'center', marginBottom: 0, padding: '1.2rem', borderLeft: '4px solid var(--primary)'}}>
+                        <p style={{fontSize: '2rem', fontWeight: 800, color: 'var(--primary)'}}>{invoices.length}</p>
+                        <p style={{fontSize: '0.82rem', color: 'var(--text-light)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px'}}>Total Invoices</p>
+                    </div>
+                    <div className="admin-card" style={{textAlign: 'center', marginBottom: 0, padding: '1.2rem', borderLeft: '4px solid #28a745'}}>
+                        <p style={{fontSize: '2rem', fontWeight: 800, color: '#28a745'}}>{invoices.filter(i => i.type === 'ADMIN').length}</p>
+                        <p style={{fontSize: '0.82rem', color: 'var(--text-light)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px'}}>Admin Invoices</p>
+                    </div>
+                    <div className="admin-card" style={{textAlign: 'center', marginBottom: 0, padding: '1.2rem', borderLeft: '4px solid #f59e0b'}}>
+                        <p style={{fontSize: '2rem', fontWeight: 800, color: '#f59e0b'}}>{invoices.filter(i => i.type === 'CUSTOMER').length}</p>
+                        <p style={{fontSize: '0.82rem', color: 'var(--text-light)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px'}}>Customer Receipts</p>
+                    </div>
+                    <div className="admin-card" style={{textAlign: 'center', marginBottom: 0, padding: '1.2rem', borderLeft: '4px solid #6366f1'}}>
+                        <p style={{fontSize: '2rem', fontWeight: 800, color: '#6366f1'}}>{invoices.filter(i => i.status === 'Sent').length}</p>
+                        <p style={{fontSize: '0.82rem', color: 'var(--text-light)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px'}}>Pending Review</p>
+                    </div>
+                </div>
+
+                {/* Invoice Table */}
+                <div className="data-table-container">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Invoice No</th>
+                                <th>Type</th>
+                                <th>Customer</th>
+                                <th>Service</th>
+                                <th>AC Unit</th>
+                                <th>Technician</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {invoices.map((inv: any) => (
+                                <tr key={inv.id}>
+                                    <td style={{fontWeight: 'bold', color: 'var(--primary)'}}>{inv.invoiceNo}</td>
+                                    <td>
+                                        <span className={`status-badge ${inv.type === 'ADMIN' ? 'status-online' : 'status-medium'}`}>
+                                            <i className={`fa-solid ${inv.type === 'ADMIN' ? 'fa-file-invoice' : 'fa-receipt'}`} style={{marginRight: '4px'}}></i>
+                                            {inv.type === 'ADMIN' ? 'Admin' : 'Customer'}
+                                        </span>
+                                    </td>
+                                    <td style={{fontWeight: 600}}>{inv.customerName}</td>
+                                    <td>{inv.serviceType}</td>
+                                    <td style={{fontSize: '0.85rem'}}>{inv.acUnit}</td>
+                                    <td>{inv.technicianName}</td>
+                                    <td style={{fontSize: '0.85rem', color: 'var(--text-light)'}}>{new Date(inv.createdAt).toLocaleDateString()}</td>
+                                    <td>
+                                        <span className={`status-badge ${inv.status === 'Paid' ? 'status-good' : inv.status === 'Viewed' ? 'status-medium' : 'status-low'}`}>
+                                            {inv.status}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div style={{ display: 'flex', gap: '0.3rem' }}>
+                                            {inv.status === 'Sent' && (
+                                                <button className="btn btn-sm" style={{padding: '0.3rem 0.6rem'}} onClick={async () => {
+                                                    try {
+                                                        await fetch('/api/invoices', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: inv.id, status: 'Viewed' }) });
+                                                        setInvoices(prev => prev.map(i => i.id === inv.id ? {...i, status: 'Viewed'} : i));
+                                                    } catch { alert('Failed to update'); }
+                                                }}><i className="fa-solid fa-eye"></i> Viewed</button>
+                                            )}
+                                            {(inv.status === 'Sent' || inv.status === 'Viewed') && (
+                                                <button className="btn btn-sm" style={{padding: '0.3rem 0.6rem', background: '#28a745'}} onClick={async () => {
+                                                    try {
+                                                        await fetch('/api/invoices', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: inv.id, status: 'Paid' }) });
+                                                        setInvoices(prev => prev.map(i => i.id === inv.id ? {...i, status: 'Paid'} : i));
+                                                    } catch { alert('Failed to update'); }
+                                                }}><i className="fa-solid fa-check"></i> Paid</button>
+                                            )}
+                                            {inv.status === 'Paid' && (
+                                                <span style={{color: '#28a745', fontWeight: 600, fontSize: '0.85rem'}}><i className="fa-solid fa-check-double"></i> Completed</span>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            {invoices.length === 0 && (
+                                <tr>
+                                    <td colSpan={9} style={{textAlign: 'center', padding: '3rem', color: 'var(--text-light)'}}>
+                                        <i className="fa-solid fa-file-invoice" style={{fontSize: '2.5rem', marginBottom: '1rem', display: 'block'}}></i>
+                                        No invoices yet. Invoices will appear here when technicians submit them from completed jobs.
+                                    </td>
                                 </tr>
                             )}
                         </tbody>

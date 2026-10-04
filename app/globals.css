@@ -1818,29 +1818,43 @@ textarea:focus {
             border: 1px solid var(--border-color);
             border-radius: var(--radius-md);
         }
-        
+        .mobile-only {
+            display: none !important;
+        }
+
         @media (max-width: 768px) {
+            .mobile-only {
+                display: flex !important;
+            }
             .profile-container {
-                grid-template-columns: 1fr;
-                gap: 1rem;
-                padding: 1.5rem 3%;
+                display: flex;
+                flex-direction: column;
+                gap: 0;
+                padding: 1rem 3%;
                 position: relative;
+                min-height: auto;
             }
             .profile-sidebar {
                 position: absolute;
-                top: 0;
-                left: -320px;
+                top: 60px;
+                left: 3%;
                 width: 250px;
+                background: var(--bg-card);
+                border: 1px solid var(--border-color);
+                border-radius: var(--radius-md);
+                box-shadow: var(--shadow-lg);
                 z-index: 100;
-                transition: left 0.3s ease;
-                box-shadow: 5px 0 15px rgba(0,0,0,0.1);
-                background: var(--bg-main);
-                height: 100%;
-                max-height: 80vh;
-                overflow-y: auto;
+                opacity: 0;
+                transform: translateY(-10px) translateX(-10px);
+                pointer-events: none;
+                transition: opacity 0.3s ease, transform 0.3s ease;
+                display: block;
+                max-height: none;
             }
             .profile-sidebar.active {
-                left: 0;
+                opacity: 1;
+                transform: translateY(0) translateX(0);
+                pointer-events: auto;
             }
             .profile-nav a {
                 font-size: 1rem;
@@ -2804,5 +2818,149 @@ textarea:focus {
   }
   .product-image-wrapper {
     padding: 0.75rem;
+  }
+}
+
+/* ==========================================================
+   GLOBAL RESPONSIVENESS FIXES (Mobile & Tablet)
+   ========================================================== */
+
+/* Fix horizontal overflow on all tables */
+table, .data-table, .cart-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table-container,
+.table-responsive,
+.table-wrapper {
+  overflow-x: auto;
+  width: 100%;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 1rem;
+}
+
+/* Make sure all modals don't overflow the screen width */
+.modal-content, 
+.checkout-modal-content, 
+.login-card {
+  width: 95% !important;
+  max-width: 600px !important;
+  margin: 10px auto;
+  box-sizing: border-box;
+}
+
+.product-details-wrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+/* General Layout adjustments for mobile */
+@media (max-width: 768px) {
+  .responsive-modal {
+    padding: 1.25rem !important;
+    border-radius: var(--radius-md) !important;
+  }
+  .product-details-wrapper {
+    grid-template-columns: 1fr;
+    padding: 1rem !important;
+    gap: 1rem !important;
+  }
+  /* Compress product image on mobile */
+  .product-details-wrapper > div:first-child > div {
+    aspect-ratio: auto !important;
+    padding: 1rem !important;
+  }
+  .product-details-wrapper > div:first-child > div > img {
+    width: 200px !important;
+    height: 200px !important;
+  }
+  /* Compress product info section */
+  .product-details-wrapper h1 {
+    font-size: 1.2rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  /* Shrink section container padding on mobile */
+  .section-container {
+    padding: 1rem 3% !important;
+  }
+  /* Cart responsive */
+  .cart-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1.25rem !important;
+  }
+  .cart-item-card {
+    flex-wrap: wrap !important;
+    padding: 1rem !important;
+    gap: 0.75rem !important;
+  }
+  .cart-item-card > div:first-child {
+    width: 70px !important;
+    height: 70px !important;
+  }
+  .cart-item-card > div:first-child img {
+    width: 55px !important;
+    height: 55px !important;
+  }
+  .cart-item-card > div:last-child {
+    flex-direction: row !important;
+    align-items: center !important;
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+  /* Header wrapping */
+  header {
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1rem !important;
+  }
+  
+  .search-bar {
+    order: 3; /* Move search bar below logo and icons */
+    min-width: 100%;
+    margin: 0 !important;
+  }
+  
+  .header-icons {
+    gap: 1rem;
+  }
+  
+  /* Hero section padding */
+  .hero-content {
+    padding: 2rem 1rem !important;
+  }
+  
+  .hero-content h1 {
+    font-size: 2rem !important;
+  }
+
+  /* Footer stack */
+  .footer-content, .footer-grid {
+    grid-template-columns: 1fr !important;
+    gap: 2rem;
+  }
+  
+  /* Adjust sub-containers (like dashboard grids) */
+  .sub-container, 
+  .dashboard-grid, 
+  .services-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Profile layout */
+  .profile-layout {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Ensure grids turn into lists on very small screens */
+@media (max-width: 600px) {
+  .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+  }
+  
+  .btn {
+    padding: 0.6rem 1rem !important;
+    font-size: 0.85rem !important;
   }
 }

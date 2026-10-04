@@ -288,3 +288,24 @@ model CartItem {
   @@unique([userId, productId])
   @@map("cart_items")
 }
+
+// ===== Invoices =====
+model Invoice {
+  id            String   @id @default(cuid())
+  invoiceNo     String   @unique // e.g. "INV-001"
+  type          String   // "ADMIN" or "CUSTOMER"
+  dispatchId    String
+  dispatchNo    String
+  customerName  String
+  serviceType   String
+  acUnit        String
+  location      String
+  technicianName String
+  status        String   @default("Sent") // "Sent", "Viewed", "Paid"
+  amount        Float    @default(0)
+  notes         String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("invoices")
+}

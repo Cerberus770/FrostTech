@@ -267,13 +267,11 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
 
       {/* Product Details Card */}
       <section className="section-container">
-        <div style={{
+        <div className="product-details-wrapper" style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border-color)',
           borderRadius: 'var(--radius-lg)',
           padding: '2rem',
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
           gap: '3rem',
           boxShadow: 'var(--shadow-md)',
         }}>
@@ -612,7 +610,7 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
       {/* Buy Modal - Multi-Step Checkout */}
       {showBuyModal && (
         <div className="modal-overlay show" onClick={(e) => { if (e.target === e.currentTarget) setShowBuyModal(false); }}>
-          <div style={{
+          <div className="responsive-modal" style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-color)',
             borderRadius: 'var(--radius-lg)',

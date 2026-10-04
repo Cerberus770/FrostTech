@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import GoogleMap from '@/components/GoogleMap';
+import { useConfirmModal } from '@/components/ConfirmModal';
 
 interface DispatchItem {
   id: string; dispatchNo: string; type: string; name: string; location: string; item: string; notes: string; status: string;
@@ -36,15 +37,22 @@ function GeocodedMap({ address }: { address: string }) {
       .then(data => {
         if (data && data.length > 0) {
           setCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+        } else {
+          // Fallback coordinate for demo purposes if address not found
+          setCoords({ lat: 14.6091, lng: 121.0223 }); // somewhere in QC/Manila
         }
       })
-      .catch(console.error);
+      .catch((err) => {
+        console.error('Geocoding error:', err);
+        setCoords({ lat: 14.6091, lng: 121.0223 });
+      });
   }, [address]);
 
-  return <GoogleMap height="300px" center={coords || undefined} markerPosition={coords || undefined} pinnable={false} />;
+  return <GoogleMap height="300px" center={coords || { lat: 14.6091, lng: 121.0223 }} markerPosition={coords || { lat: 14.6091, lng: 121.0223 }} pinnable={false} />;
 }
 
 export default function TechnicianDashboard() {
+  const { confirm, showAlert, ModalComponent } = useConfirmModal();
   const [tasks, setTasks] = useState<DispatchItem[]>([]);
   const [filter, setFilter] = useState('All');
   const [techName, setTechName] = useState('');
@@ -95,6 +103,45 @@ export default function TechnicianDashboard() {
     }
   };
 
+  const handleSendInvoice = async (job: DispatchItem, invoiceType: 'ADMIN' | 'CUSTOMER') => {
+    const isConfirmed = await confirm({
+      title: `Send ${invoiceType === 'ADMIN' ? 'Admin Invoice' : 'Customer Receipt'}`,
+      message: `Are you sure you want to send this ${invoiceType.toLowerCase()} for ${job.name}?`
+    });
+    if (!isConfirmed) return;
+
+    try {
+      const res = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: invoiceType,
+          dispatchId: job.id,
+          dispatchNo: job.dispatchNo,
+          customerName: job.name,
+          serviceType: job.type,
+          acUnit: job.item,
+          location: job.location?.split('| COORDS:')[0].trim() || '',
+          technicianName: techName,
+          amount: 0,
+          notes: job.notes || ''
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showAlert({ 
+          title: 'Success', 
+          message: `${invoiceType === 'ADMIN' ? 'Admin Invoice' : 'Customer Receipt'} sent successfully!\n\nInvoice No: ${data.invoiceNo}\nCustomer: ${job.name}\nService: ${job.type}` 
+        });
+      } else {
+        throw new Error('Failed');
+      }
+    } catch (error) {
+      console.error('Failed to send invoice:', error);
+      showAlert({ title: 'Error', message: 'Failed to send invoice. Please try again.', type: 'error' });
+    }
+  };
+
   const pendingCount = tasks.filter(t => t.status === 'PENDING').length;
   const progressCount = tasks.filter(t => t.status === 'ASSIGNED' || t.status === 'IN_PROGRESS').length;
   const completedCount = tasks.filter(t => t.status === 'COMPLETED').length;
@@ -107,9 +154,45 @@ export default function TechnicianDashboard() {
     return false;
   });
 
+  const sortedTasks = [...filteredTasks].sort((a, b) => {
+    if (a.status === 'COMPLETED' && b.status !== 'COMPLETED') return 1;
+    if (a.status !== 'COMPLETED' && b.status === 'COMPLETED') return -1;
+    const dateA = a.scheduledDate ? new Date(a.scheduledDate).getTime() : Infinity;
+    const dateB = b.scheduledDate ? new Date(b.scheduledDate).getTime() : Infinity;
+    return dateA - dateB;
+  });
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const tasksPerPage = 3;
+  const totalPages = Math.ceil(sortedTasks.length / tasksPerPage);
+  const paginatedTasks = sortedTasks.slice((currentPage - 1) * tasksPerPage, currentPage * tasksPerPage);
+
+  // Calendar
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDayTasks, setSelectedDayTasks] = useState<{ day: number, tasks: any[] } | null>(null);
+
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+
+  const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  const getEventsForDay = (day: number) => {
+    return tasks.filter(t => {
+      if (!t.scheduledDate) return false;
+      const dStr = t.scheduledDate.includes('T') ? t.scheduledDate : t.scheduledDate + 'T00:00:00';
+      const d = new Date(dStr);
+      return d.getDate() === day && d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear();
+    });
+  };
+
+  const hasEvent = (day: number) => getEventsForDay(day).length > 0;
+
   return (
     <>
-
+      <ModalComponent />
 
     {/*  Header  */}
     <header className="tech-header">
@@ -206,8 +289,12 @@ export default function TechnicianDashboard() {
                 >Completed</button>
             </div>
 
-            {filteredTasks.length === 0 && <p style={{textAlign: 'center', padding: '2rem'}}>No jobs match this filter.</p>}
-            {filteredTasks.map(job => (
+            {paginatedTasks.length === 0 && <p style={{textAlign: 'center', padding: '2rem'}}>No jobs match this filter.</p>}
+            {paginatedTasks.map(job => {
+                const todayStr = new Date(new Date().getTime() - (new Date().getTimezoneOffset()*60*1000)).toISOString().split('T')[0];
+                const isToday = !!(job.scheduledDate && job.scheduledDate.startsWith(todayStr));
+
+                return (
                 <div key={job.id} className={`job-card ${job.type === 'Deep Cleaning' ? 'deep-cleaning' : job.type === 'Repair' ? 'repair' : ''}`} data-status={job.status.toLowerCase()}>
                     <div className="job-card-header">
                         <h4>
@@ -219,58 +306,67 @@ export default function TechnicianDashboard() {
                     <div className="job-detail-row"><i className="fa-solid fa-user"></i> {job.name}</div>
                     <div className="job-detail-row"><i className="fa-solid fa-location-dot"></i> {job.location?.split('| COORDS:')[0].trim()}</div>
                     <div className="job-detail-row"><i className="fa-solid fa-fan"></i> {job.item}</div>
+                    <div className="job-detail-row"><i className="fa-regular fa-calendar-check"></i> {job.scheduledDate || 'No date set'}</div>
                     <div className="job-detail-row"><i className="fa-regular fa-clipboard"></i> {job.notes || 'No extra notes'}</div>
-                    <div className="job-actions">
+                    <div className="job-actions" style={{ flexWrap: 'wrap' }}>
                         {job.status === 'COMPLETED' ? (
-                            <button className="btn btn-sm btn-secondary" disabled style={{"opacity":"0.6"}}><i className="fa-solid fa-check-double"></i> Done</button>
+                            <>
+                                <button className="btn btn-sm btn-secondary" onClick={() => handleSendInvoice(job, 'ADMIN')}><i className="fa-solid fa-file-invoice"></i> Admin Invoice</button>
+                                <button className="btn btn-sm btn-secondary" onClick={() => handleSendInvoice(job, 'CUSTOMER')}><i className="fa-solid fa-receipt"></i> Customer Receipt</button>
+                            </>
                         ) : job.status === 'ASSIGNED' || job.status === 'IN_PROGRESS' ? (
-                            <button className="btn btn-sm" onClick={() => handleUpdateStatus(job.id, 'COMPLETED')}><i className="fa-solid fa-check"></i> Mark Complete &rarr;</button>
+                            <button className="btn btn-sm" onClick={() => { if(isToday) handleUpdateStatus(job.id, 'COMPLETED') }} disabled={!isToday} style={{ opacity: isToday ? 1 : 0.5, cursor: isToday ? 'pointer' : 'not-allowed' }} title={!isToday ? "You can only mark jobs complete on their scheduled date." : ""}><i className="fa-solid fa-check"></i> Mark Complete &rarr;</button>
                         ) : (
-                            <button className="btn btn-sm" onClick={() => handleUpdateStatus(job.id, 'ASSIGNED')}><i className="fa-solid fa-play"></i> Start Job &rarr;</button>
+                            <button className="btn btn-sm" onClick={() => { if(isToday) handleUpdateStatus(job.id, 'ASSIGNED') }} disabled={!isToday} style={{ opacity: isToday ? 1 : 0.5, cursor: isToday ? 'pointer' : 'not-allowed' }} title={!isToday ? "You can only start jobs on their scheduled date." : ""}><i className="fa-solid fa-play"></i> Start Job &rarr;</button>
                         )}
                         <button className="btn btn-sm btn-secondary" onClick={() => { setSelectedJob(job); setShowClientModal(true); }}><i className="fa-solid fa-circle-info"></i> Client Info</button>
                     </div>
                 </div>
-            ))}
+            )})}
 
+            {totalPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1.5rem', alignItems: 'center' }}>
+                    <button className="btn btn-secondary" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>&larr; Previous</button>
+                    <span style={{ fontSize: '0.9rem', color: 'var(--text-light)' }}>Page {currentPage} of {totalPages}</span>
+                    <button className="btn btn-secondary" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>Next &rarr;</button>
+                </div>
+            )}
         </div>
 
         {/*  Today's Schedule  */}
         <div className="schedule-panel" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
-            <h3 style={{ marginBottom: '1rem', color: 'var(--text-dark)' }}><i className="fa-regular fa-calendar" style={{"marginRight":"8px", color: 'var(--primary)'}}></i> Today's Schedule</h3>
-            <p style={{"fontSize":"0.85rem","color":"var(--text-light)","marginBottom":"1.5rem"}}>
-                {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-            </p>
+            <h3 style={{ marginBottom: '1.5rem', color: 'var(--text-dark)' }}><i className="fa-regular fa-calendar" style={{"marginRight":"8px", color: 'var(--primary)'}}></i> Today&apos;s Schedule</h3>
 
             {(() => {
-                // Format today to match YYYY-MM-DD which is what input type="date" produces and what we store
-                const today = new Date();
-                const offset = today.getTimezoneOffset();
-                const localToday = new Date(today.getTime() - (offset*60*1000)).toISOString().split('T')[0];
-                
-                const todaysTasks = tasks.filter(t => t.scheduledDate?.startsWith(localToday));
-                
-                // Sort by time block
-                todaysTasks.sort((a, b) => {
-                    const aIsMorning = a.scheduledDate?.includes('Morning') ? 0 : 1;
-                    const bIsMorning = b.scheduledDate?.includes('Morning') ? 0 : 1;
-                    return aIsMorning - bIsMorning;
-                });
+                const todayStr = new Date(new Date().getTime() - (new Date().getTimezoneOffset()*60*1000)).toISOString().split('T')[0];
+                const todaysTasks = [...tasks]
+                    .filter(t => t.scheduledDate && t.scheduledDate.startsWith(todayStr))
+                    .sort((a, b) => a.scheduledDate!.localeCompare(b.scheduledDate!));
 
                 if (todaysTasks.length === 0) {
                     return <p style={{ color: 'var(--text-light)', fontStyle: 'italic' }}>No jobs scheduled for today.</p>;
                 }
 
                 return todaysTasks.map(task => {
-                    const isMorning = task.scheduledDate?.includes('Morning');
-                    const timeLabel = isMorning ? '8:00\nAM' : '1:00\nPM';
-                    
+                    const datePart = task.scheduledDate!.split(' ')[0]; // "2026-10-04"
+                    const timePart = task.scheduledDate!.replace(datePart, '').trim(); // "Morning (8AM - 12PM)"
+                    const d = new Date(datePart);
+                    const month = !isNaN(d.getTime()) ? d.toLocaleDateString('en-US', { month: 'short' }) : '';
+                    const day = !isNaN(d.getTime()) ? d.getDate().toString() : '';
+
                     return (
-                        <div key={`sched-${task.id}`} className="schedule-slot">
-                            <div className="slot-time" style={{ whiteSpace: 'pre-line' }}>{timeLabel}</div>
-                            <div className="slot-info">
+                        <div key={`sched-${task.id}`} className="schedule-slot" style={{ cursor: 'pointer', transition: 'all 0.2s' }} onClick={() => {
+                            setSelectedJob(task);
+                            setShowClientModal(true);
+                        }} onMouseEnter={(e) => e.currentTarget.style.transform = 'translateX(5px)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'translateX(0)'}>
+                            <div className="slot-time" style={{ whiteSpace: 'pre-line', textAlign: 'center', lineHeight: '1.2', minWidth: '60px' }}>
+                                <strong style={{fontSize: '1.2rem', color: 'var(--primary)'}}>{day}</strong><br/>
+                                <span style={{fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-light)'}}>{month}</span>
+                            </div>
+                            <div className="slot-info" style={{ flex: 1 }}>
                                 <h5>{task.name}</h5>
-                                <p>{task.location?.split('| COORDS:')[0].trim()}</p>
+                                <p style={{ marginBottom: '0.2rem' }}>{task.location?.split('| COORDS:')[0].trim()}</p>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 'bold' }}>{timePart || 'Time TBA'}</span>
                             </div>
                             <span className={`slot-type ${task.type === 'Deep Cleaning' ? 'deep-cleaning' : task.type === 'Repair' ? 'repair' : 'cleaning'}`}>
                                 {task.type === 'New Installation' ? 'Install' : task.type === 'Deep Cleaning' ? 'Deep Clean' : 'Repair'}
@@ -280,8 +376,9 @@ export default function TechnicianDashboard() {
                 });
             })()}
         </div>
-
     </div>
+
+
 
     {/*  Client Info Modal  */}
     <div className={`modal-overlay ${showClientModal ? 'show' : ''}`} id="client-info-modal">
@@ -317,8 +414,16 @@ export default function TechnicianDashboard() {
                     )}
                 </div>
                 
-                <div style={{"marginTop":"1.5rem","display":"flex","justifyContent":"flex-end"}}>
-                    <button className="btn" onClick={() => setShowClientModal(false)}><i className="fa-solid fa-check"></i> Got it</button>
+                <div style={{"marginTop":"1.5rem","display":"flex","justifyContent":"space-between", "flexWrap": "wrap", "gap": "1rem"}}>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button className="btn btn-secondary" onClick={() => { if(selectedJob) handleSendInvoice(selectedJob, 'ADMIN') }}>
+                            <i className="fa-solid fa-file-invoice"></i> Admin Invoice
+                        </button>
+                        <button className="btn btn-secondary" onClick={() => { if(selectedJob) handleSendInvoice(selectedJob, 'CUSTOMER') }}>
+                            <i className="fa-solid fa-receipt"></i> Customer Receipt
+                        </button>
+                    </div>
+                    <button className="btn" onClick={() => setShowClientModal(false)}><i className="fa-solid fa-check"></i> Close</button>
                 </div>
             </div>
         </div>
@@ -344,9 +449,42 @@ export default function TechnicianDashboard() {
                     <label style={{"fontSize":"0.85rem","fontWeight":"600","color":"var(--text-dark)","display":"block","marginBottom":"0.4rem"}}>Reason / Job Reference</label>
                     <textarea id="req-reason" rows={3} placeholder="Briefly state why this is needed..." style={{"width":"100%","padding":"0.8rem","borderRadius":"6px","border":"1px solid var(--border-color)","fontFamily":"inherit","resize":"vertical","background":"transparent","color":"var(--text-dark)"}}></textarea>
                 </div>
-                <button className="btn" style={{"width":"100%"}} onClick={() => {
-                    alert('Supply request submitted!');
-                    setShowSuppliesModal(false);
+                <button className="btn" style={{"width":"100%"}} onClick={async () => {
+                    const itemEl = document.getElementById('req-item') as HTMLInputElement;
+                    const qtyEl = document.getElementById('req-qty') as HTMLInputElement;
+                    const reasonEl = document.getElementById('req-reason') as HTMLTextAreaElement;
+                    const item = itemEl?.value?.trim();
+                    const qty = parseInt(qtyEl?.value || '1', 10);
+                    const reason = reasonEl?.value?.trim();
+                    if (!item) return showAlert({ title: 'Missing Item', message: 'Please enter the item needed.', type: 'warning' });
+                    const techId = sessionStorage.getItem('userId');
+                    if (!techId) return showAlert({ title: 'Authentication Error', message: 'Not logged in.', type: 'error' });
+                    
+                    const isConfirmed = await confirm({
+                        title: 'Request Supplies',
+                        message: `Submit request for ${qty}x ${item}?`
+                    });
+                    if (!isConfirmed) return;
+
+                    try {
+                      const res = await fetch('/api/tech-requests', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ technicianId: techId, itemNeeded: item, quantity: qty, reason: reason || 'N/A' })
+                      });
+                      if (res.ok) {
+                        showAlert({ title: 'Success', message: 'Supply request submitted successfully!' });
+                        if (itemEl) itemEl.value = '';
+                        if (qtyEl) qtyEl.value = '1';
+                        if (reasonEl) reasonEl.value = '';
+                        setShowSuppliesModal(false);
+                      } else {
+                        throw new Error('Failed');
+                      }
+                    } catch (err) {
+                      console.error(err);
+                      showAlert({ title: 'Error', message: 'Failed to submit request. Please try again.', type: 'error' });
+                    }
                 }}>Submit Request &rarr;</button>
             </div>
         </div>

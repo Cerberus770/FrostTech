@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
 import { useAppState } from '@/context/AppStateContext';
 import { products as fallbackProducts } from '@/lib/products';
@@ -25,6 +25,7 @@ interface DBProduct {
 
 export default function HomePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { state } = useAppState();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
@@ -42,6 +43,19 @@ export default function HomePage() {
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [showDownpaymentModal, setShowDownpaymentModal] = useState(false);
   const [pendingCartItem, setPendingCartItem] = useState<any>(null);
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q !== null) {
+      setSearchQuery(q);
+      // Optional: scroll to products if there's a search query
+      setTimeout(() => {
+        document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' });
+      }, 500);
+    } else {
+      setSearchQuery('');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetch('/api/products')

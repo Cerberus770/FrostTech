@@ -47,3 +47,31 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch customers' }, { status: 500 });
   }
 }
+
+// PATCH /api/users/customers - Update customer profile
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, firstName, lastName, phone } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    }
+
+    const updateData: any = {};
+    if (firstName !== undefined) updateData.firstName = firstName;
+    if (lastName !== undefined) updateData.lastName = lastName;
+    if (phone !== undefined) updateData.phone = phone;
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: updateData,
+      select: { id: true, firstName: true, lastName: true, email: true, phone: true }
+    });
+
+    return NextResponse.json(updatedUser);
+  } catch (error) {
+    console.error('Failed to update customer:', error);
+    return NextResponse.json({ error: 'Failed to update customer' }, { status: 500 });
+  }
+}
