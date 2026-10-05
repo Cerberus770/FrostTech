@@ -30,8 +30,10 @@ interface MaintenanceItem {
 }
 
 export default function AdminDashboard() {
-  const { confirm, showAlert, ModalComponent } = useConfirmModal();
+  const { confirm, showAlert, prompt, ModalComponent } = useConfirmModal();
   const [activeTab, setActiveTab] = useState('tab-inventory');
+  const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState(false);
+  const [adminMobileOpen, setAdminMobileOpen] = useState(false);
   const [activeInstTab, setActiveInstTab] = useState('inst-pending');
   const [activeDispatchTab, setActiveDispatchTab] = useState('all');
   const [dispatchViewMode, setDispatchViewMode] = useState('grid');
@@ -65,6 +67,7 @@ export default function AdminDashboard() {
   const [posCart, setPosCart] = useState<(InventoryItem & { cartQty: number })[]>([]);
   const [posSearch, setPosSearch] = useState('');
   const [showPosCustomerModal, setShowPosCustomerModal] = useState(false);
+  const [showPosCashModal, setShowPosCashModal] = useState(false);
   
   const handleAddToPos = (item: InventoryItem) => {
     setPosCart(prev => {
@@ -85,42 +88,47 @@ export default function AdminDashboard() {
     const paymentMethod = (document.getElementById('pos-payment-method') as HTMLSelectElement).value;
 
     if (paymentMethod === 'cash') {
-      const customerName = window.prompt("Enter Customer Name for the Cash Order:");
-      if (!customerName) return;
-
-      const isConfirmed = await confirm({
-        title: 'Confirm POS Order',
-        message: `Process cash transaction for ${customerName}?`
-      });
-      if (!isConfirmed) return;
-
-      try {
-        const itemNames = posCart.map(item => `${item.brand} ${item.model}`).join(', ');
-        
-        await fetch('/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: 'guest',
-            name: customerName,
-            location: 'Walk-in / POS',
-            item: itemNames,
-            payment: 'Cash',
-            date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-            status: 'PENDING',
-            orderNo: 'ORD-' + Math.floor(1000 + Math.random() * 9000)
-          })
-        });
-        
-        showAlert({ title: 'Success', message: 'POS Transaction Completed! Added to Pending Orders.' });
-        setPosCart([]);
-        fetch('/api/orders').then(r => r.json()).then(setOrders).catch(() => {});
-      } catch (err) {
-        console.error(err);
-        showAlert({ title: 'Error', message: 'Failed to process POS cash transaction.', type: 'error' });
-      }
+      setShowPosCashModal(true);
     } else {
       setShowPosCustomerModal(true);
+    }
+  };
+
+  const handlePosCashSubmit = async () => {
+    const customerName = (document.getElementById('pos-cash-name') as HTMLInputElement)?.value;
+    if (!customerName) return alert('Please enter the customer name.');
+
+    const isConfirmed = await confirm({
+      title: 'Confirm POS Order',
+      message: `Process cash transaction for ${customerName}?`
+    });
+    if (!isConfirmed) return;
+
+    try {
+      const itemNames = posCart.map(item => `${item.brand} ${item.model}`).join(', ');
+      
+      await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: 'guest',
+          name: customerName,
+          location: 'Walk-in / POS',
+          item: itemNames,
+          payment: 'Cash',
+          date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+          status: 'PENDING',
+          orderNo: 'ORD-' + Math.floor(1000 + Math.random() * 9000)
+        })
+      });
+      
+      showAlert({ title: 'Success', message: 'POS Transaction Completed! Added to Pending Orders.' });
+      setPosCart([]);
+      setShowPosCashModal(false);
+      fetch('/api/orders').then(r => r.json()).then(setOrders).catch(() => {});
+    } catch (err) {
+      console.error(err);
+      showAlert({ title: 'Error', message: 'Failed to process POS cash transaction.', type: 'error' });
     }
   };
 
@@ -230,12 +238,20 @@ export default function AdminDashboard() {
 
     // If phone is missing or invalid, prompt the admin to enter one
     if (!phoneToUse || phoneToUse === 'N/A' || phoneToUse.replace(/[^0-9]/g, '').length < 10) {
-      const entered = window.prompt(`No valid phone number on file for ${m.name}.\nPlease enter their PH mobile number (e.g. 09171234567):`);
+      const entered = await prompt({
+        title: 'Phone Number Required',
+        message: `No valid phone number on file for ${m.name}.\nPlease enter their PH mobile number (e.g. 09171234567):`,
+        placeholder: '09171234567'
+      });
       if (!entered) return; // cancelled
       phoneToUse = entered.trim();
     }
 
-    if (!window.confirm(`Send SMS reminder to ${m.name} (${phoneToUse})?`)) return;
+    const isConfirmed = await confirm({
+      title: 'Send SMS Reminder',
+      message: `Send SMS reminder to ${m.name} (${phoneToUse})?`
+    });
+    if (!isConfirmed) return;
     
     try {
       const res = await fetch('/api/notify', {
@@ -369,7 +385,11 @@ export default function AdminDashboard() {
   };
 
   const handleRestock = async (item: InventoryItem) => {
-    const qtyStr = window.prompt(`How many ${item.brand} ${item.model} are you adding to stock?`);
+    const qtyStr = await prompt({
+      title: 'Add Stock',
+      message: `How many ${item.brand} ${item.model} are you adding to stock?`,
+      placeholder: 'Enter quantity'
+    });
     if (!qtyStr) return;
     const qty = parseInt(qtyStr, 10);
     if (isNaN(qty) || qty <= 0) return alert('Invalid quantity.');
@@ -499,7 +519,11 @@ export default function AdminDashboard() {
       );
 
       if (hasConflict) {
-        const proceed = window.confirm('Warning: The selected technician is already scheduled for this specific date and time block.\n\nDo you want to proceed with this assignment anyway?');
+        const proceed = await confirm({
+          title: 'Scheduling Conflict',
+          message: 'Warning: The selected technician is already scheduled for this specific date and time block.\n\nDo you want to proceed with this assignment anyway?',
+          type: 'warning'
+        });
         if (!proceed) return;
       }
     }
@@ -638,7 +662,11 @@ export default function AdminDashboard() {
   };
 
   const handleSetDiscount = async (product: Product) => {
-    const newPriceStr = window.prompt(`Enter new discounted price for ${product.name} (Current: ₱${product.price}):`);
+    const newPriceStr = await prompt({
+      title: 'Set Discount Price',
+      message: `Enter new discounted price for ${product.name} (Current: ₱${product.price}):`,
+      placeholder: 'Enter new price'
+    });
     if (!newPriceStr) return;
     const newPrice = parseFloat(newPriceStr);
     if (isNaN(newPrice) || newPrice <= 0 || newPrice >= product.price) {
@@ -667,7 +695,12 @@ export default function AdminDashboard() {
 
   const handleRemoveDiscount = async (product: Product) => {
     if (!product.originalPrice) return;
-    if (!window.confirm(`Remove discount for ${product.name}? Price will revert to ₱${product.originalPrice}.`)) return;
+    const isConfirmed = await confirm({
+      title: 'Remove Discount',
+      message: `Remove discount for ${product.name}? Price will revert to ₱${product.originalPrice}.`,
+      type: 'warning'
+    });
+    if (!isConfirmed) return;
 
     try {
       const res = await fetch(`/api/products/${product.id}`, {
@@ -800,32 +833,53 @@ export default function AdminDashboard() {
     <div className="admin-layout">
         <ModalComponent />
 
+        {/* Mobile Backdrop */}
+        <div className={`admin-backdrop ${adminMobileOpen ? 'show' : ''}`} onClick={() => setAdminMobileOpen(false)}></div>
+
+        {/* Mobile Toggle */}
+        <div className="mobile-only" style={{ position: 'fixed', top: '80px', left: '10px', zIndex: 40, width: '40px', height: '40px' }}>
+          <button onClick={() => setAdminMobileOpen(!adminMobileOpen)} style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '50%', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-md)', cursor: 'pointer', fontSize: '1.2rem' }}>
+            <i className="fa-solid fa-bars"></i>
+          </button>
+        </div>
+
         {/*  Sidebar  */}
-        <aside className="admin-sidebar">
-            <div className="admin-profile">
-                <i className="fa-solid fa-shield-halved"
-                    style={{"fontSize":"3rem","color":"var(--primary)","marginBottom":"10px"}}></i>
-                <h3>Admin Portal</h3>
-                <p style={{"fontSize":"0.85rem","color":"var(--text-light)"}}>Owner Access</p>
+        <aside className={`admin-sidebar ${isAdminSidebarCollapsed ? 'collapsed' : ''} ${adminMobileOpen ? 'mobile-active' : ''}`}>
+            <div className="sidebar-header">
+              <h3>Admin Panel</h3>
+              <button className="sidebar-toggle-btn" onClick={() => setIsAdminSidebarCollapsed(!isAdminSidebarCollapsed)}>
+                <i className={`fa-solid ${isAdminSidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`}></i>
+              </button>
             </div>
+
+            <div className="admin-profile">
+              <div className="admin-avatar">
+                <i className="fa-solid fa-shield-halved"></i>
+              </div>
+              <div className="admin-meta">
+                <h3>Admin Portal</h3>
+                <p>Owner Access</p>
+              </div>
+            </div>
+
             <ul className="admin-nav">
-                <li><a href="#" className={`tab-btn ${activeTab === 'tab-inventory' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-inventory'); }}><i className="fa-solid fa-boxes-stacked"></i> Inventory</a></li>
-                <li><a href="#" className={`tab-btn ${activeTab === 'tab-pos' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-pos'); }}><i className="fa-solid fa-cash-register"></i> Point of Sale</a></li>
-                <li><a href="#" className={`tab-btn ${activeTab === 'tab-installations' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-installations'); }}><i className="fa-solid fa-clipboard-check"></i> Pending Orders</a></li>
-                <li><a href="#" className={`tab-btn ${activeTab === 'tab-installments' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-installments'); }}><i className="fa-solid fa-file-invoice-dollar"></i> Installment Approvals</a></li>
-                <li><a href="#" className={`tab-btn ${activeTab === 'tab-dispatch' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-dispatch'); }}><i className="fa-solid fa-truck-fast"></i> Dispatch & Schedule</a></li>
-                <li><a href="#" className={`tab-btn ${activeTab === 'tab-tech-requests' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-tech-requests'); }}><i className="fa-solid fa-toolbox"></i> Tech Requests</a></li>
-                <li><a href="#" className={`tab-btn ${activeTab === 'tab-invoices' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-invoices'); }}><i className="fa-solid fa-file-invoice"></i> Invoices</a></li>
-                <li><a href="#" className={`tab-btn ${activeTab === 'tab-maintenance' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-maintenance'); }}><i className="fa-solid fa-calendar-check"></i> Maintenance Schedule</a></li>
-                <li><a href="#" className={`tab-btn ${activeTab === 'tab-calendar' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-calendar'); }}><i className="fa-regular fa-calendar-days"></i> Master Calendar</a></li>
-                <li><a href="#" className={`tab-btn ${activeTab === 'tab-customers' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-customers'); }}><i className="fa-solid fa-users"></i> Customer Directory</a></li>
-                <li><a href="#" className={`tab-btn ${activeTab === 'tab-storefront' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-storefront'); }}><i className="fa-solid fa-store"></i> Storefront Products</a></li>
-                <li><a href="#" className={`tab-btn ${activeTab === 'tab-technicians' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-technicians'); }}><i className="fa-solid fa-user-gear"></i> Technicians</a></li>
+                <li><a href="#" data-tooltip="Inventory" className={`tab-btn ${activeTab === 'tab-inventory' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-inventory'); setAdminMobileOpen(false); }}><i className="fa-solid fa-boxes-stacked"></i> <span className="nav-label">Inventory</span></a></li>
+                <li><a href="#" data-tooltip="Point of Sale" className={`tab-btn ${activeTab === 'tab-pos' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-pos'); setAdminMobileOpen(false); }}><i className="fa-solid fa-cash-register"></i> <span className="nav-label">Point of Sale</span></a></li>
+                <li><a href="#" data-tooltip="Pending Orders" className={`tab-btn ${activeTab === 'tab-installations' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-installations'); setAdminMobileOpen(false); }}><i className="fa-solid fa-clipboard-check"></i> <span className="nav-label">Pending Orders</span></a></li>
+                <li><a href="#" data-tooltip="Installment Approvals" className={`tab-btn ${activeTab === 'tab-installments' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-installments'); setAdminMobileOpen(false); }}><i className="fa-solid fa-file-invoice-dollar"></i> <span className="nav-label">Installment Approvals</span></a></li>
+                <li><a href="#" data-tooltip="Dispatch & Schedule" className={`tab-btn ${activeTab === 'tab-dispatch' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-dispatch'); setAdminMobileOpen(false); }}><i className="fa-solid fa-truck-fast"></i> <span className="nav-label">Dispatch & Schedule</span></a></li>
+                <li><a href="#" data-tooltip="Tech Requests" className={`tab-btn ${activeTab === 'tab-tech-requests' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-tech-requests'); setAdminMobileOpen(false); }}><i className="fa-solid fa-toolbox"></i> <span className="nav-label">Tech Requests</span></a></li>
+                <li><a href="#" data-tooltip="Invoices" className={`tab-btn ${activeTab === 'tab-invoices' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-invoices'); setAdminMobileOpen(false); }}><i className="fa-solid fa-file-invoice"></i> <span className="nav-label">Invoices</span></a></li>
+                <li><a href="#" data-tooltip="Maintenance" className={`tab-btn ${activeTab === 'tab-maintenance' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-maintenance'); setAdminMobileOpen(false); }}><i className="fa-solid fa-calendar-check"></i> <span className="nav-label">Maintenance Schedule</span></a></li>
+                <li><a href="#" data-tooltip="Master Calendar" className={`tab-btn ${activeTab === 'tab-calendar' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-calendar'); setAdminMobileOpen(false); }}><i className="fa-regular fa-calendar-days"></i> <span className="nav-label">Master Calendar</span></a></li>
+                <li><a href="#" data-tooltip="Customers" className={`tab-btn ${activeTab === 'tab-customers' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-customers'); setAdminMobileOpen(false); }}><i className="fa-solid fa-users"></i> <span className="nav-label">Customer Directory</span></a></li>
+                <li><a href="#" data-tooltip="Storefront" className={`tab-btn ${activeTab === 'tab-storefront' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-storefront'); setAdminMobileOpen(false); }}><i className="fa-solid fa-store"></i> <span className="nav-label">Storefront Products</span></a></li>
+                <li><a href="#" data-tooltip="Technicians" className={`tab-btn ${activeTab === 'tab-technicians' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('tab-technicians'); setAdminMobileOpen(false); }}><i className="fa-solid fa-user-gear"></i> <span className="nav-label">Technicians</span></a></li>
             </ul>
         </aside>
 
         {/*  Main Content  */}
-        <main className="admin-content">
+        <main className={`admin-content ${isAdminSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
             {/*  Storefront Products  */}
             <div id="tab-storefront" className={`tab-panel ${activeTab === 'tab-storefront' ? 'active' : ''}`}>
                 <div className="panel-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end'}}>
@@ -1840,29 +1894,48 @@ export default function AdminDashboard() {
             </div>
 
             {/*  POS Installment Customer Info Modal  */}
-            <div className={`modal-overlay ${showPosCustomerModal ? 'show' : ''}`} style={{ display: showPosCustomerModal ? 'flex' : 'none' }}>
-                <div className="modal-content" style={{"maxWidth":"500px"}}>
-                    <div className="modal-header">
-                        <h2 style={{"fontSize":"1.5rem","color":"var(--primary)"}}>Customer Information</h2>
-                        <button className="close-modal" onClick={() => setShowPosCustomerModal(false)}>&times;</button>
+            <div className={`modal-overlay ${showPosCustomerModal ? 'show' : ''}`} style={{ display: showPosCustomerModal ? 'flex' : 'none', backdropFilter: 'blur(8px)', zIndex: 1000 }}>
+                <div className="modal-content" style={{"maxWidth":"650px", "padding": "0", "overflow": "hidden", "borderRadius": "16px", "boxShadow": "0 20px 40px rgba(0,0,0,0.2)", display: 'flex', flexDirection: 'column', maxHeight: '90vh'}}>
+                    
+                    <div style={{ background: 'var(--primary-grad)', padding: '1.5rem 2rem', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                        <div>
+                            <h2 style={{"fontSize":"1.5rem","margin": "0", "fontWeight": "700", "display": "flex", "alignItems": "center", "gap": "10px"}}>
+                                <i className="fa-solid fa-file-signature"></i> Installment Application
+                            </h2>
+                            <p style={{ margin: '0.2rem 0 0 0', opacity: 0.9, fontSize: '0.9rem' }}>Please complete the customer details to process the installment request.</p>
+                        </div>
+                        <button style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', width: '36px', height: '36px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'} onClick={() => setShowPosCustomerModal(false)}>&times;</button>
                     </div>
-                    <div className="modal-body">
-                        <div style={{"display":"flex","flexDirection":"column","gap":"1rem"}}>
-                            <div>
-                                <label style={{"fontSize":"0.85rem","fontWeight":"600","display":"block","marginBottom":"0.3rem"}}>Full Name</label>
-                                <input type="text" id="pos-cust-name" placeholder="e.g. John Doe" style={{"width":"100%","padding":"0.8rem","borderRadius":"6px","border":"1px solid var(--border-color)","fontFamily":"inherit"}} />
+
+                    <div className="modal-body" style={{ padding: '2rem', flex: 1, overflowY: 'auto' }}>
+                        <div style={{"display":"grid","gridTemplateColumns":"1fr 1fr","gap":"1.5rem"}}>
+                            <div style={{ gridColumn: "1 / -1" }}>
+                                <label style={{"fontSize":"0.85rem","fontWeight":"600","color":"var(--text-light)","display":"block","marginBottom":"0.4rem"}}>Full Name</label>
+                                <div style={{ position: 'relative' }}>
+                                    <i className="fa-solid fa-user" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)' }}></i>
+                                    <input type="text" id="pos-cust-name" placeholder="e.g. John Doe" style={{"width":"100%","padding":"0.9rem 1rem 0.9rem 2.8rem","borderRadius":"8px","border":"1px solid var(--border-color)","fontFamily":"inherit","fontSize":"0.95rem","background":"var(--bg-input, #fff)","boxShadow":"inset 0 1px 3px rgba(0,0,0,0.02)"}} />
+                                </div>
                             </div>
+                            
                             <div>
-                                <label style={{"fontSize":"0.85rem","fontWeight":"600","display":"block","marginBottom":"0.3rem"}}>Monthly Income (PHP)</label>
-                                <input type="number" id="pos-cust-income" placeholder="e.g. 35000" style={{"width":"100%","padding":"0.8rem","borderRadius":"6px","border":"1px solid var(--border-color)","fontFamily":"inherit"}} />
+                                <label style={{"fontSize":"0.85rem","fontWeight":"600","color":"var(--text-light)","display":"block","marginBottom":"0.4rem"}}>Monthly Income (PHP)</label>
+                                <div style={{ position: 'relative' }}>
+                                    <i className="fa-solid fa-money-bill-wave" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#28a745' }}></i>
+                                    <input type="number" id="pos-cust-income" placeholder="e.g. 35000" style={{"width":"100%","padding":"0.9rem 1rem 0.9rem 2.8rem","borderRadius":"8px","border":"1px solid var(--border-color)","fontFamily":"inherit","fontSize":"0.95rem","background":"var(--bg-input, #fff)","boxShadow":"inset 0 1px 3px rgba(0,0,0,0.02)"}} />
+                                </div>
                             </div>
+                            
                             <div>
-                                <label style={{"fontSize":"0.85rem","fontWeight":"600","display":"block","marginBottom":"0.3rem"}}>Employer / Source of Income</label>
-                                <input type="text" id="pos-cust-employer" placeholder="e.g. Acme Corp" style={{"width":"100%","padding":"0.8rem","borderRadius":"6px","border":"1px solid var(--border-color)","fontFamily":"inherit"}} />
+                                <label style={{"fontSize":"0.85rem","fontWeight":"600","color":"var(--text-light)","display":"block","marginBottom":"0.4rem"}}>Employer / Source of Income</label>
+                                <div style={{ position: 'relative' }}>
+                                    <i className="fa-solid fa-building" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-light)' }}></i>
+                                    <input type="text" id="pos-cust-employer" placeholder="e.g. Acme Corp" style={{"width":"100%","padding":"0.9rem 1rem 0.9rem 2.8rem","borderRadius":"8px","border":"1px solid var(--border-color)","fontFamily":"inherit","fontSize":"0.95rem","background":"var(--bg-input, #fff)","boxShadow":"inset 0 1px 3px rgba(0,0,0,0.02)"}} />
+                                </div>
                             </div>
+                            
                             <div>
-                                <label style={{"fontSize":"0.85rem","fontWeight":"600","display":"block","marginBottom":"0.3rem"}}>Valid ID Type</label>
-                                <select id="pos-cust-idtype" style={{"width":"100%","padding":"0.8rem","borderRadius":"6px","border":"1px solid var(--border-color)","fontFamily":"inherit"}}>
+                                <label style={{"fontSize":"0.85rem","fontWeight":"600","color":"var(--text-light)","display":"block","marginBottom":"0.4rem"}}>Valid ID Type</label>
+                                <select id="pos-cust-idtype" style={{"width":"100%","padding":"0.9rem","borderRadius":"8px","border":"1px solid var(--border-color)","fontFamily":"inherit","fontSize":"0.95rem","background":"var(--bg-input, #fff)","cursor":"pointer"}}>
                                     <option value="UMID">UMID</option>
                                     <option value="Driver License">Driver's License</option>
                                     <option value="Passport">Passport</option>
@@ -1870,27 +1943,85 @@ export default function AdminDashboard() {
                                     <option value="PRC ID">PRC ID</option>
                                 </select>
                             </div>
+                            
                             <div>
-                                <label style={{"fontSize":"0.85rem","fontWeight":"600","display":"block","marginBottom":"0.3rem"}}>Installment Term</label>
-                                <select id="pos-cust-term" style={{"width":"100%","padding":"0.8rem","borderRadius":"6px","border":"1px solid var(--border-color)","fontFamily":"inherit"}}>
+                                <label style={{"fontSize":"0.85rem","fontWeight":"600","color":"var(--text-light)","display":"block","marginBottom":"0.4rem"}}>Installment Term</label>
+                                <select id="pos-cust-term" style={{"width":"100%","padding":"0.9rem","borderRadius":"8px","border":"1px solid var(--border-color)","fontFamily":"inherit","fontSize":"0.95rem","background":"var(--bg-input, #fff)","cursor":"pointer"}}>
                                     <option value="6">6 Months</option>
                                     <option value="12">12 Months</option>
                                 </select>
                             </div>
-                            <div>
-                                <label style={{"fontSize":"0.85rem","fontWeight":"600","display":"block","marginBottom":"0.3rem"}}>Installation Location Pinpoint</label>
-                                <div style={{"display":"flex","gap":"8px","marginBottom":"0.5rem"}}>
-                                    <input type="text" id="pos-map-search" placeholder="Search address or city..." style={{"flex":"1","padding":"0.8rem","borderRadius":"6px","border":"1px solid var(--border-color)","fontFamily":"inherit"}} />
-                                    <button className="btn" id="pos-map-search-btn" style={{"padding":"0.8rem 1.2rem","background":"var(--primary)"}}><i className="fa-solid fa-magnifying-glass"></i></button>
+
+                            <div style={{ gridColumn: "1 / -1", marginTop: "0.5rem", paddingTop: "1.5rem", borderTop: "1px dashed var(--border-color)" }}>
+                                <label style={{"fontSize":"0.85rem","fontWeight":"600","color":"var(--text-light)","display":"flex","alignItems":"center","gap":"6px","marginBottom":"0.8rem"}}>
+                                    <i className="fa-solid fa-map-location-dot" style={{color: 'var(--primary)'}}></i> Installation Location Pinpoint
+                                </label>
+                                <div style={{"display":"flex","gap":"8px","marginBottom":"0.8rem"}}>
+                                    <input type="text" id="pos-map-search" placeholder="Search address or city..." style={{"flex":"1","padding":"0.9rem","borderRadius":"8px","border":"1px solid var(--border-color)","fontFamily":"inherit","fontSize":"0.95rem"}} />
+                                    <button className="btn" id="pos-map-search-btn" style={{"padding":"0.9rem 1.2rem","background":"var(--primary)","borderRadius":"8px"}}><i className="fa-solid fa-magnifying-glass"></i></button>
                                 </div>
-                                <div style={{height: "200px", marginBottom: "0.3rem", zIndex: 10}}>
-                                    <GoogleMap height="200px" />
+                                <div style={{height: "220px", marginBottom: "0.5rem", zIndex: 10, borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border-color)"}}>
+                                    <GoogleMap height="220px" />
                                 </div>
-                                <span id="pos-selected-coords" style={{"fontSize":"0.8rem","color":"var(--text-light)","fontWeight":"500"}}>Click on the map to pinpoint. Selected: TBD</span>
+                                <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                                    <i className="fa-solid fa-circle-info" style={{color: 'var(--primary)', fontSize: '0.8rem'}}></i>
+                                    <span id="pos-selected-coords" style={{"fontSize":"0.8rem","color":"var(--text-light)","fontWeight":"500"}}>Click on the map to pinpoint. Selected: TBD</span>
+                                </div>
                                 <input type="hidden" id="pos-cust-coords" value="" />
                             </div>
-                            <button className="btn" id="confirm-pos-installment-btn" style={{"width":"100%","marginTop":"1rem","background":"var(--primary)"}} onClick={handlePosInstallmentSubmit}>Confirm & Apply &rarr;</button>
                         </div>
+                    </div>
+
+                    <div style={{ padding: '1.5rem 2rem', background: 'var(--bg-card)', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                        <button className="btn btn-secondary" style={{ padding: '0.8rem 1.5rem' }} onClick={() => setShowPosCustomerModal(false)}>Cancel</button>
+                        <button className="btn" id="confirm-pos-installment-btn" style={{"padding":"0.8rem 2rem","background":"var(--primary)","fontSize":"1rem","boxShadow":"0 4px 12px rgba(0, 155, 213, 0.3)"}} onClick={handlePosInstallmentSubmit}>
+                            Submit Application <i className="fa-solid fa-arrow-right" style={{marginLeft: '6px'}}></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/*  POS Cash Payment Modal  */}
+            <div className={`modal-overlay ${showPosCashModal ? 'show' : ''}`} style={{ display: showPosCashModal ? 'flex' : 'none', backdropFilter: 'blur(8px)', zIndex: 1000 }}>
+                <div className="modal-content" style={{"maxWidth":"500px", "padding": "0", "overflow": "hidden", "borderRadius": "16px", "boxShadow": "0 20px 40px rgba(0,0,0,0.2)", display: 'flex', flexDirection: 'column', maxHeight: '90vh'}}>
+                    
+                    <div style={{ background: 'var(--primary-grad)', padding: '1.5rem 2rem', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                        <div>
+                            <h2 style={{"fontSize":"1.5rem","margin": "0", "fontWeight": "700", "display": "flex", "alignItems": "center", "gap": "10px"}}>
+                                <i className="fa-solid fa-money-bill-1-wave"></i> Cash Payment
+                            </h2>
+                            <p style={{ margin: '0.2rem 0 0 0', opacity: 0.9, fontSize: '0.9rem' }}>Please enter the customer's name for the receipt.</p>
+                        </div>
+                        <button style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', width: '36px', height: '36px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'} onClick={() => setShowPosCashModal(false)}>&times;</button>
+                    </div>
+
+                    <div className="modal-body" style={{ padding: '2rem', flex: 1, overflowY: 'auto' }}>
+                        <div>
+                            <label style={{"fontSize":"0.85rem","fontWeight":"600","color":"var(--text-light)","display":"block","marginBottom":"0.4rem"}}>Customer Full Name</label>
+                            <div style={{ position: 'relative' }}>
+                                <i className="fa-solid fa-user" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)' }}></i>
+                                <input type="text" id="pos-cash-name" placeholder="e.g. John Doe" style={{"width":"100%","padding":"0.9rem 1rem 0.9rem 2.8rem","borderRadius":"8px","border":"1px solid var(--border-color)","fontFamily":"inherit","fontSize":"0.95rem","background":"var(--bg-input, #fff)","boxShadow":"inset 0 1px 3px rgba(0,0,0,0.02)"}} />
+                            </div>
+                        </div>
+
+                        <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(40, 167, 69, 0.1)', border: '1px solid rgba(40, 167, 69, 0.2)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ width: '40px', height: '40px', background: '#28a745', color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>
+                                <i className="fa-solid fa-cash-register"></i>
+                            </div>
+                            <div>
+                                <h4 style={{ margin: 0, color: 'var(--text-dark)', fontSize: '0.95rem' }}>Total Amount Due</h4>
+                                <p style={{ margin: 0, color: '#28a745', fontWeight: 700, fontSize: '1.3rem' }}>
+                                    ₱{(posCart.reduce((sum, item) => sum + (item.price * item.cartQty), 0) * 1.12).toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={{ padding: '1.5rem 2rem', background: 'var(--bg-card)', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                        <button className="btn btn-secondary" style={{ padding: '0.8rem 1.5rem' }} onClick={() => setShowPosCashModal(false)}>Cancel</button>
+                        <button className="btn" style={{"padding":"0.8rem 2rem","background":"#28a745","fontSize":"1rem","boxShadow":"0 4px 12px rgba(40, 167, 69, 0.3)"}} onClick={handlePosCashSubmit}>
+                            Confirm Payment <i className="fa-solid fa-check" style={{marginLeft: '6px'}}></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -2202,36 +2333,31 @@ export default function AdminDashboard() {
                 </div>
             </div>
 
-            {/*  Invoices Tab  */}
-            <div id="tab-invoices" className={`tab-panel ${activeTab === 'tab-invoices' ? 'active' : ''}`}>
+                  <div id="tab-invoices" className={`tab-panel ${activeTab === 'tab-invoices' ? 'active' : ''}`}>
                 <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                        <h2>Invoices & Receipts</h2>
-                        <p>View all invoices sent by technicians for completed jobs.</p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <span className="status-badge status-online" style={{ fontSize: '0.85rem' }}><i className="fa-solid fa-file-invoice" style={{marginRight: '4px'}}></i> {invoices.filter(i => i.type === 'ADMIN').length} Admin</span>
-                        <span className="status-badge status-medium" style={{ fontSize: '0.85rem' }}><i className="fa-solid fa-receipt" style={{marginRight: '4px'}}></i> {invoices.filter(i => i.type === 'CUSTOMER').length} Customer</span>
+                        <h2>Invoices</h2>
+                        <p>View all admin invoices sent by technicians for completed jobs.</p>
                     </div>
                 </div>
 
                 {/* Invoice Stats */}
                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1.2rem', marginBottom: '2rem'}}>
                     <div className="admin-card" style={{textAlign: 'center', marginBottom: 0, padding: '1.2rem', borderLeft: '4px solid var(--primary)'}}>
-                        <p style={{fontSize: '2rem', fontWeight: 800, color: 'var(--primary)'}}>{invoices.length}</p>
+                        <p style={{fontSize: '2rem', fontWeight: 800, color: 'var(--primary)'}}>{invoices.filter(i => i.type === 'ADMIN').length}</p>
                         <p style={{fontSize: '0.82rem', color: 'var(--text-light)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px'}}>Total Invoices</p>
                     </div>
                     <div className="admin-card" style={{textAlign: 'center', marginBottom: 0, padding: '1.2rem', borderLeft: '4px solid #28a745'}}>
-                        <p style={{fontSize: '2rem', fontWeight: 800, color: '#28a745'}}>{invoices.filter(i => i.type === 'ADMIN').length}</p>
-                        <p style={{fontSize: '0.82rem', color: 'var(--text-light)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px'}}>Admin Invoices</p>
-                    </div>
-                    <div className="admin-card" style={{textAlign: 'center', marginBottom: 0, padding: '1.2rem', borderLeft: '4px solid #f59e0b'}}>
-                        <p style={{fontSize: '2rem', fontWeight: 800, color: '#f59e0b'}}>{invoices.filter(i => i.type === 'CUSTOMER').length}</p>
-                        <p style={{fontSize: '0.82rem', color: 'var(--text-light)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px'}}>Customer Receipts</p>
+                        <p style={{fontSize: '2rem', fontWeight: 800, color: '#28a745'}}>{invoices.filter(i => i.type === 'ADMIN' && i.status === 'Paid').length}</p>
+                        <p style={{fontSize: '0.82rem', color: 'var(--text-light)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px'}}>Paid</p>
                     </div>
                     <div className="admin-card" style={{textAlign: 'center', marginBottom: 0, padding: '1.2rem', borderLeft: '4px solid #6366f1'}}>
-                        <p style={{fontSize: '2rem', fontWeight: 800, color: '#6366f1'}}>{invoices.filter(i => i.status === 'Sent').length}</p>
+                        <p style={{fontSize: '2rem', fontWeight: 800, color: '#6366f1'}}>{invoices.filter(i => i.type === 'ADMIN' && i.status === 'Sent').length}</p>
                         <p style={{fontSize: '0.82rem', color: 'var(--text-light)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px'}}>Pending Review</p>
+                    </div>
+                    <div className="admin-card" style={{textAlign: 'center', marginBottom: 0, padding: '1.2rem', borderLeft: '4px solid #f59e0b'}}>
+                        <p style={{fontSize: '2rem', fontWeight: 800, color: '#f59e0b'}}>{invoices.filter(i => i.type === 'ADMIN' && i.status === 'Viewed').length}</p>
+                        <p style={{fontSize: '0.82rem', color: 'var(--text-light)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px'}}>Viewed</p>
                     </div>
                 </div>
 
@@ -2241,7 +2367,6 @@ export default function AdminDashboard() {
                         <thead>
                             <tr>
                                 <th>Invoice No</th>
-                                <th>Type</th>
                                 <th>Customer</th>
                                 <th>Service</th>
                                 <th>AC Unit</th>
@@ -2252,15 +2377,9 @@ export default function AdminDashboard() {
                             </tr>
                         </thead>
                         <tbody>
-                            {invoices.map((inv: any) => (
+                            {invoices.filter(i => i.type === 'ADMIN').map((inv: any) => (
                                 <tr key={inv.id}>
                                     <td style={{fontWeight: 'bold', color: 'var(--primary)'}}>{inv.invoiceNo}</td>
-                                    <td>
-                                        <span className={`status-badge ${inv.type === 'ADMIN' ? 'status-online' : 'status-medium'}`}>
-                                            <i className={`fa-solid ${inv.type === 'ADMIN' ? 'fa-file-invoice' : 'fa-receipt'}`} style={{marginRight: '4px'}}></i>
-                                            {inv.type === 'ADMIN' ? 'Admin' : 'Customer'}
-                                        </span>
-                                    </td>
                                     <td style={{fontWeight: 600}}>{inv.customerName}</td>
                                     <td>{inv.serviceType}</td>
                                     <td style={{fontSize: '0.85rem'}}>{inv.acUnit}</td>
@@ -2296,11 +2415,11 @@ export default function AdminDashboard() {
                                     </td>
                                 </tr>
                             ))}
-                            {invoices.length === 0 && (
+                            {invoices.filter(i => i.type === 'ADMIN').length === 0 && (
                                 <tr>
-                                    <td colSpan={9} style={{textAlign: 'center', padding: '3rem', color: 'var(--text-light)'}}>
+                                    <td colSpan={8} style={{textAlign: 'center', padding: '3rem', color: 'var(--text-light)'}}>
                                         <i className="fa-solid fa-file-invoice" style={{fontSize: '2.5rem', marginBottom: '1rem', display: 'block'}}></i>
-                                        No invoices yet. Invoices will appear here when technicians submit them from completed jobs.
+                                        No admin invoices yet. Invoices will appear here when technicians submit them from completed jobs.
                                     </td>
                                 </tr>
                             )}
@@ -2338,7 +2457,9 @@ export default function AdminDashboard() {
                               {selectedCustomer.registeredACs?.map((ac: any) => (
                                   <li key={ac.id} style={{marginBottom: '5px'}}>
                                       <strong>{ac.brandModel}</strong> 
-                                      {ac.paymentType === 'Installment' ? 
+                                      {!ac.purchasedFromStore ? 
+                                        <span style={{color: 'var(--text-light)', marginLeft: '8px', fontSize: '0.8rem'}}>(Manually Added)</span> :
+                                        ac.paymentType === 'Installment' ? 
                                         <span style={{color: 'var(--primary)', marginLeft: '8px', fontSize: '0.8rem'}}>(Installment)</span> : 
                                         <span style={{color: 'var(--accent-green)', marginLeft: '8px', fontSize: '0.8rem'}}>(Purchased Outright)</span>
                                       }
@@ -2781,8 +2902,12 @@ export default function AdminDashboard() {
                 <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
                   <button 
                     className="btn btn-secondary" 
-                    onClick={() => {
-                      const reason = window.prompt('Enter the reason for declining this application:');
+                    onClick={async () => {
+                      const reason = await prompt({
+                        title: 'Decline Application',
+                        message: 'Enter the reason for declining this application:',
+                        placeholder: 'Reason for declining'
+                      });
                       if (reason) handleInstallmentAction(selectedInstallment, 'REJECTED', reason);
                     }} 
                     style={{ padding: '0.6rem 1.2rem', color: 'var(--accent-red)', borderColor: 'var(--accent-red)' }}

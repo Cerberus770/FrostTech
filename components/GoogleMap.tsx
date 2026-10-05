@@ -47,13 +47,14 @@ export default function MapComponent({
 
     const map = L.map(mapRef.current, {
       center: mapCenter,
-      zoom: 12,
+      zoom: 17,
       zoomControl: true,
     });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19,
+    // Google Maps tile layer (roadmap)
+    L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      attribution: '&copy; Google Maps',
+      maxZoom: 20,
     }).addTo(map);
 
     if (pinnable) {

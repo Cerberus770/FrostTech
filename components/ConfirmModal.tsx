@@ -11,9 +11,11 @@ interface ConfirmModalProps {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  onConfirm?: () => void;
+  onConfirm?: (value?: string) => void;
   onCancel: () => void;
   showCancel?: boolean;
+  isPrompt?: boolean;
+  promptPlaceholder?: string;
 }
 
 const iconMap: Record<ConfirmType, { icon: string; color: string; bg: string }> = {
@@ -33,7 +35,16 @@ export default function ConfirmModal({
   onConfirm,
   onCancel,
   showCancel = true,
+  isPrompt = false,
+  promptPlaceholder = '',
 }: ConfirmModalProps) {
+  const [promptValue, setPromptValue] = useState('');
+
+  // Reset prompt value when modal opens
+  React.useEffect(() => {
+    if (show) setPromptValue('');
+  }, [show]);
+
   if (!show) return null;
 
   const { icon, color, bg } = iconMap[type];
@@ -101,11 +112,39 @@ export default function ConfirmModal({
             fontSize: '0.9rem',
             color: 'var(--text-light, #94a3b8)',
             lineHeight: 1.6,
-            marginBottom: '1.75rem',
+            marginBottom: isPrompt ? '1rem' : '1.75rem',
           }}
         >
           {message}
         </p>
+
+        {/* Prompt Input */}
+        {isPrompt && (
+          <div style={{ marginBottom: '1.75rem' }}>
+            <input
+              type="text"
+              value={promptValue}
+              onChange={(e) => setPromptValue(e.target.value)}
+              placeholder={promptPlaceholder}
+              autoFocus
+              style={{
+                width: '100%',
+                padding: '0.9rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color, #334155)',
+                background: 'var(--bg-input, rgba(255,255,255,0.05))',
+                color: 'var(--text-dark, #f1f5f9)',
+                fontSize: '0.95rem',
+                fontFamily: 'inherit',
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && onConfirm) {
+                  onConfirm(promptValue);
+                }
+              }}
+            />
+          </div>
+        )}
 
         {/* Buttons */}
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
@@ -132,7 +171,7 @@ export default function ConfirmModal({
           )}
           {onConfirm && (
             <button
-              onClick={onConfirm}
+              onClick={() => onConfirm(promptValue)}
               style={{
                 flex: 1,
                 padding: '0.7rem 1.5rem',
@@ -179,7 +218,10 @@ export function useConfirmModal() {
     confirmText: string;
     cancelText: string;
     showCancel: boolean;
-    onConfirm?: () => void;
+    isPrompt: boolean;
+    promptPlaceholder: string;
+    promptValue: string;
+    onConfirm?: (value?: string) => void;
   }>({
     show: false,
     type: 'confirm',
@@ -188,6 +230,9 @@ export function useConfirmModal() {
     confirmText: 'Confirm',
     cancelText: 'Cancel',
     showCancel: true,
+    isPrompt: false,
+    promptPlaceholder: '',
+    promptValue: '',
   });
 
   const confirm = (opts: {
@@ -206,6 +251,9 @@ export function useConfirmModal() {
         confirmText: opts.confirmText || 'Confirm',
         cancelText: opts.cancelText || 'Cancel',
         showCancel: true,
+        isPrompt: false,
+        promptPlaceholder: '',
+        promptValue: '',
         onConfirm: () => {
           setState(s => ({ ...s, show: false }));
           resolve(true);
@@ -228,13 +276,46 @@ export function useConfirmModal() {
       confirmText: opts.buttonText || 'OK',
       cancelText: 'Cancel',
       showCancel: false,
+      isPrompt: false,
+      promptPlaceholder: '',
+      promptValue: '',
       onConfirm: () => {
         setState(s => ({ ...s, show: false }));
       },
     });
   };
 
-  const close = () => setState(s => ({ ...s, show: false }));
+  const promptInput = (opts: {
+    title: string;
+    message: string;
+    placeholder?: string;
+    type?: ConfirmType;
+    confirmText?: string;
+    cancelText?: string;
+  }): Promise<string | null> => {
+    return new Promise((resolve) => {
+      setState({
+        show: true,
+        type: opts.type || 'confirm',
+        title: opts.title,
+        message: opts.message,
+        confirmText: opts.confirmText || 'Submit',
+        cancelText: opts.cancelText || 'Cancel',
+        showCancel: true,
+        isPrompt: true,
+        promptPlaceholder: opts.placeholder || 'Type here...',
+        promptValue: '',
+        onConfirm: (val) => {
+          setState(s => ({ ...s, show: false }));
+          resolve(val || '');
+        },
+      });
+    });
+  };
+
+  const close = () => {
+    setState(s => ({ ...s, show: false }));
+  };
 
   const ModalComponent = () => (
     <ConfirmModal
@@ -245,10 +326,20 @@ export function useConfirmModal() {
       confirmText={state.confirmText}
       cancelText={state.cancelText}
       showCancel={state.showCancel}
-      onConfirm={state.onConfirm}
-      onCancel={close}
+      isPrompt={state.isPrompt}
+      promptPlaceholder={state.promptPlaceholder}
+      onConfirm={(val) => {
+        if (state.onConfirm) state.onConfirm(val);
+      }}
+      onCancel={() => {
+        close();
+        // Resolve prompt with null when cancelled
+        if (state.isPrompt && state.onConfirm) {
+          state.onConfirm(undefined);
+        }
+      }}
     />
   );
 
-  return { confirm, showAlert, close, ModalComponent };
+  return { confirm, showAlert, prompt: promptInput, close, ModalComponent };
 }

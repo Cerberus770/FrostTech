@@ -43,6 +43,26 @@ export async function PATCH(request: NextRequest) {
       where: { id },
       data,
     });
+
+    // If a technician is being assigned, send an SMS to the customer
+    if (data.technicianId) {
+      try {
+        const customer = await prisma.user.findUnique({
+          where: { id: schedule.customerId },
+          select: { phone: true, firstName: true }
+        });
+
+        if (customer && customer.phone && customer.phone !== 'N/A') {
+          const { sendPhilSMS } = await import('@/lib/philsms');
+          const msg = `Hi ${customer.firstName}, your FrostTech AC maintenance (${schedule.serviceType}) has been scheduled. Your assigned tech (${data.technicianName}) will arrive on ${schedule.scheduledDate}. Thank you!`;
+          await sendPhilSMS(customer.phone, msg);
+          console.log(`[MAINTENANCE] SMS sent to ${customer.phone} for schedule ${schedule.scheduleNo}`);
+        }
+      } catch (smsError) {
+        console.error('Failed to send SMS during maintenance tech assignment:', smsError);
+      }
+    }
+
     return NextResponse.json(schedule);
   } catch (error) {
     console.error('Maintenance update error:', error);

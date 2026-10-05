@@ -12,11 +12,18 @@ interface DispatchItem {
   scheduledDate?: string;
 }
 
+interface MaintenanceItem {
+  id: string; scheduleNo: string; name: string; phone: string; address: string; item: string; serviceType: string;
+  scheduledDate: string; technicianName?: string; technicianId?: string; status: string;
+}
+
 function GeocodedMap({ address }: { address: string }) {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!address) return;
+    if (!address) { setLoading(false); return; }
+    setLoading(true);
     
     // Check if coordinates were passed from checkout
     if (address.includes('| COORDS:')) {
@@ -25,35 +32,49 @@ function GeocodedMap({ address }: { address: string }) {
         const [lat, lng] = coordsPart.split(',').map(Number);
         if (!isNaN(lat) && !isNaN(lng)) {
           setCoords({ lat, lng });
+          setLoading(false);
           return;
         }
       }
     }
 
-    // Geocode the address using Nominatim (free, no API key needed)
+    // Geocode the address using Google Maps Geocoding API (server-side)
     const cleanAddress = address.split('| COORDS:')[0].trim();
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanAddress + ', Philippines')}&limit=1`)
+    fetch(`/api/geocode?address=${encodeURIComponent(cleanAddress)}`)
       .then(r => r.json())
       .then(data => {
-        if (data && data.length > 0) {
-          setCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+        if (data.lat && data.lng) {
+          setCoords({ lat: data.lat, lng: data.lng });
         } else {
-          // Fallback coordinate for demo purposes if address not found
-          setCoords({ lat: 14.6091, lng: 121.0223 }); // somewhere in QC/Manila
+          console.warn('Geocoding returned no results for:', cleanAddress);
+          setCoords({ lat: 14.6091, lng: 121.0223 });
         }
       })
       .catch((err) => {
         console.error('Geocoding error:', err);
         setCoords({ lat: 14.6091, lng: 121.0223 });
-      });
+      })
+      .finally(() => setLoading(false));
   }, [address]);
 
-  return <GoogleMap height="300px" center={coords || { lat: 14.6091, lng: 121.0223 }} markerPosition={coords || { lat: 14.6091, lng: 121.0223 }} pinnable={false} />;
+  if (loading || !coords) {
+    return (
+      <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+        <div style={{ textAlign: 'center', color: 'var(--text-light)' }}>
+          <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '2rem', marginBottom: '0.5rem', display: 'block' }}></i>
+          <p style={{ fontSize: '0.85rem' }}>Locating customer address...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <GoogleMap key={`${coords.lat}-${coords.lng}`} height="300px" center={coords} markerPosition={coords} pinnable={false} />;
 }
 
 export default function TechnicianDashboard() {
-  const { confirm, showAlert, ModalComponent } = useConfirmModal();
+  const { confirm, showAlert, prompt, ModalComponent } = useConfirmModal();
   const [tasks, setTasks] = useState<DispatchItem[]>([]);
+  const [maintenanceTasks, setMaintenanceTasks] = useState<MaintenanceItem[]>([]);
   const [filter, setFilter] = useState('All');
   const [techName, setTechName] = useState('');
 
@@ -86,6 +107,15 @@ export default function TechnicianDashboard() {
         setTasks(myTasks);
       })
       .catch(console.error);
+
+    // Also fetch maintenance schedules assigned to this technician
+    fetch('/api/maintenance')
+      .then(r => r.json())
+      .then((data: MaintenanceItem[]) => {
+        const myMaint = data.filter(m => m.technicianName === (sessionName || ''));
+        setMaintenanceTasks(myMaint);
+      })
+      .catch(console.error);
   }, []);
 
   const handleUpdateStatus = async (jobId: string, newStatus: string) => {
@@ -100,6 +130,34 @@ export default function TechnicianDashboard() {
       });
     } catch (error) {
       console.error("Failed to update status", error);
+    }
+  };
+
+  const handleFlagAC = async (job: DispatchItem) => {
+    const reason = await prompt({
+      title: 'Flag AC Unit',
+      message: 'Warning: Flagging this AC indicates unauthorized tampering or third-party repair history. Please enter the details of the tampering/issue:',
+      placeholder: 'Enter issue details'
+    });
+    if (!reason) return;
+    
+    const proceed = await confirm({
+      title: 'Flag AC Unit',
+      message: `You are about to flag ${job.item} for unauthorized repair history. This will alert the admin and void warranties. Do you want to proceed?`,
+      type: 'warning'
+    });
+
+    if (proceed) {
+      await fetch('/api/dispatch', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: job.id,
+          notes: `[FLAGGED by ${techName}]: ${reason}`
+        })
+      });
+      await confirm({ title: 'AC Flagged', message: 'AC Unit has been flagged successfully. The Admin can now see this in the Dispatch notes.', type: 'success' });
+      setShowClientModal(false);
     }
   };
 
@@ -179,13 +237,22 @@ export default function TechnicianDashboard() {
 
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+  // Helper: extract YYYY-MM-DD from scheduledDate like "2026-10-05 Morning (8AM - 12PM)"
+  const extractDatePart = (sd: string) => sd.split(' ')[0]; // "2026-10-05"
+
   const getEventsForDay = (day: number) => {
-    return tasks.filter(t => {
-      if (!t.scheduledDate) return false;
-      const dStr = t.scheduledDate.includes('T') ? t.scheduledDate : t.scheduledDate + 'T00:00:00';
-      const d = new Date(dStr);
-      return d.getDate() === day && d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear();
-    });
+    const matchDate = (sd?: string) => {
+      if (!sd) return false;
+      const datePart = extractDatePart(sd);
+      const d = new Date(datePart + 'T00:00:00');
+      return !isNaN(d.getTime()) && d.getDate() === day && d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear();
+    };
+    const dispatchEvents = tasks.filter(t => matchDate(t.scheduledDate)).map(t => ({ ...t, source: 'dispatch' as const }));
+    const maintEvents = maintenanceTasks.filter(m => matchDate(m.scheduledDate)).map(m => ({
+      id: m.id, dispatchNo: m.scheduleNo, type: m.serviceType, name: m.name, location: m.address,
+      item: m.item, notes: '', status: m.status, scheduledDate: m.scheduledDate, source: 'maintenance' as const
+    }));
+    return [...dispatchEvents, ...maintEvents];
   };
 
   const hasEvent = (day: number) => getEventsForDay(day).length > 0;
@@ -335,41 +402,60 @@ export default function TechnicianDashboard() {
 
         {/*  Today's Schedule  */}
         <div className="schedule-panel" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
-            <h3 style={{ marginBottom: '1.5rem', color: 'var(--text-dark)' }}><i className="fa-regular fa-calendar" style={{"marginRight":"8px", color: 'var(--primary)'}}></i> Today&apos;s Schedule</h3>
+            <h3 style={{ marginBottom: '1.5rem', color: 'var(--text-dark)' }}><i className="fa-regular fa-calendar" style={{"marginRight":"8px", color: 'var(--primary)'}}></i> Upcoming Schedule</h3>
 
             {(() => {
                 const todayStr = new Date(new Date().getTime() - (new Date().getTimezoneOffset()*60*1000)).toISOString().split('T')[0];
-                const todaysTasks = [...tasks]
-                    .filter(t => t.scheduledDate && t.scheduledDate.startsWith(todayStr))
-                    .sort((a, b) => a.scheduledDate!.localeCompare(b.scheduledDate!));
 
-                if (todaysTasks.length === 0) {
-                    return <p style={{ color: 'var(--text-light)', fontStyle: 'italic' }}>No jobs scheduled for today.</p>;
+                // Combine dispatch items and maintenance schedules
+                const allScheduleItems: { id: string; name: string; location: string; type: string; scheduledDate: string; source: string }[] = [];
+
+                tasks.forEach(t => {
+                  if (t.scheduledDate && t.status !== 'COMPLETED') {
+                    allScheduleItems.push({ id: t.id, name: t.name, location: t.location, type: t.type, scheduledDate: t.scheduledDate, source: 'dispatch' });
+                  }
+                });
+                maintenanceTasks.forEach(m => {
+                  if (m.scheduledDate && m.status !== 'COMPLETED') {
+                    allScheduleItems.push({ id: m.id, name: m.name, location: m.address, type: m.serviceType, scheduledDate: m.scheduledDate, source: 'maintenance' });
+                  }
+                });
+
+                // Filter: today and future only
+                const upcomingTasks = allScheduleItems
+                    .filter(t => extractDatePart(t.scheduledDate) >= todayStr)
+                    .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate));
+
+                if (upcomingTasks.length === 0) {
+                    return <p style={{ color: 'var(--text-light)', fontStyle: 'italic' }}>No upcoming jobs scheduled.</p>;
                 }
 
-                return todaysTasks.map(task => {
-                    const datePart = task.scheduledDate!.split(' ')[0]; // "2026-10-04"
-                    const timePart = task.scheduledDate!.replace(datePart, '').trim(); // "Morning (8AM - 12PM)"
-                    const d = new Date(datePart);
+                return upcomingTasks.slice(0, 6).map(task => {
+                    const datePart = extractDatePart(task.scheduledDate);
+                    const timePart = task.scheduledDate.replace(datePart, '').trim();
+                    const d = new Date(datePart + 'T00:00:00');
                     const month = !isNaN(d.getTime()) ? d.toLocaleDateString('en-US', { month: 'short' }) : '';
                     const day = !isNaN(d.getTime()) ? d.getDate().toString() : '';
+                    const isToday = datePart === todayStr;
 
                     return (
-                        <div key={`sched-${task.id}`} className="schedule-slot" style={{ cursor: 'pointer', transition: 'all 0.2s' }} onClick={() => {
-                            setSelectedJob(task);
-                            setShowClientModal(true);
+                        <div key={`sched-${task.source}-${task.id}`} className="schedule-slot" style={{ cursor: 'pointer', transition: 'all 0.2s', borderLeft: isToday ? '3px solid var(--primary)' : '3px solid transparent' }} onClick={() => {
+                            if (task.source === 'dispatch') {
+                              const dispatchJob = tasks.find(t => t.id === task.id);
+                              if (dispatchJob) { setSelectedJob(dispatchJob); setShowClientModal(true); }
+                            }
                         }} onMouseEnter={(e) => e.currentTarget.style.transform = 'translateX(5px)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'translateX(0)'}>
                             <div className="slot-time" style={{ whiteSpace: 'pre-line', textAlign: 'center', lineHeight: '1.2', minWidth: '60px' }}>
-                                <strong style={{fontSize: '1.2rem', color: 'var(--primary)'}}>{day}</strong><br/>
+                                <strong style={{fontSize: '1.2rem', color: isToday ? 'var(--primary)' : 'var(--text-dark)'}}>{day}</strong><br/>
                                 <span style={{fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-light)'}}>{month}</span>
                             </div>
                             <div className="slot-info" style={{ flex: 1 }}>
-                                <h5>{task.name}</h5>
+                                <h5>{task.name} {isToday && <span style={{ fontSize: '0.7rem', background: 'var(--primary)', color: 'white', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>TODAY</span>}</h5>
                                 <p style={{ marginBottom: '0.2rem' }}>{task.location?.split('| COORDS:')[0].trim()}</p>
                                 <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 'bold' }}>{timePart || 'Time TBA'}</span>
                             </div>
-                            <span className={`slot-type ${task.type === 'Deep Cleaning' ? 'deep-cleaning' : task.type === 'Repair' ? 'repair' : 'cleaning'}`}>
-                                {task.type === 'New Installation' ? 'Install' : task.type === 'Deep Cleaning' ? 'Deep Clean' : 'Repair'}
+                            <span className={`slot-type ${task.type === 'Deep Cleaning' ? 'deep-cleaning' : task.type === 'Repair' ? 'repair' : task.source === 'maintenance' ? 'cleaning' : 'cleaning'}`}>
+                                {task.source === 'maintenance' ? 'Maintenance' : task.type === 'New Installation' ? 'Install' : task.type === 'Deep Cleaning' ? 'Deep Clean' : task.type}
                             </span>
                         </div>
                     );
@@ -416,6 +502,9 @@ export default function TechnicianDashboard() {
                 
                 <div style={{"marginTop":"1.5rem","display":"flex","justifyContent":"space-between", "flexWrap": "wrap", "gap": "1rem"}}>
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button className="btn btn-secondary" style={{ borderColor: 'var(--accent-red)', color: 'var(--accent-red)' }} onClick={() => { if(selectedJob) handleFlagAC(selectedJob) }}>
+                            <i className="fa-solid fa-flag"></i> Flag Unit (Tampered)
+                        </button>
                         <button className="btn btn-secondary" onClick={() => { if(selectedJob) handleSendInvoice(selectedJob, 'ADMIN') }}>
                             <i className="fa-solid fa-file-invoice"></i> Admin Invoice
                         </button>

@@ -27,7 +27,8 @@ export default function ProfilePage() {
   const { confirm, showAlert, ModalComponent } = useConfirmModal();
   
   const [activeTab, setActiveTab] = useState('tab-personal');
-  const [sidebarActive, setSidebarActive] = useState(false);
+  const [sidebarActive, setSidebarActive] = useState(false); // Mobile sidebar toggle
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // Desktop collapse toggle
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -60,6 +61,7 @@ export default function ProfilePage() {
 
   // Registered ACs state
   const [registeredACs, setRegisteredACs] = useState<any[]>([]);
+  const [regAcsPage, setRegAcsPage] = useState(1);
   const [regLocation, setRegLocation] = useState('');
   const [regBrandModel, setRegBrandModel] = useState('');
   const [regAcType, setRegAcType] = useState('Window Type');
@@ -244,6 +246,13 @@ export default function ProfilePage() {
   };
 
   const handleTogglePause = async (id: string, currentStatus: boolean) => {
+    const isConfirmed = await confirm({
+      title: `${currentStatus ? 'Resume' : 'Pause'} Maintenance`,
+      message: `Are you sure you want to ${currentStatus ? 'resume' : 'pause'} the maintenance schedule for this AC unit?`,
+      type: currentStatus ? 'confirm' : 'warning'
+    });
+    if (!isConfirmed) return;
+
     try {
       const res = await fetch('/api/registered-acs', {
         method: 'PATCH',
@@ -281,6 +290,13 @@ export default function ProfilePage() {
       setTimeout(() => setToastMsg(''), 2500);
       return;
     }
+
+    const isConfirmed = await confirm({
+      title: 'Confirm Checkout',
+      message: `Are you sure you want to checkout these ${serviceCart.length} service(s) for ₱${cartTotal.toLocaleString()}?`,
+      confirmText: 'Checkout'
+    });
+    if (!isConfirmed) return;
 
     const userId = sessionStorage.getItem('userId');
     if (userId) {
@@ -390,29 +406,60 @@ export default function ProfilePage() {
       </div>
 
       <section className="profile-container">
+        {/* Mobile Sidebar Overlay */}
+        <div className={`sidebar-backdrop ${sidebarActive ? 'show' : ''}`} onClick={() => setSidebarActive(false)}></div>
+
         {/* Mobile Sidebar Toggle Button */}
-        <div className="mobile-only" style={{ display: 'flex', justifyContent: 'flex-start', width: '100%', marginBottom: '10px' }}>
-          <button onClick={toggleSidebar} style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)', cursor: 'pointer', fontSize: '1.2rem' }}>
-            <i className="fa-solid fa-ellipsis-vertical"></i>
+        <div className="mobile-only" style={{ position: 'fixed', top: '80px', left: '10px', zIndex: 40, width: '40px', height: '40px' }}>
+          <button onClick={toggleSidebar} style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '50%', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-md)', cursor: 'pointer', fontSize: '1.2rem' }}>
+            <i className="fa-solid fa-bars"></i>
           </button>
         </div>
 
         {/* Sidebar */}
-        <aside className={`profile-sidebar ${sidebarActive ? 'active' : ''}`}>
-          <h3><i className="fa-solid fa-circle-user" style={{ fontSize: '3rem', marginBottom: '10px', display: 'block' }}></i> My Account</h3>
+        <aside className={`profile-sidebar ${isSidebarCollapsed ? 'collapsed' : ''} ${sidebarActive ? 'mobile-active' : ''}`}>
+          
+          <div className="sidebar-header">
+            <h3>My Account</h3>
+            <button className="sidebar-toggle-btn" onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}>
+              <i className={`fa-solid ${isSidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`}></i>
+            </button>
+          </div>
+
+          <div className="sidebar-user-card">
+            <div className="user-avatar">
+              {userName ? userName.charAt(0).toUpperCase() : 'U'}
+            </div>
+            <div className="user-meta">
+              <h4>{userName}</h4>
+              <p>{userEmail}</p>
+            </div>
+          </div>
+
           <ul className="profile-nav">
-            <li><a href="#" className={`tab-link ${activeTab === 'tab-personal' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); changeTab('tab-personal'); }}><i className="fa-solid fa-id-card"></i> Personal Info</a></li>
-            <li><a href="#" className={`tab-link ${activeTab === 'tab-orders' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); changeTab('tab-orders'); }}><i className="fa-solid fa-box-open"></i> My Orders</a></li>
-            <li><a href="#" className={`tab-link ${activeTab === 'tab-myacs' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); changeTab('tab-myacs'); }}><i className="fa-solid fa-snowflake"></i> My ACs & Installments</a></li>
-            <li><a href="#" className={`tab-link ${activeTab === 'tab-acs' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); changeTab('tab-acs'); }}><i className="fa-solid fa-fan"></i> Registered ACs {serviceCart.length > 0 && <span style={{ background: 'var(--accent-red)', color: 'white', borderRadius: '50%', padding: '2px 7px', fontSize: '0.7rem', marginLeft: '6px' }}>{serviceCart.length}</span>}</a></li>
-            <li><a href="#" className={`tab-link ${activeTab === 'tab-schedule' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); changeTab('tab-schedule'); }}><i className="fa-regular fa-calendar-check"></i> Tech Schedule</a></li>
-            <li><a href="#" className={`tab-link ${activeTab === 'tab-addresses' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); changeTab('tab-addresses'); }}><i className="fa-solid fa-location-dot"></i> Saved Addresses</a></li>
-            <li><a href="#" className={`tab-link ${activeTab === 'tab-settings' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); changeTab('tab-settings'); }}><i className="fa-solid fa-gear"></i> Settings</a></li>
+            <li><a href="#" data-tooltip="Personal Info" className={`tab-link ${activeTab === 'tab-personal' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); changeTab('tab-personal'); }}><i className="fa-solid fa-id-card"></i> <span className="nav-label">Personal Info</span></a></li>
+            <li><a href="#" data-tooltip="My Orders" className={`tab-link ${activeTab === 'tab-orders' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); changeTab('tab-orders'); }}><i className="fa-solid fa-box-open"></i> <span className="nav-label">My Orders</span></a></li>
+            <li><a href="#" data-tooltip="My ACs & Installments" className={`tab-link ${activeTab === 'tab-myacs' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); changeTab('tab-myacs'); }}><i className="fa-solid fa-snowflake"></i> <span className="nav-label">My ACs & Installments</span></a></li>
+            <li>
+              <a href="#" data-tooltip="Registered ACs" className={`tab-link ${activeTab === 'tab-acs' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); changeTab('tab-acs'); }}>
+                <i className="fa-solid fa-fan"></i> 
+                <span className="nav-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  Registered ACs 
+                  {serviceCart.length > 0 && <span style={{ background: 'var(--accent-red)', color: 'white', borderRadius: '50%', padding: '2px 7px', fontSize: '0.7rem' }}>{serviceCart.length}</span>}
+                </span>
+                {isSidebarCollapsed && serviceCart.length > 0 && (
+                  <span style={{ position: 'absolute', top: '2px', right: '2px', background: 'var(--accent-red)', color: 'white', borderRadius: '50%', width: '14px', height: '14px', fontSize: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{serviceCart.length}</span>
+                )}
+              </a>
+            </li>
+            <li><a href="#" data-tooltip="Tech Schedule" className={`tab-link ${activeTab === 'tab-schedule' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); changeTab('tab-schedule'); }}><i className="fa-regular fa-calendar-check"></i> <span className="nav-label">Tech Schedule</span></a></li>
+            <li><a href="#" data-tooltip="Saved Addresses" className={`tab-link ${activeTab === 'tab-addresses' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); changeTab('tab-addresses'); }}><i className="fa-solid fa-location-dot"></i> <span className="nav-label">Saved Addresses</span></a></li>
+            <li><a href="#" data-tooltip="Settings" className={`tab-link ${activeTab === 'tab-settings' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); changeTab('tab-settings'); }}><i className="fa-solid fa-gear"></i> <span className="nav-label">Settings</span></a></li>
           </ul>
         </aside>
 
         {/* Main Content */}
-        <div className="profile-content">
+        <div className={`profile-content ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
           
           <div id="tab-personal" className={`tab-content ${activeTab === 'tab-personal' ? 'active' : ''}`}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -541,7 +588,14 @@ export default function ProfilePage() {
                 </select>
               </div>
               <button className="btn btn-sm" onClick={async () => {
-                if (!regLocation || !regBrandModel) { alert('Please fill in location and brand/model'); return; }
+                if (!regLocation || !regBrandModel) { showAlert({title: 'Required', message: 'Please fill in location and brand/model', type: 'warning'}); return; }
+                const isConfirmed = await confirm({
+                  title: 'Register AC Unit',
+                  message: `Register ${regBrandModel} at ${regLocation}?`,
+                  confirmText: 'Register'
+                });
+                if (!isConfirmed) return;
+
                 const userId = sessionStorage.getItem('userId');
                 if (!userId) return;
                 const body: any = { userId, location: regLocation, brandModel: regBrandModel, acType: regAcType, horsepower: regHorsepower, paymentType: 'N/A', purchasedFromStore: false };
@@ -560,42 +614,80 @@ export default function ProfilePage() {
                 {registeredACs.length === 0 ? (
                   <p style={{ color: 'var(--text-light)', padding: '2rem', textAlign: 'center' }}>No registered AC units yet. Click "Register AC" to add one.</p>
                 ) : (
-                  registeredACs.map((ac) => (
-                    <div key={ac.id} className="ac-card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '1rem', borderLeft: ac.purchasedFromStore ? '4px solid var(--primary)' : '4px solid var(--border-color)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
-                        <div className="ac-info">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2px' }}>
-                            <h4 style={{ margin: 0 }}><i className="fa-solid fa-fan" style={{ color: 'var(--text-light)', marginRight: '8px' }}></i> {ac.location}</h4>
-                            {ac.purchasedFromStore ? (
-                              <span style={{ fontSize: '0.7rem', background: 'rgba(0,155,213,0.15)', color: 'var(--primary)', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>FrostTech Purchased</span>
-                            ) : (
-                              <span style={{ fontSize: '0.7rem', background: 'rgba(150,150,150,0.15)', color: 'var(--text-light)', padding: '2px 8px', borderRadius: '10px', fontWeight: 600 }}>Manually Added</span>
-                            )}
+                  <>
+                    {registeredACs.slice((regAcsPage - 1) * 2, regAcsPage * 2).map((ac) => (
+                      <div key={ac.id} className="ac-card" style={{ 
+                        flexDirection: 'column', 
+                        alignItems: 'stretch', 
+                        gap: '1.2rem', 
+                        borderLeft: ac.purchasedFromStore ? '5px solid var(--primary)' : '5px solid var(--border-color)',
+                        background: ac.purchasedFromStore ? 'linear-gradient(to right, rgba(0,155,213,0.03), transparent)' : 'var(--bg-card)',
+                        boxShadow: 'var(--shadow-sm)',
+                        padding: '1.5rem',
+                        borderRadius: 'var(--radius-lg)'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                          <div className="ac-info" style={{ flex: '1 1 250px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '8px' }}>
+                              <h4 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-dark)' }}><i className="fa-solid fa-fan" style={{ color: ac.purchasedFromStore ? 'var(--primary)' : 'var(--text-light)', marginRight: '6px' }}></i> {ac.location}</h4>
+                              {ac.purchasedFromStore ? (
+                                <span style={{ fontSize: '0.7rem', background: 'rgba(0,155,213,0.15)', color: 'var(--primary)', padding: '3px 10px', borderRadius: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>FrostTech Unit</span>
+                              ) : (
+                                <span style={{ fontSize: '0.7rem', background: 'var(--bg-input)', color: 'var(--text-light)', padding: '3px 10px', borderRadius: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Manual Add</span>
+                              )}
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 500, color: 'var(--text-dark)' }}>{ac.brandModel}</p>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginTop: '6px', margin: 0 }}><i className="fa-regular fa-calendar" style={{marginRight: '4px'}}></i> Registered: {new Date(ac.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                           </div>
-                          <p>{ac.brandModel}</p>
-                          <p style={{ fontSize: '0.8rem', color: '#888', marginTop: '5px' }}>Registered: {new Date(ac.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                          
+                          <div className="ac-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', flex: '1 1 auto', justifyContent: 'flex-end' }}>
+                            <button className="btn btn-sm btn-secondary" style={{ background: 'transparent', borderColor: 'var(--border-color)', color: 'var(--text-dark)' }} onClick={() => {
+                              const isInverter = ac.brandModel.toLowerCase().includes('inverter');
+                              addToCart(`${ac.location} — ${ac.brandModel}`, 'Cleaning', isInverter ? 650 : 500, `note-${ac.id}`);
+                            }}>
+                              <i className="fa-solid fa-broom" style={{color: 'var(--primary)'}}></i> Clean
+                            </button>
+                            <button className="btn btn-sm btn-secondary" style={{ background: 'transparent', borderColor: 'var(--border-color)', color: 'var(--text-dark)' }} onClick={() => {
+                              const isInverter = ac.brandModel.toLowerCase().includes('inverter');
+                              addToCart(`${ac.location} — ${ac.brandModel}`, 'Deep Cleaning', isInverter ? 900 : 750, `note-${ac.id}`);
+                            }}>
+                              <i className="fa-solid fa-spray-can-sparkles" style={{color: 'var(--primary)'}}></i> Deep Clean
+                            </button>
+                            <button className="btn btn-sm btn-secondary" onClick={() => addToCart(`${ac.location} — ${ac.brandModel}`, 'Repair', 500, `note-${ac.id}`)} style={{ background: 'rgba(220,53,69,0.05)', color: 'var(--accent-red)', borderColor: 'rgba(220,53,69,0.2)' }}>
+                              <i className="fa-solid fa-wrench"></i> Repair
+                            </button>
+                          </div>
                         </div>
-                        <div className="ac-actions" style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                          <button className="btn btn-sm btn-secondary" onClick={() => {
-                            const isInverter = ac.brandModel.toLowerCase().includes('inverter');
-                            addToCart(`${ac.location} — ${ac.brandModel}`, 'Cleaning', isInverter ? 650 : 500, `note-${ac.id}`);
-                          }}>
-                            <i className="fa-solid fa-broom"></i> Cleaning
-                          </button>
-                          <button className="btn btn-sm btn-secondary" onClick={() => {
-                            const isInverter = ac.brandModel.toLowerCase().includes('inverter');
-                            addToCart(`${ac.location} — ${ac.brandModel}`, 'Deep Cleaning', isInverter ? 900 : 750, `note-${ac.id}`);
-                          }}>
-                            <i className="fa-solid fa-spray-can-sparkles"></i> Deep Clean
-                          </button>
-                          <button className="btn btn-sm btn-secondary" onClick={() => addToCart(`${ac.location} — ${ac.brandModel}`, 'Repair', 500, `note-${ac.id}`)} style={{ color: 'var(--accent-red)', borderColor: 'var(--accent-red)' }}>
-                            <i className="fa-solid fa-wrench"></i> Repair
-                          </button>
+                        <div style={{ marginTop: '0.5rem' }}>
+                          <input type="text" id={`note-${ac.id}`} placeholder="Optional: Add a note (e.g. leaking water, strange noise...)" style={{ width: '100%', padding: '0.7rem 1rem', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--bg-card)', fontSize: '0.85rem', color: 'var(--text-dark)', transition: 'border-color 0.2s' }} onFocus={(e) => e.target.style.borderColor = 'var(--primary)'} onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'} />
                         </div>
                       </div>
-                      <input type="text" id={`note-${ac.id}`} placeholder="Optional: Add a note (e.g. leaking water, strange noise...)" style={{ width: '100%', padding: '0.6rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-input, rgba(255,255,255,0.05))', fontSize: '0.85rem', color: 'var(--text-dark)' }} />
-                    </div>
-                  ))
+                    ))}
+                    {/* Pagination Controls */}
+                    {registeredACs.length > 2 && (
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}>
+                        <button 
+                          className="btn btn-secondary" 
+                          disabled={regAcsPage === 1}
+                          onClick={() => setRegAcsPage(p => Math.max(1, p - 1))}
+                          style={{ padding: '0.5rem 1rem' }}
+                        >
+                          <i className="fa-solid fa-chevron-left"></i> Prev
+                        </button>
+                        <span style={{ color: 'var(--text-light)', fontSize: '0.9rem' }}>
+                          Page {regAcsPage} of {Math.ceil(registeredACs.length / 2)}
+                        </span>
+                        <button 
+                          className="btn btn-secondary" 
+                          disabled={regAcsPage >= Math.ceil(registeredACs.length / 2)}
+                          onClick={() => setRegAcsPage(p => p + 1)}
+                          style={{ padding: '0.5rem 1rem' }}
+                        >
+                          Next <i className="fa-solid fa-chevron-right"></i>
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 

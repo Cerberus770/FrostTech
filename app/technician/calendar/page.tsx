@@ -42,10 +42,10 @@ export default function TechnicianCalendar() {
   const getEventsForDay = (day: number) => {
     return tasks.filter(t => {
       if (!t.scheduledDate) return false;
-      // Handle "YYYY-MM-DD" and ISO formats properly without local time shift
-      const dStr = t.scheduledDate.includes('T') ? t.scheduledDate : t.scheduledDate + 'T00:00:00';
-      const d = new Date(dStr);
-      return d.getDate() === day && d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear();
+      // Extract just the YYYY-MM-DD part (before the time block text)
+      const datePart = t.scheduledDate.split(' ')[0];
+      const d = new Date(datePart + 'T00:00:00');
+      return !isNaN(d.getTime()) && d.getDate() === day && d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear();
     });
   };
 
