@@ -223,6 +223,11 @@ export default function ProfilePage() {
   };
 
   const addToCart = async (name: string, price: number, brand?: string, image?: string, productId?: string, skipModal?: boolean) => {
+    if (sessionStorage.getItem('isLoggedIn') !== 'true') {
+      window.location.href = '/login';
+      return;
+    }
+
     // Check if it's an AC (price > 10000 heuristic)
     if (price > 10000 && !skipModal) {
       let isNew = isNewCustomer;

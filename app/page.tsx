@@ -126,10 +126,18 @@ export default function HomePage() {
   };
 
     const addToCart = async (name: string, price: number, brand?: string, image?: string, productId?: string, skipModal?: boolean) => {
-    const userId = sessionStorage.getItem('userId');
     const actualProductId = productId || 'PROD-' + Date.now();
     const itemImage = image || '/hero-bg.png';
     const itemBrand = brand || '';
+
+    // 1. Force login/register: if guest, prompt AuthModal immediately
+    if (sessionStorage.getItem('isLoggedIn') !== 'true') {
+      setPendingAuthCartItem({ name, price, brand: itemBrand, image: itemImage, productId: actualProductId });
+      setShowAuthModal(true);
+      return;
+    }
+
+    const userId = sessionStorage.getItem('userId');
 
     // Check if it's an AC (price > 10000 heuristic)
     if (price > 10000 && !skipModal) {
@@ -147,7 +155,7 @@ export default function HomePage() {
       }
 
       if (isNew) {
-        setPendingCartItem({ name, price, brand, image: itemImage, productId: actualProductId });
+        setPendingCartItem({ name, price, brand: itemBrand, image: itemImage, productId: actualProductId });
         setShowDownpaymentModal(true);
         return;
       }

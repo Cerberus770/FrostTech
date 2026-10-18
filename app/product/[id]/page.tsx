@@ -147,6 +147,13 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
   }
 
   const handleAddToCart = async () => {
+    // 1. Force register or login if not logged in
+    if (sessionStorage.getItem('isLoggedIn') !== 'true') {
+      setPendingAction('cart');
+      setShowAuthModal(true);
+      return;
+    }
+
     const userId = sessionStorage.getItem('userId');
     const productId = product.id || 'PROD-' + Date.now();
     const name = product.name;
