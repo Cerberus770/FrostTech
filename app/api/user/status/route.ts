@@ -16,17 +16,16 @@ export async function GET(request: NextRequest) {
       where: { userId },
     });
 
-    // We can also check if they have any orders for ACs
-    const orderCount = await prisma.order.count({
+    // Only count approved or completed orders with verified downpayment
+    const verifiedOrderCount = await prisma.order.count({
       where: { 
         userId,
-        item: {
-          contains: 'Inverter', // basic heuristic, assuming ACs have "Inverter" or similar, but registeredAC count is the best proxy
-        }
+        status: { in: ['Approved', 'Completed'] },
+        hasDownpayment: true,
       }
     });
 
-    const isNewCustomer = acCount === 0 && orderCount === 0;
+    const isNewCustomer = acCount === 0 && verifiedOrderCount === 0;
 
     return NextResponse.json({ isNewCustomer });
   } catch (error) {

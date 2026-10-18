@@ -91,6 +91,11 @@ export interface CartItem {
   price: number;
   quantity: number;
   image?: string;
+  addedAt?: number;
+  createdAt?: string | Date;
+  category?: string;
+  notice3Days?: boolean;
+  notice3DaysAt?: string | Date;
 }
 
 // ===== Service Cart (Profile) =====

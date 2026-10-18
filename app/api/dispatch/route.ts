@@ -24,7 +24,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const item = await prisma.dispatchItem.create({ data: body });
+    const { technicianIds, ...data } = body;
+    const createData: any = { ...data };
+    if (technicianIds && Array.isArray(technicianIds) && technicianIds.length > 0) {
+      createData.technicians = {
+        connect: technicianIds.map((techId: string) => ({ id: techId }))
+      };
+    }
+    const item = await prisma.dispatchItem.create({ data: createData });
     return NextResponse.json(item, { status: 201 });
   } catch (error) {
     console.error('Dispatch create error:', error);

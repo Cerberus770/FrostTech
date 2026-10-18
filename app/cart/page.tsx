@@ -53,18 +53,70 @@ export default function CartPage() {
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [showDeliveryMap, setShowDeliveryMap] = useState(false);
   const [deliveryCoords, setDeliveryCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const userId = sessionStorage.getItem('userId');
+    const localCart: CartItem[] = (() => {
+      try {
+        const saved = JSON.parse(localStorage.getItem('frostTechCart') || '[]');
+        const threeDaysAgoMs = Date.now() - 3 * 24 * 60 * 60 * 1000;
+        return saved.filter((item: any) => {
+          const timestamp = item.addedAt || item.createdAt ? new Date(item.addedAt || item.createdAt).getTime() : Date.now();
+          return timestamp > threeDaysAgoMs;
+        });
+      } catch {
+        return [];
+      }
+    })();
+
     if (userId) {
       // Fetch from API if logged in
       fetch(`/api/cart?userId=${userId}`)
         .then(res => res.json())
         .then(data => {
-          setCartItems(data);
-          calculateTotal(data);
+          let merged: CartItem[] = [];
+          if (Array.isArray(data) && data.length > 0) {
+            merged = [...data];
+            // Merge any local items not yet in API
+            localCart.forEach((loc) => {
+              if (!merged.some(m => m.productId === loc.productId || (m.name === loc.name && m.brand === loc.brand))) {
+                merged.push(loc);
+                // Also persist to API for future visits
+                fetch('/api/cart', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId,
+                    productId: loc.productId || 'PROD-' + loc.id,
+                    name: loc.name,
+                    brand: loc.brand || '',
+                    price: loc.price,
+                    image: loc.image,
+                    quantity: loc.quantity || 1
+                  })
+                }).catch(() => {});
+              }
+            });
+          } else {
+            // API returned empty or error, use localCart
+            merged = localCart;
+          }
+          setCartItems(merged);
+          calculateTotal(merged);
+          localStorage.setItem('frostTechCart', JSON.stringify(merged));
+          window.dispatchEvent(new Event('storage'));
         })
-        .catch(console.error);
+        .catch(err => {
+          console.error('Cart fetch error, using local fallback:', err);
+          setCartItems(localCart);
+          calculateTotal(localCart);
+        });
 
       // Check if new customer
       fetch(`/api/user/status?userId=${userId}`)
@@ -72,16 +124,35 @@ export default function CartPage() {
         .then(data => setIsNewCustomer(data.isNewCustomer))
         .catch(console.error);
     } else {
-      // Fallback to localStorage for guests
-      try {
-        const saved = JSON.parse(localStorage.getItem('frostTechCart') || '[]');
-        setCartItems(saved);
-        calculateTotal(saved);
-      } catch {
-        setCartItems([]);
-      }
+      setIsNewCustomer(true);
+      setCartItems(localCart);
+      calculateTotal(localCart);
+      localStorage.setItem('frostTechCart', JSON.stringify(localCart));
+      window.dispatchEvent(new Event('storage'));
     }
   }, []);
+
+  const getHoldTimeRemaining = (item: CartItem) => {
+    const rawTime = (item.notice3Days && item.notice3DaysAt) ? item.notice3DaysAt : (item.createdAt || item.addedAt);
+    const addedTime = rawTime ? new Date(rawTime).getTime() : Date.now();
+    const expiryTime = addedTime + 3 * 24 * 60 * 60 * 1000;
+    const diff = expiryTime - now;
+
+    if (diff <= 0) {
+      return { expired: true, text: 'Expired', hasNotice: !!item.notice3Days };
+    }
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+    return {
+      expired: false,
+      text: `${days}d ${hours}h ${minutes}m ${seconds}s`,
+      hasNotice: !!item.notice3Days,
+    };
+  };
 
   const calculateTotal = (items: CartItem[]) => {
     const sum = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
@@ -93,6 +164,8 @@ export default function CartPage() {
     const updated = cartItems.filter((item) => item.id !== id);
     setCartItems(updated);
     calculateTotal(updated);
+    localStorage.setItem('frostTechCart', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
     
     if (userId) {
       try {
@@ -100,8 +173,6 @@ export default function CartPage() {
       } catch (e) {
         console.error('Error deleting cart item', e);
       }
-    } else {
-      localStorage.setItem('frostTechCart', JSON.stringify(updated));
     }
   };
 
@@ -116,6 +187,8 @@ export default function CartPage() {
     });
     setCartItems(updated);
     calculateTotal(updated);
+    localStorage.setItem('frostTechCart', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
 
     const userId = sessionStorage.getItem('userId');
     if (userId) {
@@ -128,8 +201,6 @@ export default function CartPage() {
       } catch (e) {
         console.error('Error updating cart item quantity', e);
       }
-    } else {
-      localStorage.setItem('frostTechCart', JSON.stringify(updated));
     }
   };
 
@@ -152,9 +223,19 @@ export default function CartPage() {
       alert('Please fill in all required fields.');
       return;
     }
-    const isAcInCart = cartItems.some(item => item.price > 10000);
+    const isAcInCart = cartItems.some(item => 
+      (item.price && item.price >= 8000) ||
+      (item.category && (item.category.toLowerCase().includes('ac') || item.category.toLowerCase().includes('air'))) ||
+      (item.name && (
+        item.name.toLowerCase().includes('inverter') || 
+        item.name.toLowerCase().includes('split') || 
+        item.name.toLowerCase().includes('conditioner') ||
+        item.name.toLowerCase().includes('ac') ||
+        item.name.toLowerCase().includes('aircon')
+      ))
+    );
     if (isNewCustomer && isAcInCart && !downpaymentProof) {
-      alert('Please upload proof of downpayment before placing your order.');
+      alert('Please upload proof of your 15% downpayment before placing your order. First-time AC buyers require a verified downpayment.');
       return;
     }
 
@@ -333,19 +414,19 @@ FrostTech Representative: ______________  Date: ___________
           fontFamily: 'var(--font-display)',
           fontSize: '1.8rem',
           fontWeight: 700,
-          color: 'var(--text-dark)',
+          color: '#0f172a',
           marginBottom: '2rem',
           display: 'flex',
           alignItems: 'center',
           gap: '0.75rem',
         }}>
-          <i className="fa-solid fa-cart-shopping" style={{ color: 'var(--primary)' }}></i>
+          <i className="fa-solid fa-cart-shopping" style={{ color: '#0284c7' }}></i>
           Shopping Cart
           {cartItems.length > 0 && (
             <span style={{
               fontSize: '0.85rem',
               fontWeight: 500,
-              color: 'var(--text-light)',
+              color: '#64748b',
               marginLeft: '0.25rem',
             }}>
               ({cartItems.length} {cartItems.length === 1 ? 'item' : 'items'})
@@ -358,7 +439,7 @@ FrostTech Representative: ______________  Date: ___________
           display: 'inline-flex',
           alignItems: 'center',
           gap: '0.5rem',
-          color: 'var(--primary)',
+          color: '#0284c7',
           fontSize: '0.9rem',
           fontWeight: 600,
           marginBottom: '1.5rem',
@@ -367,29 +448,67 @@ FrostTech Representative: ______________  Date: ___________
           <i className="fa-solid fa-arrow-left"></i> Continue Shopping
         </Link>
 
+        {/* 3-Day Reservation Policy Notice */}
+        {cartItems.length > 0 && (
+          <div style={{
+            background: '#e0f2fe',
+            border: '1px solid #bae6fd',
+            borderRadius: 'var(--radius-lg)',
+            padding: '1rem 1.4rem',
+            marginBottom: '1.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
+            boxShadow: '0 2px 10px rgba(2, 132, 199, 0.08)',
+          }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '50%',
+              background: '#0284c7',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.15rem',
+              flexShrink: 0,
+            }}>
+              <i className="fa-solid fa-clock-rotate-left"></i>
+            </div>
+            <div>
+              <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, color: '#0369a1' }}>
+                3-Day Cart Reservation Policy
+              </h4>
+              <p style={{ margin: '3px 0 0', fontSize: '0.85rem', color: '#334155', lineHeight: 1.4 }}>
+                Items added to your cart are reserved for <strong>3 days</strong> to proceed to checkout and payment. If payment is not completed within 3 days, items automatically release back to store inventory stock.
+              </p>
+            </div>
+          </div>
+        )}
+
         {cartItems.length === 0 ? (
           /* Empty Cart State */
           <div style={{
-            background: 'var(--bg-card)',
-            border: '1px solid rgba(255,255,255,0.06)',
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
             borderRadius: 'var(--radius-lg)',
             padding: '5rem 2rem',
             textAlign: 'center',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
           }}>
             <i className="fa-solid fa-cart-shopping" style={{
               fontSize: '4rem',
-              color: 'rgba(255,255,255,0.08)',
+              color: '#cbd5e1',
               marginBottom: '1.5rem',
               display: 'block',
             }}></i>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-dark)', marginBottom: '0.75rem' }}>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.75rem' }}>
               Your cart is empty
             </h2>
-            <p style={{ color: 'var(--text-light)', marginBottom: '2rem', fontSize: '0.95rem' }}>
+            <p style={{ color: '#64748b', marginBottom: '2rem', fontSize: '0.95rem' }}>
               Looks like you haven&apos;t added any air conditioners yet.
             </p>
-            <Link href="/" className="btn" style={{
-              background: 'var(--primary)',
+            <Link href="/" className="btn btn-buy" style={{
               padding: '0.8rem 2rem',
               fontSize: '1rem',
               display: 'inline-flex',
@@ -466,6 +585,7 @@ FrostTech Representative: ______________  Date: ___________
                       fontSize: '1.2rem',
                       fontWeight: 800,
                       color: 'var(--accent-red)',
+                      marginBottom: 0,
                     }}>
                       ₱{(item.price * item.quantity).toLocaleString()}
                       {item.quantity > 1 && (
@@ -474,6 +594,35 @@ FrostTech Representative: ______________  Date: ___________
                         </span>
                       )}
                     </p>
+
+                    {/* 3-Day Hold Countdown Pill */}
+                    {(() => {
+                      const hold = getHoldTimeRemaining(item);
+                      return (
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          marginTop: '0.45rem',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          background: hold.expired ? 'rgba(239, 68, 68, 0.2)' : hold.hasNotice ? 'rgba(234, 88, 12, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                          color: hold.expired ? '#ef4444' : hold.hasNotice ? '#ea580c' : '#f59e0b',
+                          border: hold.expired ? '1px solid rgba(239, 68, 68, 0.4)' : hold.hasNotice ? '1px solid rgba(234, 88, 12, 0.5)' : '1px solid rgba(245, 158, 11, 0.4)',
+                        }}>
+                          <i className={`fa-solid ${hold.expired ? 'fa-triangle-exclamation' : hold.hasNotice ? 'fa-bell' : 'fa-hourglass-half'}`}></i>
+                          <span>
+                            {hold.expired
+                              ? 'Expired — returned to stock'
+                              : hold.hasNotice
+                              ? `3-Day Admin Notice: ${hold.text} remaining to checkout`
+                              : `Cart Hold: ${hold.text} to proceed for payment`}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Quantity + Delete */}
@@ -608,14 +757,16 @@ FrostTech Representative: ______________  Date: ___________
                   style={{
                     width: '100%',
                     padding: '0.9rem',
-                    background: 'var(--accent-red-grad)',
+                    background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                    color: '#ffffff',
+                    border: 'none',
                     fontSize: '1rem',
                     fontWeight: 700,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '0.5rem',
-                    boxShadow: '0 8px 24px -6px rgba(255, 107, 87, 0.4)',
+                    boxShadow: '0 8px 24px -6px rgba(2, 132, 199, 0.5)',
                   }}
                 >
                   Proceed to Checkout <i className="fa-solid fa-arrow-right"></i>
@@ -852,9 +1003,13 @@ FrostTech Representative: ______________  Date: ___________
               </div>
 
               {/* Downpayment Proof Upload */}
-              {isNewCustomer && cartItems.some(item => item.price > 10000) && (
-                <div style={{ marginBottom: '1.5rem', background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '10px', border: '1px dashed var(--accent-blue)' }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-blue)', marginBottom: '0.5rem' }}>
+              {isNewCustomer && cartItems.some(item => 
+                (item.price && item.price >= 8000) ||
+                (item.category && (item.category.toLowerCase().includes('ac') || item.category.toLowerCase().includes('air'))) ||
+                (item.name && (item.name.toLowerCase().includes('inverter') || item.name.toLowerCase().includes('split') || item.name.toLowerCase().includes('conditioner') || item.name.toLowerCase().includes('aircon')))
+              ) && (
+                <div style={{ marginBottom: '1.5rem', background: 'rgba(56, 189, 248, 0.08)', padding: '1rem', borderRadius: '10px', border: '1px dashed #38bdf8' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8', marginBottom: '0.5rem' }}>
                     <i className="fa-solid fa-file-invoice-dollar"></i> Upload Proof of Downpayment (Required)
                   </label>
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '0.8rem' }}>Please upload a screenshot or photo of your 15% downpayment receipt.</p>
@@ -891,10 +1046,14 @@ FrostTech Representative: ______________  Date: ___________
                 </div>
                 
                 {(() => {
-                  const acTotal = cartItems.filter(item => item.price > 10000).reduce((acc, item) => acc + item.price * item.quantity, 0);
+                  const acTotal = cartItems.filter(item => 
+                    (item.price && item.price >= 8000) ||
+                    (item.category && (item.category.toLowerCase().includes('ac') || item.category.toLowerCase().includes('air'))) ||
+                    (item.name && (item.name.toLowerCase().includes('inverter') || item.name.toLowerCase().includes('split') || item.name.toLowerCase().includes('conditioner') || item.name.toLowerCase().includes('aircon')))
+                  ).reduce((acc, item) => acc + item.price * item.quantity, 0);
                   if (isNewCustomer && acTotal > 0) {
                     return (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.85rem', color: 'var(--accent-blue)', fontWeight: 'bold' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#38bdf8', fontWeight: 'bold' }}>
                         <span>15% Downpayment (First-time AC Buyer)</span>
                         <span>₱{(acTotal * 0.15).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                       </div>
@@ -912,9 +1071,10 @@ FrostTech Representative: ______________  Date: ___________
               {/* Confirm Button */}
               <button onClick={handleConfirmCheckout} disabled={isSubmitting} className="btn" style={{
                 width: '100%', padding: '0.9rem', fontSize: '1rem', fontWeight: 700,
-                background: isSubmitting ? '#888' : 'var(--accent-red-grad)',
+                background: isSubmitting ? '#94a3b8' : 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                color: '#ffffff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                boxShadow: '0 8px 24px -6px rgba(255, 107, 87, 0.4)', cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                boxShadow: '0 8px 24px -6px rgba(2, 132, 199, 0.45)', cursor: isSubmitting ? 'not-allowed' : 'pointer',
               }}>
                 {isSubmitting ? (
                   <><i className="fa-solid fa-spinner fa-spin"></i> Processing...</>

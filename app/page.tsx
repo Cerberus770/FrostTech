@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
+import AuthModal from '@/components/AuthModal';
+import ProfilePage from '@/app/profile/page';
 import { useAppState } from '@/context/AppStateContext';
 import { products as fallbackProducts } from '@/lib/products';
 
@@ -43,6 +45,28 @@ export default function HomePage() {
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [showDownpaymentModal, setShowDownpaymentModal] = useState(false);
   const [pendingCartItem, setPendingCartItem] = useState<any>(null);
+
+  // Auth modal state for guest add-to-cart
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingAuthCartItem, setPendingAuthCartItem] = useState<any>(null);
+
+  // Auth & Dashboard switch state
+  const [mounted, setMounted] = useState(false);
+  const [isCustomerLoggedIn, setIsCustomerLoggedIn] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const checkAuth = () => {
+      const loggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+      const role = sessionStorage.getItem('userRole');
+      const isCust = sessionStorage.getItem('isCustomer') === 'true' || role === 'CUSTOMER';
+      setIsCustomerLoggedIn(loggedIn && isCust);
+    };
+
+    checkAuth();
+    window.addEventListener('storage', checkAuth);
+    return () => window.removeEventListener('storage', checkAuth);
+  }, []);
 
   useEffect(() => {
     const q = searchParams.get('q');
@@ -103,7 +127,10 @@ export default function HomePage() {
 
     const addToCart = async (name: string, price: number, brand?: string, image?: string, productId?: string, skipModal?: boolean) => {
     const userId = sessionStorage.getItem('userId');
-    
+    const actualProductId = productId || 'PROD-' + Date.now();
+    const itemImage = image || '/hero-bg.png';
+    const itemBrand = brand || '';
+
     // Check if it's an AC (price > 10000 heuristic)
     if (price > 10000 && !skipModal) {
       // Dynamically fetch status to ensure it's up-to-date
@@ -120,16 +147,29 @@ export default function HomePage() {
       }
 
       if (isNew) {
-        setPendingCartItem({ name, price, brand, image, productId });
+        setPendingCartItem({ name, price, brand, image: itemImage, productId: actualProductId });
         setShowDownpaymentModal(true);
         return;
       }
     }
 
-    const actualProductId = productId || 'PROD-' + Date.now();
-    const itemImage = image || '/hero-bg.png';
-    const itemBrand = brand || '';
+    // 1. Always update local storage for immediate UI responsiveness & Header count
+    try {
+      const cart = JSON.parse(localStorage.getItem('frostTechCart') || '[]');
+      const existing = cart.find((i: any) => i.productId === actualProductId || i.name === name);
+      if (existing) {
+        existing.quantity += 1;
+      } else {
+        cart.push({ id: Date.now(), productId: actualProductId, name, brand: itemBrand, price, quantity: 1, image: itemImage, addedAt: Date.now() });
+      }
+      localStorage.setItem('frostTechCart', JSON.stringify(cart));
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new Event('cartUpdated'));
+    } catch (e) {
+      console.error('Local cart error:', e);
+    }
 
+    // 2. If logged in, sync to database & reduce inventory stock
     if (userId) {
       try {
         await fetch('/api/cart', {
@@ -148,15 +188,6 @@ export default function HomePage() {
       } catch (err) {
         console.error('Failed to add to cart API', err);
       }
-    } else {
-      const cart = JSON.parse(localStorage.getItem('frostTechCart') || '[]');
-      const existing = cart.find((i: any) => i.productId === actualProductId || i.name === name);
-      if (existing) {
-        existing.quantity += 1;
-      } else {
-        cart.push({ id: Date.now(), productId: actualProductId, name, brand: itemBrand, price, quantity: 1, image: itemImage });
-      }
-      localStorage.setItem('frostTechCart', JSON.stringify(cart));
     }
     
     // Toast notification
@@ -214,9 +245,42 @@ export default function HomePage() {
     item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories'
   );
 
+  const showDashboard = mounted && isCustomerLoggedIn;
+
+  if (showDashboard) {
+    return <ProfilePage />;
+  }
+
   return (
     <>
       <Header />
+
+      {/* Customer Shop Navigation Bar */}
+      {isCustomerLoggedIn && (
+        <div style={{ background: '#e0f2fe', borderBottom: '1px solid #bae6fd', padding: '0.65rem 5%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem' }}>
+          <span style={{ color: '#0369a1', fontWeight: 600 }}>
+            <i className="fa-solid fa-store" style={{ marginRight: '6px' }}></i>
+            Browsing Air Conditioners & Parts Catalog
+          </span>
+          <Link
+            href="/"
+            style={{
+              background: '#0284c7',
+              color: 'white',
+              padding: '5px 16px',
+              borderRadius: '999px',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            &larr; Return to Customer Dashboard
+          </Link>
+        </div>
+      )}
 
       {/* Category Nav */}
       <nav className="category-nav">
@@ -543,7 +607,7 @@ export default function HomePage() {
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
           <div style={{ background: 'var(--bg-card)', padding: '2rem', borderRadius: 'var(--radius-lg)', maxWidth: '500px', width: '90%', border: '1px solid var(--border-color)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
             <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-              <i className="fa-solid fa-circle-exclamation" style={{ fontSize: '3rem', color: 'var(--accent-blue)', marginBottom: '1rem' }}></i>
+              <i className="fa-solid fa-circle-exclamation" style={{ fontSize: '3rem', color: '#38bdf8', marginBottom: '1rem' }}></i>
               <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem', border: 'none', padding: 0 }}>Downpayment Required</h2>
               <p style={{ color: 'var(--text-light)', fontSize: '0.95rem' }}>As a first-time buyer of Air Conditioning units, a 15% downpayment is required.</p>
             </div>
@@ -553,7 +617,7 @@ export default function HomePage() {
                 <span style={{ color: 'var(--text-light)' }}>{pendingCartItem.name}</span>
                 <span style={{ fontWeight: 'bold' }}>₱ {pendingCartItem.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--border-color)', paddingTop: '0.5rem', marginTop: '0.5rem', color: 'var(--accent-blue)', fontWeight: 'bold' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--border-color)', paddingTop: '0.5rem', marginTop: '0.5rem', color: '#38bdf8', fontWeight: 'bold' }}>
                 <span>15% Downpayment</span>
                 <span>₱ {(pendingCartItem.price * 0.15).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
@@ -573,6 +637,28 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* Auth Modal for guest add-to-cart */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => {
+          setShowAuthModal(false);
+          setPendingAuthCartItem(null);
+        }}
+        onSuccess={() => {
+          setShowAuthModal(false);
+          // After successful login, retry the pending add-to-cart
+          if (pendingAuthCartItem) {
+            const item = pendingAuthCartItem;
+            setPendingAuthCartItem(null);
+            // Small delay to ensure session is set
+            setTimeout(() => {
+              addToCart(item.name, item.price, item.brand, item.image, item.productId);
+            }, 300);
+          }
+        }}
+        actionPrompt="Please sign in or create an account to add items to your cart."
+      />
 
       {/* Toast Notification */}
       <div id="toast" className={`toast ${toastVisible ? 'visible' : ''}`} dangerouslySetInnerHTML={{ __html: toastMessage }}></div>

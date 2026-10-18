@@ -24,9 +24,24 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, location, brandModel, acType, horsepower, paymentType, totalPrice, months, pricePerMonth, lat, lng, fullAddress, purchasedFromStore } = body;
+    const {
+      userId,
+      location,
+      brandModel,
+      acType,
+      horsepower,
+      paymentType,
+      totalPrice,
+      months,
+      pricePerMonth,
+      lat,
+      lng,
+      fullAddress,
+      purchasedFromStore,
+      isEnrolledMaintenance,
+    } = body;
 
-    if (!userId || !location || !brandModel || !acType || !horsepower || !paymentType) {
+    if (!userId || !location || !brandModel || !acType || !horsepower) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -37,14 +52,16 @@ export async function POST(request: NextRequest) {
         brandModel,
         acType,
         horsepower,
-        paymentType,
-        totalPrice: totalPrice || null,
-        months: months || null,
-        pricePerMonth: pricePerMonth || null,
-        lat: lat || null,
-        lng: lng || null,
+        paymentType: paymentType || 'Cash',
+        totalPrice: totalPrice ? parseFloat(totalPrice) : null,
+        months: months ? parseInt(months, 10) : null,
+        pricePerMonth: pricePerMonth ? parseFloat(pricePerMonth) : null,
+        lat: lat ? parseFloat(lat) : null,
+        lng: lng ? parseFloat(lng) : null,
         fullAddress: fullAddress || null,
         purchasedFromStore: purchasedFromStore === true,
+        isEnrolledMaintenance: isEnrolledMaintenance === true,
+        enrolledAt: isEnrolledMaintenance === true ? new Date() : null,
       },
     });
     return NextResponse.json(ac, { status: 201 });
@@ -70,17 +87,22 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-// PATCH /api/registered-acs
+// PATCH /api/registered-acs - Update AC info/location/enrollment/status
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, isPaused } = body;
+    const { id, ...updateFields } = body;
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
+
+    if (updateFields.isEnrolledMaintenance === true && !updateFields.enrolledAt) {
+      updateFields.enrolledAt = new Date();
+    }
+
     const updated = await prisma.registeredAC.update({
       where: { id },
-      data: { isPaused },
+      data: updateFields,
     });
     return NextResponse.json(updated);
   } catch (error) {

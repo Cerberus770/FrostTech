@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import Header from '@/components/Header';
+import AuthModal from '@/components/AuthModal';
 import { products } from '@/lib/products';
 import { Product, CartItem } from '@/lib/types';
 
@@ -14,6 +15,8 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
   const [product, setProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [showBuyModal, setShowBuyModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'cart' | 'buy' | null>(null);
   const [paymentMode, setPaymentMode] = useState('cod');
   const [saveInfo, setSaveInfo] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState(1);
@@ -143,25 +146,68 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
     );
   }
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
+    const userId = sessionStorage.getItem('userId');
+    const productId = product.id || 'PROD-' + Date.now();
+    const name = product.name;
+    const price = product.price;
+    const brand = product.brand || '';
+    const image = product.image || '/hero-bg.png';
+
+    // 1. Save to local storage for immediate UI access
     try {
       const cart: CartItem[] = JSON.parse(localStorage.getItem('frostTechCart') || '[]');
-      cart.push({
-        id: Date.now(),
-        name: product.name,
-        brand: product.brand,
-        price: product.price,
-        quantity: quantity,
-        image: product.image,
-      });
+      const existing = cart.find((i: any) => i.productId === productId || (i.name === name && i.brand === brand));
+      if (existing) {
+        existing.quantity += quantity;
+      } else {
+        cart.push({
+          id: Date.now(),
+          productId,
+          name,
+          brand,
+          price,
+          quantity,
+          image,
+          addedAt: Date.now(),
+        });
+      }
       localStorage.setItem('frostTechCart', JSON.stringify(cart));
-      alert('Added to Cart!');
-    } catch {
-      alert('Failed to add to cart.');
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {
+      console.error('Error saving to local storage:', e);
     }
+
+    // 2. If logged in, also sync to database & reduce inventory stock
+    if (userId) {
+      try {
+        await fetch('/api/cart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            productId,
+            name,
+            brand,
+            price,
+            image,
+            quantity,
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to sync cart to API:', err);
+      }
+    }
+
+    alert('Added to Cart!');
   };
 
   const handleBuyNow = () => {
+    if (sessionStorage.getItem('isLoggedIn') !== 'true') {
+      setPendingAction('buy');
+      setShowAuthModal(true);
+      return;
+    }
     setCheckoutStep(1);
     setShowBuyModal(true);
   };
@@ -595,7 +641,7 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
                 </button>
               </div>
 
-              <button className="btn btn-secondary" style={{ flex: 1, padding: '0.75rem' }} onClick={handleAddToCart}>
+              <button className="btn btn-buy" style={{ flex: 1, padding: '0.75rem' }} onClick={handleAddToCart}>
                 <i className="fa-solid fa-cart-plus" style={{ marginRight: '6px' }}></i> Add to Cart
               </button>
               <button className="btn" style={{ flex: 1, padding: '0.75rem', background: 'var(--accent-red)' }} onClick={handleBuyNow}>
@@ -850,6 +896,21 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
       )}
+
+      {/* Guest Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        actionPrompt="Please sign in or create an account to proceed with this purchase."
+        onSuccess={() => {
+          if (pendingAction === 'cart') {
+            handleAddToCart();
+          } else if (pendingAction === 'buy') {
+            handleBuyNow();
+          }
+          setPendingAction(null);
+        }}
+      />
     </>
   );
 }

@@ -42,8 +42,8 @@ export async function PATCH(request: NextRequest) {
       data,
     });
 
-    // Send SMS notification on approval or rejection
-    if (data.status === 'COMPLETED' || data.status === 'REJECTED') {
+    // Send SMS notification on status changes (CI_ACCEPTED, COMPLETED, REJECTED)
+    if (data.status === 'CI_ACCEPTED' || data.status === 'COMPLETED' || data.status === 'REJECTED') {
       try {
         const customer = await prisma.user.findUnique({
           where: { id: installment.userId },
@@ -52,8 +52,11 @@ export async function PATCH(request: NextRequest) {
 
         if (customer && customer.phone) {
           let msg = '';
-          if (data.status === 'COMPLETED') {
-            msg = `Congratulations ${customer.firstName}! Your FrostTech installment application (${installment.appId}) for "${installment.item}" has been APPROVED. We will schedule your installation soon. Thank you for choosing FrostTech!`;
+          if (data.status === 'CI_ACCEPTED') {
+            msg = `Hi ${customer.firstName}! Your FrostTech installment application (${installment.appId}) for "${installment.item}" has been accepted for Credit Investigation (CI). Our team will reach out shortly to conduct verification.`;
+          } else if (data.status === 'COMPLETED') {
+            const schedInfo = data.scheduledDate ? ` Installation is scheduled for ${data.scheduledDate}.` : '';
+            msg = `Congratulations ${customer.firstName}! Your FrostTech installment application (${installment.appId}) for "${installment.item}" has been APPROVED.${schedInfo} Thank you for choosing FrostTech!`;
           } else {
             msg = `Hi ${customer.firstName}, we regret to inform you that your FrostTech installment application (${installment.appId}) was not approved at this time. ${installment.issue ? 'Reason: ' + installment.issue : 'Please contact us for more details.'}`;
           }

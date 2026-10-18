@@ -13,6 +13,7 @@ enum Role {
   CUSTOMER
   ADMIN
   TECHNICIAN
+  CLERK
 }
 
 model User {
@@ -23,7 +24,8 @@ model User {
   lastName     String
   phone        String?
   role         Role     @default(CUSTOMER)
-  techRank     String?  @default("Tech")
+  techRank     String?
+  permissions  String   @default("[]") // JSON array of permission strings
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -59,6 +61,8 @@ model RegisteredAC {
   fullAddress       String?  // Full address text
   purchasedFromStore Boolean @default(false) // true = bought from FrostTech, false = manually added
   isPaused          Boolean  @default(false) // true = maintenance paused
+  isEnrolledMaintenance Boolean @default(false) // enrolled for maintenance monitoring if not FrostTech
+  enrolledAt        DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -77,6 +81,8 @@ model Product {
   rating         Float            @default(0)
   sold           Int              @default(0)
   image          String
+  images         String[]         @default([])
+  horsepower     String?
   badge          String?
   specs          String[]         // PostgreSQL array
   description    String?
@@ -117,35 +123,47 @@ model Review {
 
 // ===== Inventory (Admin) =====
 model InventoryItem {
-  id        String   @id @default(cuid())
-  sku       String   @unique // e.g. "AC-INV-15"
-  brand     String
-  model     String
-  category  String
-  stock     Int      @default(0)
-  price     Float
-  image     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  sku         String   @unique // e.g. "AC-INV-15"
+  brand       String
+  model       String
+  category    String
+  horsepower  String?
+  description String?
+  stock       Int      @default(0)
+  price       Float
+  image       String?
+  images      String[] @default([])
+  status      String   @default("In Stock")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@map("inventory_items")
 }
 
 // ===== Orders =====
 model Order {
-  id               String   @id @default(cuid())
-  orderNo          String   @unique // e.g. "ORD-8821"
+  id               String    @id @default(cuid())
+  orderNo          String    @unique // e.g. "ORD-8821"
   userId           String
-  user             User     @relation(fields: [userId], references: [id])
+  user             User      @relation(fields: [userId], references: [id])
   name             String
   location         String
   item             String
   payment          String
-  status           String   @default("Processing")
+  status           String    @default("Processing")
   date             String
-  downpaymentProof String?  // Store base64 string or file path for proof of payment
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  downpaymentProof String?   // Store base64 string or file path for proof of payment
+  hasDownpayment   Boolean   @default(false)
+  notice3Days      Boolean   @default(false)
+  notice3DaysAt    DateTime?
+  hp               String?
+  itemType         String?
+  price            Float?
+  assignedTech     String?
+  scheduledDate    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@map("orders")
 }
@@ -153,47 +171,52 @@ model Order {
 // ===== Installment Applications =====
 enum InstallmentStatus {
   PENDING
+  CI_ACCEPTED
   REPENDING
   COMPLETED
   REJECTED
 }
 
 model Installment {
-  id        String            @id @default(cuid())
-  appId     String            @unique // e.g. "APP-0992"
-  userId    String
-  user      User              @relation(fields: [userId], references: [id])
-  name      String
-  item      String
-  date      String
-  status    InstallmentStatus @default(PENDING)
-  issue     String            @default("")
-  term      Int
-  employer  String
-  income    String
-  idType    String
-  location  String?
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  id            String            @id @default(cuid())
+  appId         String            @unique // e.g. "APP-0992"
+  userId        String
+  user          User              @relation(fields: [userId], references: [id])
+  name          String
+  item          String
+  date          String
+  status        InstallmentStatus @default(PENDING)
+  issue         String            @default("")
+  term          Int
+  employer      String
+  income        String
+  idType        String
+  location      String?
+  assignedTech  String?
+  scheduledDate String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@map("installments")
 }
 
 // ===== Dispatch Queue =====
 model DispatchItem {
-  id           String  @id @default(cuid())
-  dispatchNo   String  @unique // e.g. "DIS-001"
-  type         String  // "New Installation", "Deep Cleaning", "Repair"
-  customerId   String
-  name         String
-  location     String
-  item         String
-  notes        String  @default("")
-  status       String  @default("Queued")
-  scheduledDate String?
-  technicians  User[]  @relation("TechnicianDispatch")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String   @id @default(cuid())
+  dispatchNo        String   @unique // e.g. "DIS-001"
+  type              String   // "New Installation", "Deep Cleaning", "Repair"
+  customerId        String
+  name              String
+  location          String
+  item              String
+  notes             String   @default("")
+  status            String   @default("Queued")
+  scheduledDate     String?
+  assignedTechName  String?
+  horsepower        String?
+  technicians       User[]   @relation("TechnicianDispatch")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@map("dispatch_items")
 }
@@ -274,16 +297,18 @@ model Address {
 
 // ===== Cart Items =====
 model CartItem {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  productId String
-  name      String
-  price     Float
-  image     String
-  quantity  Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  productId     String
+  name          String
+  price         Float
+  image         String
+  quantity      Int       @default(1)
+  notice3Days   Boolean   @default(false)
+  notice3DaysAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@unique([userId, productId])
   @@map("cart_items")

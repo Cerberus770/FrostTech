@@ -95,8 +95,8 @@ export default function AddressAutocomplete({
           top: '100%',
           left: 0,
           right: 0,
-          background: 'var(--bg-card, white)',
-          border: '1px solid var(--border-color, #ddd)',
+          background: '#ffffff',
+          border: '1px solid #cbd5e1',
           borderRadius: '0 0 8px 8px',
           boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
           zIndex: 9999,
@@ -111,14 +111,14 @@ export default function AddressAutocomplete({
                 padding: '10px 14px',
                 fontSize: '0.88rem',
                 cursor: 'pointer',
-                borderBottom: i < suggestions.length - 1 ? '1px solid var(--border-color, #eee)' : 'none',
-                color: 'var(--text-dark, #333)',
+                borderBottom: i < suggestions.length - 1 ? '1px solid #f1f5f9' : 'none',
+                color: '#0f172a',
                 transition: 'background 0.15s',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,102,255,0.06)')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(2, 132, 199, 0.08)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
-              <i className="fa-solid fa-location-dot" style={{ color: 'var(--primary, #0066ff)', marginRight: '8px', fontSize: '0.8rem' }}></i>
+              <i className="fa-solid fa-location-dot" style={{ color: '#0284c7', marginRight: '8px', fontSize: '0.8rem' }}></i>
               {s.display_name}
             </div>
           ))}
