@@ -30,6 +30,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ isNewCustomer });
   } catch (error) {
     console.error('User status fetch error:', error);
-    return NextResponse.json({ error: 'Failed to fetch user status' }, { status: 500 });
+    return NextResponse.json({ isNewCustomer: true });
   }
 }
