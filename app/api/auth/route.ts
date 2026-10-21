@@ -69,27 +69,10 @@ export async function POST(request: NextRequest) {
       lastName: user.lastName,
       role: user.role,
     });
-  } catch (error) {
-    console.error('Auth error (falling back to local session):', error);
-    try {
-      const body = await request.clone().json().catch(() => ({}));
-      const email = body.email || 'customer@frostech.com';
-      const action = body.action || 'login';
-      const role = body.role || (email.toLowerCase().includes('admin') ? 'ADMIN' : email.toLowerCase().includes('tech') ? 'TECHNICIAN' : 'CUSTOMER');
-      const nameParts = (body.firstName ? [body.firstName, body.lastName] : email.split('@')[0].split(/[._-]/));
-      const firstName = nameParts[0] ? nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1) : 'Customer';
-      const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : 'User';
-
-      return NextResponse.json({
-        id: 'usr-' + Date.now(),
-        email,
-        firstName,
-        lastName,
-        role,
-      });
-    } catch {
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
+  } catch (error: unknown) {
+    console.error('Auth error:', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: `Authentication failed: ${message}` }, { status: 500 });
   }
 }
 

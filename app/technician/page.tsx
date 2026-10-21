@@ -233,8 +233,16 @@ export default function TechnicianDashboard() {
     }
   };
 
-  // Open Invoice Modal
+  // Open Invoice Modal - Only for Services (not for Delivery & Installation)
   const openInvoiceModal = (job: any) => {
+    if (isDelivery(job)) {
+      showAlert({
+        title: 'No Invoice Required',
+        message: 'Invoices are only generated for on-site services (Cleaning, Repair, Maintenance). Delivery & Installation tasks do not require service invoices.',
+        type: 'info'
+      });
+      return;
+    }
     setInvoiceJob(job);
     const initialType = job.type || job.serviceType || 'Regular Cleaning';
     setInvoiceServiceType(initialType);
@@ -814,12 +822,14 @@ export default function TechnicianDashboard() {
                               >
                                 View Details & Map
                               </button>
-                              <button
-                                onClick={() => openInvoiceModal(job)}
-                                style={{ background: '#0284c7', border: 'none', color: '#ffffff', padding: '0.35rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
-                              >
-                                Invoice
-                              </button>
+                              {!isDelivery(job) && (
+                                <button
+                                  onClick={() => openInvoiceModal(job)}
+                                  style={{ background: '#0284c7', border: 'none', color: '#ffffff', padding: '0.35rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
+                                >
+                                  Invoice
+                                </button>
+                              )}
                             </div>
                           </div>
                         );
@@ -955,25 +965,22 @@ export default function TechnicianDashboard() {
                           </button>
 
                           {isCompleted ? (
-                            <button
-                              onClick={() => openInvoiceModal(job)}
-                              style={{ flex: 1, background: '#0284c7', color: '#ffffff', border: 'none', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
-                            >
-                              <i className="fa-solid fa-receipt" style={{ marginRight: '4px' }}></i> Invoice
-                            </button>
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: '#dcfce7', color: '#166534', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700 }}>
+                              <i className="fa-solid fa-circle-check"></i> Delivered & Installed
+                            </div>
                           ) : isInProgress ? (
                             <button
                               onClick={() => handleUpdateStatus(job.id, 'COMPLETED')}
                               style={{ flex: 1, background: '#16a34a', color: '#ffffff', border: 'none', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
                             >
-                              <i className="fa-solid fa-check" style={{ marginRight: '4px' }}></i> Mark Delivered
+                              <i className="fa-solid fa-check" style={{ marginRight: '4px' }}></i> Mark Delivered & Installed
                             </button>
                           ) : (
                             <button
                               onClick={() => handleUpdateStatus(job.id, 'IN_PROGRESS')}
                               style={{ flex: 1, background: '#0284c7', color: '#ffffff', border: 'none', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
                             >
-                              <i className="fa-solid fa-play" style={{ marginRight: '4px' }}></i> Start Delivery
+                              <i className="fa-solid fa-play" style={{ marginRight: '4px' }}></i> Start Delivery & Setup
                             </button>
                           )}
                         </div>
@@ -1311,12 +1318,14 @@ export default function TechnicianDashboard() {
                 </button>
 
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button
-                    onClick={() => { setShowClientModal(false); openInvoiceModal(selectedJob); }}
-                    style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    <i className="fa-solid fa-file-invoice" style={{ marginRight: '6px' }}></i> Create Invoice
-                  </button>
+                  {!isDelivery(selectedJob) && (
+                    <button
+                      onClick={() => { setShowClientModal(false); openInvoiceModal(selectedJob); }}
+                      style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      <i className="fa-solid fa-file-invoice" style={{ marginRight: '6px' }}></i> Create Service Invoice
+                    </button>
+                  )}
                   <button
                     onClick={() => setShowClientModal(false)}
                     style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '0.6rem 1.2rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
