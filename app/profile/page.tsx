@@ -647,7 +647,7 @@ export default function ProfilePage() {
     }
 
     try {
-      const res = await fetch('/api/auth', {
+      const res = await fetch('/api/login', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, currentPassword, newPassword }),

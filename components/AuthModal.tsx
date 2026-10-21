@@ -118,7 +118,7 @@ export default function AuthModal({
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth', {
+      const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, action: 'login' }),
@@ -158,7 +158,7 @@ export default function AuthModal({
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth', {
+      const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
