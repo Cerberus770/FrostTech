@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 
-export type ConfirmType = 'confirm' | 'success' | 'error' | 'warning';
+export type ConfirmType = 'confirm' | 'success' | 'error' | 'warning' | 'info';
 
 interface ConfirmModalProps {
   show: boolean;
@@ -23,6 +23,7 @@ const iconMap: Record<ConfirmType, { icon: string; color: string; bg: string }> 
   success: { icon: 'fa-solid fa-circle-check', color: '#28a745', bg: 'rgba(40,167,69,0.15)' },
   error:   { icon: 'fa-solid fa-circle-xmark', color: '#dc3545', bg: 'rgba(220,53,69,0.15)' },
   warning: { icon: 'fa-solid fa-triangle-exclamation', color: '#ff6b35', bg: 'rgba(255,107,53,0.15)' },
+  info:    { icon: 'fa-solid fa-circle-info', color: '#17a2b8', bg: 'rgba(23,162,184,0.15)' },
 };
 
 export default function ConfirmModal({
