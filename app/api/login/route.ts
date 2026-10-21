@@ -2,9 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
+// Helper to ensure database table compatibility
+async function ensureDbColumns() {
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TYPE "Role" ADD VALUE IF NOT EXISTS 'CLERK';`);
+  } catch {}
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "techRank" TEXT;`);
+  } catch {}
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "permissions" TEXT DEFAULT '[]';`);
+  } catch {}
+}
+
 // POST /api/login
 export async function POST(request: NextRequest) {
   try {
+    await ensureDbColumns();
     const body = await request.json();
     const { email, password, action } = body;
 
@@ -12,7 +26,10 @@ export async function POST(request: NextRequest) {
       // --- SIGNUP ---
       const { firstName, lastName, phone, role } = body;
 
-      const existing = await prisma.user.findUnique({ where: { email } });
+      const existing = await prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
       if (existing) {
         return NextResponse.json({ error: 'Email already registered' }, { status: 400 });
       }
@@ -27,6 +44,14 @@ export async function POST(request: NextRequest) {
           phone: phone || null,
           role: role || 'CUSTOMER',
           techRank: role === 'TECHNICIAN' ? 'Pending' : 'Tech',
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          techRank: true,
         },
       });
 
@@ -48,7 +73,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        techRank: true,
+      },
+    });
     if (!user) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
@@ -79,6 +115,7 @@ export async function POST(request: NextRequest) {
 // PATCH /api/login (change password)
 export async function PATCH(request: NextRequest) {
   try {
+    await ensureDbColumns();
     const body = await request.json();
     const { userId, currentPassword, newPassword } = body;
 
@@ -86,7 +123,10 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, password: true },
+    });
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
