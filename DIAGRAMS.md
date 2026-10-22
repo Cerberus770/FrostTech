@@ -512,3 +512,77 @@ erDiagram
     dispatch_items ||--o{ _TechnicianDispatch : "assigned crew"
     products ||--o{ product_variants : "has condition pricing"
 ```
+
+---
+
+## 5. Input-Process-Output (IPO) Model
+
+The **Input-Process-Output (IPO)** architecture describes the inputs provided by users and external APIs, the computational/database processes executed by the FrostTech platform, and the resulting outputs produced.
+
+### 5.1. System-Level Visual IPO Diagram
+
+```mermaid
+flowchart LR
+    subgraph INPUT["📥 INPUT"]
+        direction TB
+        I1["• User Credentials & Signups\n• Google OAuth Tokens\n• Product Search & Filters\n• Map Pin / Pinned Coordinates\n• Cart Selections & Condition Variants\n• Downpayment Proof (Image/File)\n• Installment Forms (Income/Employer/ID)\n• AC Unit Registration Details\n• Maintenance Date & Service Type\n• Technician Status Updates & Notes\n• Tech Parts Requests (TechRequest)\n• Admin Stock, SKUs, Prices & Roles"]
+    end
+
+    subgraph PROCESS["⚙️ PROCESS"]
+        direction TB
+        P1["• Password Hashing (Bcrypt) & Auth Validation\n• Role & Permissions Authorization Gate\n• Turbopack Server-Side & Client Rendering\n• Google Maps Geocoding & Coordinate Lookup\n• Cloudinary Image Optimization & Storage\n• Credit Investigation (CI) Verification Logic\n• Inventory Stock Decrement / Restoration\n• Dispatch Assignment & Crew Association\n• Maintenance Interval & 3-Day Notice Triggers\n• Automated Invoice Calculation & PDF Generation\n• SMS API (PhilSMS/Semaphore) Delivery Dispatch\n• SMTP Email Transmissions via Gmail"]
+    end
+
+    subgraph OUTPUT["📤 OUTPUT"]
+        direction TB
+        O1["• Authenticated User Sessions & Profiles\n• Dynamic Product Catalog & Variant Pricing\n• Pinned Delivery Address & Route Map\n• Order Records (Status: Processing/Shipped)\n• Installment CI Approvals / Rejections\n• Dispatch Queue Items & Field Assignments\n• Technician Calendar Events & Work Orders\n• Registered AC Units & Maintenance Timelines\n• Customer Invoices (Sent, Viewed, Paid)\n• SMS Dispatch Notifications to Customers\n• Email Receipts & Service Summaries\n• Real-Time Administrative Analytics"]
+    end
+
+    INPUT -->|"Transmitted via HTTP / REST API"| PROCESS
+    PROCESS -->|"Persisted to PostgreSQL / Rendered in UI / Dispatched to APIs"| OUTPUT
+```
+
+---
+
+### 5.2. Detailed Subsystem IPO Matrices
+
+#### Module 1: User Authentication & Role Authorization
+| **INPUT** | **PROCESS** | **OUTPUT** |
+|---|---|---|
+| • Email, password, first/last name, phone<br>• Selected initial role (Customer, Technician)<br>• Google OAuth token & profile payload<br>• Password change requests (current & new password) | • Validate required payload fields & sanitize strings<br>• Hash passwords using `bcryptjs` (salt rounds: 10)<br>• Verify credentials against `users` table via Prisma<br>• Check technician approval state (`techRank == 'Pending'`)<br>• Evaluate user permissions JSON array for route access<br>• Execute database schema self-healing DDL on startup | • Authenticated user session object (`id`, `role`, `name`)<br>• JSON response: HTTP 200 (Success) or 401/403 (Error)<br>• Redirect to role-specific portal (`/`, `/admin`, `/technician`)<br>• Updated encrypted password record in database |
+
+#### Module 2: E-Commerce Storefront, Inventory & Cart
+| **INPUT** | **PROCESS** | **OUTPUT** |
+|---|---|---|
+| • Brand, horsepower, and category filter criteria<br>• Selected product condition (`Brand New`, `Second Hand`, `On-Hand`)<br>• Add-to-cart clicks with product ID & quantity<br>• Delivery address and Google Maps pinpoint coordinates | • Query active products and join with `product_variants`<br>• Enforce mandatory login/registration check prior to cart addition<br>• Upsert cart items into `cart_items` table<br>• Compute subtotal, taxes, and shipping rates based on location<br>• Validate inventory stock levels from `inventory_items` | • Interactive catalog cards with condition-based price tags<br>• Updated user cart drawer with real-time total calculation<br>• Pinned map marker displaying exact delivery drop point<br>• Low stock badges and out-of-stock disable flags |
+
+#### Module 3: Checkout, Orders & Payment Processing
+| **INPUT** | **PROCESS** | **OUTPUT** |
+|---|---|---|
+| • Selected payment mode (`Cash on Delivery` or `Installment`)<br>• Uploaded downpayment proof of payment (Base64 / Cloudinary URL)<br>• Delivery contact details & delivery notes<br>• Order cancellation / confirmation requests | • Generate unique order tracking number (`ORD-XXXX`)<br>• Validate downpayment image format and store proof URL<br>• Persist record to `orders` table with initial status `Processing`<br>• Decrement product stock in `inventory_items`<br>• Clear corresponding items from `cart_items` | • Order confirmation modal with unique Order No.<br>• Customer order history record in Customer Space<br>• Live entry populated in Admin Order Queue for verification<br>• Real-time notification dispatched to Clerk/Admin dashboard |
+
+#### Module 4: Installment Application & Credit Investigation (CI)
+| **INPUT** | **PROCESS** | **OUTPUT** |
+|---|---|---|
+| • Applicant employment details, employer name, monthly income<br>• Government ID type and number<br>• Selected financing term (3, 6, 9, 12 months)<br>• Admin CI evaluation action (`CI_ACCEPTED`, `REJECTED`, `REPENDING`) | • Create unique application record (`APP-XXXX`) in `installments`<br>• Calculate monthly amortization: `(Price - Downpayment) / Term`<br>• Admin credit assessment verification workflow<br>• Transition installment state machine from `PENDING` to `CI_ACCEPTED` | • Application status badge displayed in Customer Space<br>• Automated creation of delivery item in `dispatch_items`<br>• Formal financing schedule breakdown for customer<br>• SMS notification alert sent to customer phone via PhilSMS |
+
+#### Module 5: Dispatch Operations & Technician Scheduling
+| **INPUT** | **PROCESS** | **OUTPUT** |
+|---|---|---|
+| • Approved order / installment dispatch trigger<br>• Service classification (`New Installation`, `Deep Cleaning`, `Repair`)<br>• Admin technician multi-assignment selection<br>• Target scheduled installation/service date | • Generate dispatch queue record (`DIS-XXXX`) in `dispatch_items`<br>• Associate technicians via `_TechnicianDispatch` relation table<br>• Create linked calendar schedule entry in `calendar_events`<br>• Calculate technician daily workload and schedule conflicts | • Queued dispatch card visible in Dispatch Management board<br>• Job alert populated in assigned Technician's mobile view<br>• Calendar event entry on Technician schedule page<br>• Route map pin with full delivery address and contact info |
+
+#### Module 6: AC Unit Registration & Lifecycle Maintenance
+| **INPUT** | **PROCESS** | **OUTPUT** |
+|---|---|---|
+| • AC brand/model, horsepower, unit room location (e.g. Master Bedroom)<br>• Purchase origin (`purchasedFromStore` true/false)<br>• Maintenance enrollment opt-in and preferred schedule date<br>• Pause / resume maintenance toggle | • Insert record into `registered_acs` table linked to user ID<br>• Automatically calculate recommended recurring maintenance due date<br>• Evaluate 3-day notice window (`notice3Days` & `notice3DaysAt`)<br>• Auto-create entry in `maintenance_schedules` (`MNT-XXXX`) | • Digital AC passport card displayed in Customer Space<br>• Maintenance countdown meter and cleaning reminder badge<br>• Proactive SMS/Email reminders 3 days before scheduled service<br>• Service log tracking cleaning and diagnostic history |
+
+#### Module 7: Technician Field Work & Parts Requisition
+| **INPUT** | **PROCESS** | **OUTPUT** |
+|---|---|---|
+| • Technician task status update (`Queued` → `In Progress` → `Completed`)<br>• On-site diagnostic inspection notes<br>• Technician part request form: item needed, quantity, and urgency reason | • Validate technician assignment authorization<br>• Update `dispatch_items` and `maintenance_schedules` status<br>• Generate unique part requisition record (`REQ-XXXX`) in `tech_requests`<br>• Update corresponding customer order to `Completed` | • Real-time status update displayed on Customer tracking screen<br>• Pending part request card on Admin operations board<br>• Updated technician completed job count and performance stats<br>• Historical service record logged for customer unit |
+
+#### Module 8: Invoicing, Receipts & Cloud Communications
+| **INPUT** | **PROCESS** | **OUTPUT** |
+|---|---|---|
+| • Completed dispatch ID or maintenance schedule ID<br>• Service amount, technician name, customer name, unit details<br>• Payment status updates (`Sent`, `Viewed`, `Paid`)<br>• Invoice transmission trigger | • Generate unique invoice number (`INV-XXXX`) in `invoices` table<br>• Compose structured HTML email receipt with line items<br>• Authenticate with Gmail SMTP and deliver email to customer<br>• Format SMS payload and invoke PhilSMS / Semaphore REST endpoint | • Formal invoice record with tracking status (`Sent` / `Paid`)<br>• Customer invoice PDF / email delivered to customer inbox<br>• Instant SMS text notification delivered to recipient phone<br>• Revenue and accounting records updated in Admin dashboard |
+
