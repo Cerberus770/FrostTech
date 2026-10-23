@@ -407,33 +407,152 @@ export default function TechnicianDashboard() {
     <div style={{ minHeight: '100vh', background: '#f5f5f5', color: '#1e293b', fontFamily: "'Inter', sans-serif" }}>
       <ModalComponent />
 
+      {/* RESPONSIVE TECHNICIAN PORTAL STYLES */}
+      <style>{`
+        @media (max-width: 768px) {
+          .tech-header {
+            padding: 0.65rem 1rem !important;
+          }
+          .tech-portal-title {
+            display: none !important;
+          }
+          .tech-duty-pill {
+            padding: 0.3rem 0.65rem !important;
+          }
+          .tech-name-full {
+            display: none !important;
+          }
+          .tech-name-short {
+            display: inline !important;
+          }
+          .tech-layout-container {
+            flex-direction: column !important;
+            min-height: calc(100vh - 56px) !important;
+          }
+          .tech-sidebar {
+            display: none !important;
+          }
+          .tech-main-content {
+            padding: 0.9rem 0.8rem 5.5rem 0.8rem !important;
+          }
+          .tech-banner {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 0.85rem !important;
+            padding: 1.1rem !important;
+          }
+          .tech-banner-buttons {
+            width: 100% !important;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 0.5rem !important;
+          }
+          .tech-banner-buttons button {
+            width: 100% !important;
+            justify-content: center !important;
+            text-align: center !important;
+            padding: 0.55rem 0.5rem !important;
+            font-size: 0.78rem !important;
+          }
+          .tech-stats-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 0.65rem !important;
+            margin-bottom: 1.25rem !important;
+          }
+          .tech-stat-card {
+            padding: 0.9rem !important;
+          }
+          .tech-stat-card .stat-num {
+            font-size: 1.45rem !important;
+          }
+          .tech-calendar-container {
+            grid-template-columns: 1fr !important;
+            gap: 1.2rem !important;
+          }
+          .tech-calendar-card {
+            padding: 1rem 0.8rem !important;
+          }
+          .tech-calendar-grid {
+            gap: 3px !important;
+          }
+          .tech-calendar-cell {
+            height: 52px !important;
+            padding: 0.25rem !important;
+            border-radius: 6px !important;
+          }
+          .tech-calendar-cell .day-num {
+            font-size: 0.75rem !important;
+          }
+          .tech-cards-grid {
+            grid-template-columns: 1fr !important;
+            gap: 0.85rem !important;
+          }
+          .tech-filters-bar {
+            overflow-x: auto !important;
+            width: 100% !important;
+            flex-wrap: nowrap !important;
+            -webkit-overflow-scrolling: touch;
+            padding: 3px !important;
+          }
+          .tech-filters-bar button {
+            white-space: nowrap !important;
+            font-size: 0.78rem !important;
+            padding: 0.4rem 0.75rem !important;
+          }
+          .tech-modal-content {
+            max-height: 94vh !important;
+            border-radius: 14px !important;
+          }
+          .tech-modal-grid-2 {
+            grid-template-columns: 1fr !important;
+            gap: 0.75rem !important;
+          }
+          .tech-bottom-nav {
+            display: flex !important;
+          }
+        }
+
+        @media (min-width: 769px) {
+          .tech-name-short {
+            display: none !important;
+          }
+          .tech-bottom-nav {
+            display: none !important;
+          }
+        }
+      `}</style>
+
       {/* TOP HEADER */}
-      <header style={{
-        background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-        color: '#ffffff',
-        padding: '0.85rem 2rem',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        boxShadow: '0 4px 15px rgba(2, 132, 199, 0.15)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 50
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+      <header
+        className="tech-header"
+        style={{
+          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+          color: '#ffffff',
+          padding: '0.85rem 2rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          boxShadow: '0 4px 15px rgba(2, 132, 199, 0.15)',
+          position: 'sticky',
+          top: 0,
+          zIndex: 50
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <img src="/LOGO.jpg" alt="FrostTech" style={{ height: '36px', borderRadius: '6px', background: '#ffffff', padding: '2px' }} />
+            <img src="/LOGO.jpg" alt="FrostTech" style={{ height: '34px', borderRadius: '6px', background: '#ffffff', padding: '2px' }} />
             <div>
               <span style={{ fontWeight: 800, fontSize: '1.25rem', color: '#ffffff', letterSpacing: '-0.5px' }}>FrostTech</span>
-              <span style={{ display: 'block', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.9 }}>Field Technician Portal</span>
+              <span className="tech-portal-title" style={{ display: 'block', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.9 }}>Field Technician Portal</span>
             </div>
           </Link>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(255,255,255,0.15)', padding: '0.4rem 0.9rem', borderRadius: '999px', backdropFilter: 'blur(8px)' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80', display: 'inline-block' }}></span>
-            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{techName} (On Duty)</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div className="tech-duty-pill" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.18)', padding: '0.4rem 0.85rem', borderRadius: '999px', backdropFilter: 'blur(8px)' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80', display: 'inline-block', flexShrink: 0 }}></span>
+            <span className="tech-name-full" style={{ fontSize: '0.85rem', fontWeight: 600 }}>{techName} (On Duty)</span>
+            <span className="tech-name-short" style={{ fontSize: '0.8rem', fontWeight: 600 }}>On Duty</span>
           </div>
 
           {/* KEBAB MENU */}
@@ -490,19 +609,22 @@ export default function TechnicianDashboard() {
       </header>
 
       {/* MAIN CONTAINER: SIDEBAR + CONTENT */}
-      <div style={{ display: 'flex', minHeight: 'calc(100vh - 65px)' }}>
+      <div className="tech-layout-container" style={{ display: 'flex', minHeight: 'calc(100vh - 65px)' }}>
         
         {/* SIDEBAR NAVIGATION */}
-        <aside style={{
-          width: '260px',
-          background: '#ffffff',
-          borderRight: '1px solid #e2e8f0',
-          padding: '1.5rem 1rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem',
-          flexShrink: 0
-        }}>
+        <aside
+          className="tech-sidebar"
+          style={{
+            width: '260px',
+            background: '#ffffff',
+            borderRight: '1px solid #e2e8f0',
+            padding: '1.5rem 1rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+            flexShrink: 0
+          }}
+        >
           {/* Tech Profile Summary */}
           <div style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
             <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#0284c7', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1.1rem' }}>
@@ -613,7 +735,7 @@ export default function TechnicianDashboard() {
         </aside>
 
         {/* CONTENT AREA */}
-        <main style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
+        <main className="tech-main-content" style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
 
           {/* ======================================================== */}
           {/* TAB 1: DASHBOARD (Tech Stats + Monthly Calendar) */}
@@ -621,7 +743,7 @@ export default function TechnicianDashboard() {
           {activeTab === 'dashboard' && (
             <div>
               {/* Banner */}
-              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem', boxShadow: '0 2px 10px rgba(0,0,0,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="tech-banner" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem', boxShadow: '0 2px 10px rgba(0,0,0,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
                     Technician Overview & Schedule
@@ -630,7 +752,7 @@ export default function TechnicianDashboard() {
                     Welcome back, <strong>{techName}</strong>. Check your month schedule and assigned workloads.
                   </p>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div className="tech-banner-buttons" style={{ display: 'flex', gap: '0.5rem' }}>
                   <button onClick={() => setActiveTab('assigned')} style={{ background: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd', padding: '0.55rem 1rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
                     <i className="fa-solid fa-truck" style={{ marginRight: '6px' }}></i> View Deliveries
                   </button>
@@ -641,57 +763,57 @@ export default function TechnicianDashboard() {
               </div>
 
               {/* 4 STAT CARDS */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-                <div style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+              <div className="tech-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div className="tech-stat-card" style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Total Jobs</span>
                     <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <i className="fa-solid fa-clipboard-list"></i>
                     </div>
                   </div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0f172a', marginTop: '0.5rem' }}>{totalJobsCount}</div>
+                  <div className="stat-num" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0f172a', marginTop: '0.5rem' }}>{totalJobsCount}</div>
                   <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Deliveries & Services</span>
                 </div>
 
-                <div style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                <div className="tech-stat-card" style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Pending</span>
                     <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <i className="fa-solid fa-hourglass-half"></i>
                     </div>
                   </div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#d97706', marginTop: '0.5rem' }}>{pendingJobsCount}</div>
+                  <div className="stat-num" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#d97706', marginTop: '0.5rem' }}>{pendingJobsCount}</div>
                   <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Awaiting departure</span>
                 </div>
 
-                <div style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                <div className="tech-stat-card" style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>In Progress</span>
                     <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <i className="fa-solid fa-person-running"></i>
                     </div>
                   </div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0284c7', marginTop: '0.5rem' }}>{inProgressJobsCount}</div>
+                  <div className="stat-num" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0284c7', marginTop: '0.5rem' }}>{inProgressJobsCount}</div>
                   <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Active in field</span>
                 </div>
 
-                <div style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                <div className="tech-stat-card" style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Completed</span>
                     <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <i className="fa-solid fa-circle-check"></i>
                     </div>
                   </div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#16a34a', marginTop: '0.5rem' }}>{completedJobsCount}</div>
+                  <div className="stat-num" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#16a34a', marginTop: '0.5rem' }}>{completedJobsCount}</div>
                   <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Finished tasks</span>
                 </div>
               </div>
 
               {/* MONTHLY CALENDAR GRID + SELECTED DAY DETAILS */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '1.5rem' }}>
+              <div className="tech-calendar-container" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '1.5rem' }}>
                 
                 {/* CALENDAR FOR THE SCHEDULE MONTH */}
-                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+                <div className="tech-calendar-card" style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                     <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <i className="fa-regular fa-calendar-days" style={{ color: '#0284c7' }}></i>
@@ -715,7 +837,7 @@ export default function TechnicianDashboard() {
                   </div>
 
                   {/* Calendar cells */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px' }}>
+                  <div className="tech-calendar-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px' }}>
                     {/* Blank offset days */}
                     {Array.from({ length: firstDayIndex }).map((_, i) => (
                       <div key={`blank-${i}`} style={{ height: '70px', background: '#f8fafc', borderRadius: '8px', opacity: 0.5 }}></div>
@@ -732,6 +854,7 @@ export default function TechnicianDashboard() {
                         <div
                           key={`day-${dNum}`}
                           onClick={() => setSelectedDay(dNum)}
+                          className="tech-calendar-cell"
                           style={{
                             height: '70px',
                             background: isSelected ? '#e0f2fe' : isToday ? '#f0f9ff' : '#ffffff',
@@ -746,7 +869,7 @@ export default function TechnicianDashboard() {
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.85rem', fontWeight: isToday ? 800 : 600, color: isToday ? '#0284c7' : '#0f172a' }}>
+                            <span className="day-num" style={{ fontSize: '0.85rem', fontWeight: isToday ? 800 : 600, color: isToday ? '#0284c7' : '#0f172a' }}>
                               {dNum}
                             </span>
                             {isToday && (
@@ -858,7 +981,7 @@ export default function TechnicianDashboard() {
                 </div>
 
                 {/* Filter buttons */}
-                <div style={{ display: 'flex', gap: '0.4rem', background: '#ffffff', padding: '4px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <div className="tech-filters-bar" style={{ display: 'flex', gap: '0.4rem', background: '#ffffff', padding: '4px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                   {(['All', 'Pending', 'In Progress', 'Completed'] as const).map(f => (
                     <button
                       key={f}
@@ -887,7 +1010,7 @@ export default function TechnicianDashboard() {
                   <p style={{ fontSize: '0.85rem' }}>No assigned AC deliveries match the current filter.</p>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.25rem' }}>
+                <div className="tech-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.25rem' }}>
                   {filteredDeliveries.map(job => {
                     const isCompleted = job.status === 'COMPLETED' || job.status === 'Delivered';
                     const isInProgress = job.status === 'ASSIGNED' || job.status === 'IN_PROGRESS' || job.status === 'Out for Delivery';
@@ -1009,7 +1132,7 @@ export default function TechnicianDashboard() {
                 </div>
 
                 {/* Filter buttons: Maintenance, Cleaning, Repair */}
-                <div style={{ display: 'flex', gap: '0.4rem', background: '#ffffff', padding: '4px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <div className="tech-filters-bar" style={{ display: 'flex', gap: '0.4rem', background: '#ffffff', padding: '4px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                   {(['All', 'Maintenance', 'Cleaning', 'Repair'] as const).map(f => (
                     <button
                       key={f}
@@ -1038,7 +1161,7 @@ export default function TechnicianDashboard() {
                   <p style={{ fontSize: '0.85rem' }}>No assigned jobs found under category: <strong>{serviceFilter}</strong></p>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.25rem' }}>
+                <div className="tech-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.25rem' }}>
                   {filteredServices.map(job => {
                     const isCompleted = job.status === 'COMPLETED' || job.status === 'Completed';
                     const isInProgress = job.status === 'ASSIGNED' || job.status === 'IN_PROGRESS' || job.status === 'Scheduled';
@@ -1142,7 +1265,7 @@ export default function TechnicianDashboard() {
       {/* ======================================================== */}
       {showInvoiceModal && invoiceJob && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 110, padding: '1rem' }}>
-          <div style={{ background: '#ffffff', borderRadius: '18px', width: '100%', maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: '1px solid #e2e8f0' }}>
+          <div className="tech-modal-content" style={{ background: '#ffffff', borderRadius: '18px', width: '100%', maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: '1px solid #e2e8f0' }}>
             
             {/* Modal Header */}
             <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', borderTopLeftRadius: '18px', borderTopRightRadius: '18px' }}>
@@ -1235,7 +1358,7 @@ export default function TechnicianDashboard() {
               </div>
 
               {/* SUBMIT BUTTONS */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div className="tech-modal-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <button
                   disabled={invoiceSending}
                   onClick={() => handleSendInvoice('CUSTOMER')}
@@ -1263,7 +1386,7 @@ export default function TechnicianDashboard() {
       {/* ======================================================== */}
       {showClientModal && selectedJob && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 110, padding: '1rem' }}>
-          <div style={{ background: '#ffffff', borderRadius: '18px', width: '100%', maxWidth: '620px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: '1px solid #e2e8f0' }}>
+          <div className="tech-modal-content" style={{ background: '#ffffff', borderRadius: '18px', width: '100%', maxWidth: '620px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: '1px solid #e2e8f0' }}>
             
             <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
               <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1276,7 +1399,7 @@ export default function TechnicianDashboard() {
             </div>
 
             <div style={{ padding: '1.5rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+              <div className="tech-modal-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
                 <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                   <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Customer</div>
                   <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{selectedJob.name}</div>
@@ -1338,6 +1461,104 @@ export default function TechnicianDashboard() {
           </div>
         </div>
       )}
+
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      <nav
+        className="tech-bottom-nav"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '62px',
+          background: '#ffffff',
+          borderTop: '1px solid #e2e8f0',
+          boxShadow: '0 -2px 12px rgba(0,0,0,0.06)',
+          zIndex: 80,
+          display: 'none',
+          alignItems: 'center',
+          justifyContent: 'space-around',
+          padding: '0 0.5rem',
+        }}
+      >
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          style={{
+            flex: 1,
+            height: '100%',
+            background: 'transparent',
+            border: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '3px',
+            color: activeTab === 'dashboard' ? '#0284c7' : '#64748b',
+            cursor: 'pointer',
+            position: 'relative',
+          }}
+        >
+          <i className="fa-solid fa-chart-line" style={{ fontSize: '1.15rem' }}></i>
+          <span style={{ fontSize: '0.72rem', fontWeight: activeTab === 'dashboard' ? 700 : 500 }}>Dashboard</span>
+          {totalJobsCount > 0 && (
+            <span style={{ position: 'absolute', top: '6px', right: '28%', background: '#0284c7', color: '#ffffff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: '999px', fontWeight: 700 }}>
+              {totalJobsCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('assigned')}
+          style={{
+            flex: 1,
+            height: '100%',
+            background: 'transparent',
+            border: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '3px',
+            color: activeTab === 'assigned' ? '#0284c7' : '#64748b',
+            cursor: 'pointer',
+            position: 'relative',
+          }}
+        >
+          <i className="fa-solid fa-truck" style={{ fontSize: '1.15rem' }}></i>
+          <span style={{ fontSize: '0.72rem', fontWeight: activeTab === 'assigned' ? 700 : 500 }}>Deliveries</span>
+          {deliveryTasks.length > 0 && (
+            <span style={{ position: 'absolute', top: '6px', right: '28%', background: '#38bdf8', color: '#ffffff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: '999px', fontWeight: 700 }}>
+              {deliveryTasks.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('services')}
+          style={{
+            flex: 1,
+            height: '100%',
+            background: 'transparent',
+            border: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '3px',
+            color: activeTab === 'services' ? '#0284c7' : '#64748b',
+            cursor: 'pointer',
+            position: 'relative',
+          }}
+        >
+          <i className="fa-solid fa-screwdriver-wrench" style={{ fontSize: '1.15rem' }}></i>
+          <span style={{ fontSize: '0.72rem', fontWeight: activeTab === 'services' ? 700 : 500 }}>Services</span>
+          {allServiceJobs.length > 0 && (
+            <span style={{ position: 'absolute', top: '6px', right: '28%', background: '#0284c7', color: '#ffffff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: '999px', fontWeight: 700 }}>
+              {allServiceJobs.length}
+            </span>
+          )}
+        </button>
+      </nav>
 
       {/* FOOTER */}
       <footer style={{ background: '#ffffff', borderTop: '1px solid #e2e8f0', padding: '1.5rem 2rem', textAlign: 'center', fontSize: '0.85rem', color: '#94a3b8' }}>
