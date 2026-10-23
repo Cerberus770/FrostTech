@@ -32,7 +32,53 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { scheduledDate: 'asc' },
     });
-    return NextResponse.json(schedules);
+
+    // Augment schedules with computed or stored lastMaintenance date
+    const augmentedSchedules = schedules.map((s) => {
+      let lastMaintenance: string | null = null;
+
+      // 1. Check for explicit [Last Maint: ...] tag in notes
+      const match = s.notes?.match(/\[Last Maint:\s*([^\]]+)\]/i);
+      if (match && match[1]) {
+        lastMaintenance = match[1].trim();
+      } else {
+        // 2. Check customer's enrolled AC installation / registration date
+        const customerACs = s.customer?.registeredACs || [];
+        const matchedAC = customerACs.find(
+          (ac) =>
+            (ac.brandModel && s.item.toLowerCase().includes(ac.brandModel.toLowerCase())) ||
+            (ac.location && s.item.toLowerCase().includes(ac.location.toLowerCase())) ||
+            (ac.horsepower && s.item.toLowerCase().includes(ac.horsepower.toLowerCase()))
+        ) || (customerACs.length === 1 ? customerACs[0] : null);
+
+        if (matchedAC) {
+          const d = matchedAC.enrolledAt || matchedAC.createdAt;
+          if (d) {
+            try {
+              lastMaintenance = new Date(d).toISOString().slice(0, 10);
+            } catch {
+              lastMaintenance = null;
+            }
+          }
+        }
+
+        // 3. Fallback to Initial Installation / First Service
+        if (!lastMaintenance) {
+          lastMaintenance = 'First Service (New Unit)';
+        }
+      }
+
+      // Clean notes to remove raw [Last Maint: ...] tag for clean UI presentation
+      const cleanNotes = s.notes ? s.notes.replace(/\[Last Maint:\s*[^\]]+\]\s*/gi, '').trim() : '';
+
+      return {
+        ...s,
+        notes: cleanNotes,
+        lastMaintenance,
+      };
+    });
+
+    return NextResponse.json(augmentedSchedules);
   } catch (error) {
     console.error('Maintenance fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch maintenance schedules' }, { status: 500 });
@@ -57,17 +103,29 @@ export async function POST(request: NextRequest) {
       if (fallbackUser) customerId = fallbackUser.id;
     }
 
-    const { status, ...rest } = body;
+    const { status, lastMaintenance, ...rest } = body;
     const validStatus = status === 'COMPLETED' ? 'COMPLETED' : status === 'OVERDUE' ? 'OVERDUE' : 'SCHEDULED';
+
+    let finalNotes = rest.notes || '';
+    if (lastMaintenance) {
+      const cleanNotes = finalNotes.replace(/\[Last Maint:\s*[^\]]+\]\s*/gi, '').trim();
+      finalNotes = `[Last Maint: ${lastMaintenance.trim()}] ${cleanNotes}`.trim();
+    }
 
     const schedule = await prisma.maintenanceSchedule.create({
       data: {
         ...rest,
+        notes: finalNotes,
         customerId,
         status: validStatus,
       },
     });
-    return NextResponse.json(schedule, { status: 201 });
+
+    return NextResponse.json({
+      ...schedule,
+      notes: rest.notes || '',
+      lastMaintenance: lastMaintenance || 'First Service (New Unit)',
+    }, { status: 201 });
   } catch (error) {
     console.error('Maintenance create error:', error);
     return NextResponse.json({ error: 'Failed to create maintenance schedule' }, { status: 500 });
@@ -78,11 +136,18 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, ...data } = body;
+    const { id, lastMaintenance, ...data } = body;
 
     // Validate enum status
     if (data.status && data.status !== 'SCHEDULED' && data.status !== 'OVERDUE' && data.status !== 'COMPLETED') {
       delete data.status;
+    }
+
+    // Handle lastMaintenance embedding in notes
+    if (lastMaintenance !== undefined) {
+      const current = await prisma.maintenanceSchedule.findUnique({ where: { id } });
+      const baseNotes = (data.notes !== undefined ? data.notes : (current?.notes || '')).replace(/\[Last Maint:\s*[^\]]+\]\s*/gi, '').trim();
+      data.notes = lastMaintenance ? `[Last Maint: ${lastMaintenance.trim()}] ${baseNotes}`.trim() : baseNotes;
     }
 
     const schedule = await prisma.maintenanceSchedule.update({
@@ -109,7 +174,14 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(schedule);
+    const cleanNotes = schedule.notes ? schedule.notes.replace(/\[Last Maint:\s*[^\]]+\]\s*/gi, '').trim() : '';
+    const match = schedule.notes?.match(/\[Last Maint:\s*([^\]]+)\]/i);
+
+    return NextResponse.json({
+      ...schedule,
+      notes: cleanNotes,
+      lastMaintenance: match ? match[1].trim() : (lastMaintenance || null),
+    });
   } catch (error) {
     console.error('Maintenance update error:', error);
     return NextResponse.json({ error: 'Failed to update maintenance schedule' }, { status: 500 });

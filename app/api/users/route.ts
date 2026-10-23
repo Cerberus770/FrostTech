@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
         lastName,
         phone: phone || null,
         role: role as any,
-        techRank: role === 'TECHNICIAN' ? (techRank || 'Senior Tech') : null,
+        techRank: techRank || (role === 'TECHNICIAN' ? 'Senior Tech' : null),
         permissions: permissions ? JSON.stringify(permissions) : '[]',
       },
       select: {
@@ -101,18 +101,9 @@ export async function PATCH(request: NextRequest) {
     const updateData: any = {};
     if (role !== undefined) {
       updateData.role = role;
-      if (role !== 'TECHNICIAN') {
-        updateData.techRank = null;
-      }
     }
     if (techRank !== undefined) {
-      if (role === 'TECHNICIAN' || updateData.role === 'TECHNICIAN') {
-        updateData.techRank = techRank;
-      } else if (role !== undefined && role !== 'TECHNICIAN') {
-        updateData.techRank = null;
-      } else {
-        updateData.techRank = techRank;
-      }
+      updateData.techRank = techRank ? String(techRank).trim() : null;
     }
     if (permissions !== undefined) updateData.permissions = JSON.stringify(permissions);
 

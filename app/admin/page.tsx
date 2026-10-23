@@ -127,6 +127,7 @@ interface MaintenanceItem {
   technicianName: string;
   status: string;
   notes: string;
+  lastMaintenance?: string | null;
   technicianId?: string;
   technician?: { id: string; firstName: string; lastName: string; phone?: string; techRank?: string | null };
   customer?: {
@@ -219,14 +220,18 @@ export default function AdminDashboard() {
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [newRole, setNewRole] = useState<'CUSTOMER' | 'TECHNICIAN' | 'ADMIN'>('CUSTOMER');
+  const [newRole, setNewRole] = useState<'CUSTOMER' | 'TECHNICIAN' | 'ADMIN' | 'CLERK'>('CUSTOMER');
   const [newTechRank, setNewTechRank] = useState('Senior Tech');
+  const [isCustomRole, setIsCustomRole] = useState(false);
+  const [newCustomRoleTitle, setNewCustomRoleTitle] = useState('');
   const [newPermissions, setNewPermissions] = useState<string[]>([]);
 
   // Edit User Modal State
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
-  const [editRole, setEditRole] = useState<'CUSTOMER' | 'TECHNICIAN' | 'ADMIN'>('CUSTOMER');
+  const [editRole, setEditRole] = useState<'CUSTOMER' | 'TECHNICIAN' | 'ADMIN' | 'CLERK'>('CUSTOMER');
   const [editTechRank, setEditTechRank] = useState('Senior Tech');
+  const [isEditCustomRole, setIsEditCustomRole] = useState(false);
+  const [editCustomRoleTitle, setEditCustomRoleTitle] = useState('');
   const [editPermissions, setEditPermissions] = useState<string[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
@@ -289,6 +294,7 @@ export default function AdminDashboard() {
   const [selectedMaintenanceModal, setSelectedMaintenanceModal] = useState<MaintenanceItem | null>(null);
   const [maintScheduleTechId, setMaintScheduleTechId] = useState<string>('');
   const [maintScheduleDate, setMaintScheduleDate] = useState<string>('');
+  const [maintLastDate, setMaintLastDate] = useState<string>('');
   const [maintScheduleTimeSlot, setMaintScheduleTimeSlot] = useState<string>('Morning (08:00 AM - 12:00 PM)');
   const [maintStatus, setMaintStatus] = useState<string>('SCHEDULED');
   const [maintNotes, setMaintNotes] = useState<string>('');
@@ -1215,7 +1221,9 @@ export default function AdminDashboard() {
           phone: newPhone,
           password: newPassword,
           role: newRole,
-          techRank: newRole === 'TECHNICIAN' ? newTechRank : null,
+          techRank: isCustomRole
+            ? (newCustomRoleTitle.trim() || 'Custom Staff')
+            : (newRole === 'TECHNICIAN' ? newTechRank : null),
           permissions: newPermissions,
         }),
       });
@@ -1231,8 +1239,10 @@ export default function AdminDashboard() {
         setNewPassword('');
         setNewRole('CUSTOMER');
         setNewTechRank('Senior Tech');
+        setIsCustomRole(false);
+        setNewCustomRoleTitle('');
         setNewPermissions([]);
-        showAlert({ title: 'User Created', message: `${newRole} account created successfully!` });
+        showAlert({ title: 'User Created', message: `${created.techRank || created.role} account created successfully!` });
       } else {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to create user');
@@ -1246,8 +1256,11 @@ export default function AdminDashboard() {
   // Open Edit User Modal
   const openEditUser = (user: AppUser) => {
     setEditingUser(user);
-    setEditRole(user.role as any);
-    setEditTechRank(user.techRank || 'Senior Tech');
+    setEditRole((user.role as any) || 'CUSTOMER');
+    const isCustom = Boolean(user.techRank && !TECH_RANKS.includes(user.techRank));
+    setIsEditCustomRole(isCustom);
+    setEditCustomRoleTitle(isCustom ? (user.techRank || '') : '');
+    setEditTechRank(!isCustom && user.techRank ? user.techRank : 'Senior Tech');
     try {
       const parsed = JSON.parse(user.permissions || '[]');
       setEditPermissions(Array.isArray(parsed) ? parsed : []);
@@ -1261,13 +1274,17 @@ export default function AdminDashboard() {
     if (!editingUser) return;
     setIsSavingEdit(true);
     try {
+      const assignedTechRank = isEditCustomRole
+        ? (editCustomRoleTitle.trim() || 'Custom Staff')
+        : (editRole === 'TECHNICIAN' ? editTechRank : null);
+
       const res = await fetch('/api/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editingUser.id,
           role: editRole,
-          techRank: editRole === 'TECHNICIAN' ? editTechRank : null,
+          techRank: assignedTechRank,
           permissions: editPermissions,
         }),
       });
@@ -1334,6 +1351,11 @@ export default function AdminDashboard() {
       datePart = new Date(Date.now() + 86400000).toISOString().split('T')[0];
     }
     setMaintScheduleDate(datePart);
+    setMaintLastDate(
+      m.lastMaintenance && m.lastMaintenance !== 'First Service (New Unit)'
+        ? m.lastMaintenance
+        : ''
+    );
 
     // Match technician
     if (m.technicianId) {
@@ -1384,6 +1406,7 @@ export default function AdminDashboard() {
           technicianId: assignedTech ? assignedTech.id : null,
           technicianName: techName,
           scheduledDate: scheduledDateStr,
+          lastMaintenance: maintLastDate || null,
           status: maintStatus,
           notes: maintNotes,
         }),
@@ -1429,6 +1452,7 @@ export default function AdminDashboard() {
                 technicianId: assignedTech ? assignedTech.id : undefined,
                 technicianName: techName,
                 scheduledDate: scheduledDateStr,
+                lastMaintenance: maintLastDate || 'First Service (New Unit)',
                 status: maintStatus,
                 notes: maintNotes,
               }
@@ -1547,12 +1571,13 @@ export default function AdminDashboard() {
     <>
       <ModalComponent />
 
-      {/* Admin Header (Sky Blue & Dirty White Palette) */}
+      {/* Standardized FrostTech Header */}
       <header
         style={{
-          background: 'rgba(255, 255, 255, 0.96)',
+          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
           backdropFilter: 'blur(16px)',
-          borderBottom: '1px solid #e2e8f0',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
+          color: '#ffffff',
           padding: '0.8rem 4%',
           display: 'flex',
           justifyContent: 'space-between',
@@ -1560,14 +1585,37 @@ export default function AdminDashboard() {
           position: 'sticky',
           top: 0,
           zIndex: 100,
-          boxShadow: '0 2px 10px rgba(15, 23, 42, 0.05)',
+          boxShadow: '0 4px 18px rgba(2, 100, 160, 0.25)',
         }}
       >
         <Link href="/" className="logo" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img src="/LOGO.jpg" alt="FrostTech Logo" style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'cover' }} />
-          <span style={{ fontWeight: 800, fontSize: '1.35rem', color: '#0f172a', letterSpacing: '-0.5px' }}>
-            Frost<span style={{ color: '#0284c7' }}>Tech</span> <span style={{ fontSize: '0.8rem', background: '#0284c7', color: 'white', padding: '2px 8px', borderRadius: '6px', marginLeft: '6px' }}>ADMIN</span>
-          </span>
+          <img
+            src="/LOGO.jpg"
+            alt="FrostTech Logo"
+            style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'cover', border: '1.5px solid rgba(255, 255, 255, 0.35)' }}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontWeight: 800, fontSize: '1.35rem', color: '#ffffff', letterSpacing: '-0.5px' }}>
+              Frost<span style={{ color: '#bae6fd' }}>Tech</span>
+            </span>
+            <span
+              style={{
+                fontSize: '0.72rem',
+                background: 'rgba(255, 255, 255, 0.2)',
+                color: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.35)',
+                padding: '2px 8px',
+                borderRadius: '999px',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <i className="fa-solid fa-shield-halved" style={{ fontSize: '0.68rem' }}></i> ADMIN
+            </span>
+          </div>
         </Link>
 
         <div style={{ display: 'flex', flex: 1, maxWidth: '480px', margin: '0 2rem' }}>
@@ -1581,39 +1629,71 @@ export default function AdminDashboard() {
                 width: '100%',
                 padding: '0.65rem 1rem 0.65rem 2.5rem',
                 borderRadius: '999px',
-                border: '1px solid #cbd5e1',
-                background: '#f8fafc',
+                border: '1px solid rgba(255, 255, 255, 0.28)',
+                background: 'rgba(255, 255, 255, 0.16)',
                 fontSize: '0.9rem',
-                color: '#0f172a',
+                color: '#ffffff',
                 outline: 'none',
               }}
             />
-            <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}></i>
+            <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#bae6fd' }}></i>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>
-            <i className="fa-solid fa-circle" style={{ color: '#16a34a', fontSize: '0.6rem', marginRight: '5px' }}></i> System Online
-          </span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.82rem',
+              color: '#f0fdf4',
+              background: 'rgba(255, 255, 255, 0.15)',
+              padding: '0.35rem 0.8rem',
+              borderRadius: '999px',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              fontWeight: 600,
+            }}
+          >
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80', display: 'inline-block' }}></span>
+            <span>System Online</span>
+          </div>
 
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => setKebabOpen(!kebabOpen)}
               style={{
-                background: '#f1f5f9',
-                border: '1px solid #cbd5e1',
-                borderRadius: '50%',
-                width: '40px',
-                height: '40px',
+                background: kebabOpen ? 'rgba(255, 255, 255, 0.28)' : 'rgba(255, 255, 255, 0.16)',
+                border: '1px solid rgba(255, 255, 255, 0.28)',
+                borderRadius: '999px',
+                padding: '4px 10px 4px 5px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
+                gap: '8px',
                 cursor: 'pointer',
-                color: '#0f172a',
+                color: '#ffffff',
+                transition: 'all 0.2s ease',
               }}
+              title="Admin Menu"
             >
-              <i className="fa-solid fa-bars"></i>
+              <div
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: '#ffffff',
+                  color: '#0284c7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 800,
+                  fontSize: '0.82rem',
+                }}
+              >
+                AD
+              </div>
+              <span style={{ fontSize: '0.86rem', fontWeight: 700 }}>Admin</span>
+              <i className="fa-solid fa-chevron-down" style={{ fontSize: '0.72rem', opacity: 0.85 }}></i>
             </button>
 
             {kebabOpen && (
@@ -1623,23 +1703,66 @@ export default function AdminDashboard() {
                   top: '48px',
                   right: 0,
                   background: '#ffffff',
-                  borderRadius: '12px',
-                  boxShadow: '0 20px 40px -10px rgba(15, 23, 42, 0.2)',
+                  borderRadius: '16px',
+                  boxShadow: '0 20px 40px -10px rgba(15, 23, 42, 0.25)',
                   border: '1px solid #e2e8f0',
-                  minWidth: '180px',
-                  padding: '0.5rem 0',
+                  minWidth: '220px',
+                  padding: '0.6rem 0',
                   zIndex: 200,
+                  overflow: 'hidden',
                 }}
               >
-                <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0.65rem 1.2rem', color: '#0f172a', textDecoration: 'none', fontSize: '0.88rem' }}>
-                  <i className="fa-solid fa-store" style={{ color: '#0284c7' }}></i> View Storefront
+                <div style={{ padding: '0.75rem 1.1rem', borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
+                  <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.9rem' }}>Administrator</div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>admin@frosttech.com</div>
+                </div>
+
+                <Link
+                  href="/"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '0.7rem 1.2rem',
+                    color: '#0f172a',
+                    textDecoration: 'none',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  <i className="fa-solid fa-store" style={{ color: '#0284c7', width: '16px' }}></i> View Storefront
                 </Link>
-                <Link href="/profile" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0.65rem 1.2rem', color: '#0f172a', textDecoration: 'none', fontSize: '0.88rem' }}>
-                  <i className="fa-solid fa-user" style={{ color: '#0284c7' }}></i> Customer View
+                <Link
+                  href="/profile"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '0.7rem 1.2rem',
+                    color: '#0f172a',
+                    textDecoration: 'none',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  <i className="fa-solid fa-user" style={{ color: '#0284c7', width: '16px' }}></i> Customer View
                 </Link>
-                <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }}></div>
-                <a href="#" onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0.65rem 1.2rem', color: '#ef4444', textDecoration: 'none', fontSize: '0.88rem', fontWeight: 600 }}>
-                  <i className="fa-solid fa-right-from-bracket"></i> Log Out
+                <div style={{ height: '1px', background: '#f1f5f9', margin: '4px 0' }}></div>
+                <a
+                  href="#"
+                  onClick={handleLogout}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '0.7rem 1.2rem',
+                    color: '#ef4444',
+                    textDecoration: 'none',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  <i className="fa-solid fa-right-from-bracket" style={{ width: '16px' }}></i> Log Out
                 </a>
               </div>
             )}
@@ -3989,6 +4112,7 @@ export default function AdminDashboard() {
                       <th style={{ padding: '0.9rem 1rem' }}>Customer Name</th>
                       <th style={{ padding: '0.9rem 1rem' }}>AC Unit</th>
                       <th style={{ padding: '0.9rem 1rem' }}>Service Type</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>Last Maintenance</th>
                       <th style={{ padding: '0.9rem 1rem' }}>Next Scheduled Date</th>
                       <th style={{ padding: '0.9rem 1rem' }}>Assigned Tech</th>
                       <th style={{ padding: '0.9rem 1rem' }}>Status</th>
@@ -3998,7 +4122,7 @@ export default function AdminDashboard() {
                   <tbody>
                     {maintenance.length === 0 ? (
                       <tr>
-                        <td colSpan={8} style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
+                        <td colSpan={9} style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
                           No maintenance schedules found.
                         </td>
                       </tr>
@@ -4042,6 +4166,12 @@ export default function AdminDashboard() {
                             <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '6px', fontWeight: 600, fontSize: '0.78rem' }}>
                               {m.serviceType}
                             </span>
+                          </td>
+                          <td style={{ padding: '0.85rem 1rem', color: '#475569', fontSize: '0.82rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <i className="fa-solid fa-clock-rotate-left" style={{ color: '#0284c7', fontSize: '0.75rem' }}></i>
+                              <span>{m.lastMaintenance || 'First Service (New Unit)'}</span>
+                            </div>
                           </td>
                           <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#0f172a' }}>
                             {m.scheduledDate || '6-Month Routine'}
@@ -4937,16 +5067,17 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: newRole === 'TECHNICIAN' ? '1fr 1fr' : '1fr', gap: '0.8rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: (newRole === 'TECHNICIAN' || isCustomRole) ? '1fr 1fr' : '1fr', gap: '0.8rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Role *</label>
-                  <select value={newRole} onChange={(e) => setNewRole(e.target.value as any)} style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                  <select value={newRole} onChange={(e) => { setNewRole(e.target.value as any); setIsCustomRole(false); }} style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
                     <option value="CUSTOMER">Customer</option>
                     <option value="TECHNICIAN">Technician</option>
+                    <option value="CLERK">Clerk / Staff</option>
                     <option value="ADMIN">Administrator</option>
                   </select>
                 </div>
-                {newRole === 'TECHNICIAN' && (
+                {newRole === 'TECHNICIAN' && !isCustomRole && (
                   <div>
                     <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Tech Rank</label>
                     <select value={newTechRank} onChange={(e) => setNewTechRank(e.target.value)} style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
@@ -4956,7 +5087,24 @@ export default function AdminDashboard() {
                     </select>
                   </div>
                 )}
+                {isCustomRole && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Custom Role Title *</label>
+                    <input
+                      type="text"
+                      value={newCustomRoleTitle}
+                      onChange={(e) => setNewCustomRoleTitle(e.target.value)}
+                      placeholder="e.g. Warehouse Manager"
+                      style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                    />
+                  </div>
+                )}
               </div>
+              {/* Custom Role Toggle */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.82rem', color: '#475569' }}>
+                <input type="checkbox" checked={isCustomRole} onChange={(e) => setIsCustomRole(e.target.checked)} />
+                <span>Assign a custom role title (overrides tech rank)</span>
+              </label>
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Email Address *</label>
@@ -5078,20 +5226,21 @@ export default function AdminDashboard() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {/* Role */}
-              <div style={{ display: 'grid', gridTemplateColumns: editRole === 'TECHNICIAN' ? '1fr 1fr' : '1fr', gap: '0.8rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: (editRole === 'TECHNICIAN' || isEditCustomRole) ? '1fr 1fr' : '1fr', gap: '0.8rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
                     <i className="fa-solid fa-shield-halved" style={{ color: '#0284c7', marginRight: '6px' }}></i>Role
                   </label>
-                  <select value={editRole} onChange={(e) => setEditRole(e.target.value as any)} style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 600 }}>
+                  <select value={editRole} onChange={(e) => { setEditRole(e.target.value as any); setIsEditCustomRole(false); }} style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 600 }}>
                     <option value="CUSTOMER">Customer</option>
                     <option value="TECHNICIAN">Technician</option>
+                    <option value="CLERK">Clerk / Staff</option>
                     <option value="ADMIN">Administrator</option>
                   </select>
                 </div>
 
                 {/* Tech Rank (only for technician) */}
-                {editRole === 'TECHNICIAN' && (
+                {editRole === 'TECHNICIAN' && !isEditCustomRole && (
                   <div>
                     <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
                       <i className="fa-solid fa-ranking-star" style={{ color: '#0284c7', marginRight: '6px' }}></i>Tech Rank
@@ -5103,7 +5252,29 @@ export default function AdminDashboard() {
                     </select>
                   </div>
                 )}
+
+                {/* Custom Role Title */}
+                {isEditCustomRole && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
+                      <i className="fa-solid fa-user-tag" style={{ color: '#0284c7', marginRight: '6px' }}></i>Custom Role Title *
+                    </label>
+                    <input
+                      type="text"
+                      value={editCustomRoleTitle}
+                      onChange={(e) => setEditCustomRoleTitle(e.target.value)}
+                      placeholder="e.g. Warehouse Manager"
+                      style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 600 }}
+                    />
+                  </div>
+                )}
               </div>
+
+              {/* Custom Role Toggle */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.82rem', color: '#475569' }}>
+                <input type="checkbox" checked={isEditCustomRole} onChange={(e) => setIsEditCustomRole(e.target.checked)} />
+                <span>Assign a custom role title (overrides tech rank)</span>
+              </label>
 
               {/* Feature Permissions */}
               <div>
@@ -6156,6 +6327,16 @@ export default function AdminDashboard() {
                       6-Month Active Monitoring
                     </div>
                   </div>
+
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Last Maintenance
+                    </div>
+                    <div style={{ fontWeight: 700, color: '#0369a1', marginTop: '2px' }}>
+                      <i className="fa-solid fa-clock-rotate-left" style={{ marginRight: '4px', fontSize: '0.75rem' }}></i>
+                      {selectedMaintenanceModal.lastMaintenance || 'First Service (New Unit)'}
+                    </div>
+                  </div>
                 </div>
 
                 <div style={{ marginTop: '0.75rem', paddingTop: '0.6rem', borderTop: '1px solid #bae6fd', fontSize: '0.8rem', color: '#334155' }}>
@@ -6280,30 +6461,57 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Maintenance Status */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
-                    <i className="fa-solid fa-chart-line" style={{ color: '#0284c7', marginRight: '5px' }}></i>
-                    Maintenance Status *
-                  </label>
-                  <select
-                    value={maintStatus}
-                    onChange={(e) => setMaintStatus(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.65rem 0.9rem',
-                      borderRadius: '8px',
-                      border: '1.5px solid #cbd5e1',
-                      fontSize: '0.88rem',
-                      color: '#0f172a',
-                      fontWeight: 600,
-                      background: '#ffffff',
-                    }}
-                  >
-                    <option value="SCHEDULED">SCHEDULED (Upcoming / Assigned)</option>
-                    <option value="OVERDUE">OVERDUE (Needs Immediate Inspection)</option>
-                    <option value="COMPLETED">COMPLETED (Maintenance Finished)</option>
-                  </select>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                  {/* Last Maintenance Date */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                      <i className="fa-solid fa-clock-rotate-left" style={{ color: '#0284c7', marginRight: '5px' }}></i>
+                      Last Maintenance Date
+                    </label>
+                    <input
+                      type="date"
+                      value={maintLastDate}
+                      onChange={(e) => setMaintLastDate(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.9rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid #cbd5e1',
+                        fontSize: '0.88rem',
+                        color: '#0f172a',
+                        fontWeight: 600,
+                      }}
+                    />
+                    <span style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '3px', display: 'block' }}>
+                      Leave blank if first service for new unit
+                    </span>
+                  </div>
+
+                  {/* Maintenance Status */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                      <i className="fa-solid fa-chart-line" style={{ color: '#0284c7', marginRight: '5px' }}></i>
+                      Maintenance Status *
+                    </label>
+                    <select
+                      value={maintStatus}
+                      onChange={(e) => setMaintStatus(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.9rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid #cbd5e1',
+                        fontSize: '0.88rem',
+                        color: '#0f172a',
+                        fontWeight: 600,
+                        background: '#ffffff',
+                      }}
+                    >
+                      <option value="SCHEDULED">SCHEDULED (Upcoming / Assigned)</option>
+                      <option value="OVERDUE">OVERDUE (Needs Immediate Inspection)</option>
+                      <option value="COMPLETED">COMPLETED (Maintenance Finished)</option>
+                    </select>
+                  </div>
                 </div>
 
                 {/* Special Notes & Dispatch Instructions */}
