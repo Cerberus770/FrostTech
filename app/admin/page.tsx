@@ -195,6 +195,7 @@ export default function AdminDashboard() {
 
   // Add Product Modal & Multi-image state
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
+  const [addItemType, setAddItemType] = useState<'AC' | 'SparePart'>('AC');
   const [newProductImages, setNewProductImages] = useState<string[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
 
@@ -4421,73 +4422,289 @@ export default function AdminDashboard() {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.8rem' }}>
               <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#0f172a', fontWeight: 800 }}>
-                <i className="fa-solid fa-plus-circle" style={{ color: '#0284c7', marginRight: '8px' }}></i> Add New Product / Spare Part
+                <i className="fa-solid fa-plus-circle" style={{ color: '#0284c7', marginRight: '8px' }}></i> Add New Inventory Item
               </h3>
-              <button onClick={() => setIsAddProductModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
+              <button onClick={() => setIsAddProductModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
+            </div>
+
+            {/* CATEGORIZE BUTTONS: AIR CONDITIONERS VS SPARE PARTS */}
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                Item Classification *
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#f1f5f9', padding: '5px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <button
+                  type="button"
+                  onClick={() => setAddItemType('AC')}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    borderRadius: '9px',
+                    border: addItemType === 'AC' ? '2px solid #0284c7' : '1px solid transparent',
+                    background: addItemType === 'AC' ? '#ffffff' : 'transparent',
+                    color: addItemType === 'AC' ? '#0284c7' : '#64748b',
+                    fontWeight: 800,
+                    fontSize: '0.92rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: addItemType === 'AC' ? '0 2px 8px rgba(2, 132, 199, 0.18)' : 'none',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <i className="fa-solid fa-snowflake" style={{ fontSize: '1.05rem', color: addItemType === 'AC' ? '#0284c7' : '#94a3b8' }}></i>
+                  Air Conditioners (AC)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddItemType('SparePart')}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    borderRadius: '9px',
+                    border: addItemType === 'SparePart' ? '2px solid #0284c7' : '1px solid transparent',
+                    background: addItemType === 'SparePart' ? '#ffffff' : 'transparent',
+                    color: addItemType === 'SparePart' ? '#0284c7' : '#64748b',
+                    fontWeight: 800,
+                    fontSize: '0.92rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: addItemType === 'SparePart' ? '0 2px 8px rgba(2, 132, 199, 0.18)' : 'none',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <i className="fa-solid fa-screwdriver-wrench" style={{ fontSize: '1.05rem', color: addItemType === 'SparePart' ? '#0284c7' : '#94a3b8' }}></i>
+                  Spare Parts & Materials
+                </button>
+              </div>
             </div>
 
             <form onSubmit={handleAddProductSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>SKU Code *</label>
-                  <input type="text" name="sku" required placeholder="e.g. AC-CAR-15" style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>SKU Code *</label>
+                  <input
+                    type="text"
+                    name="sku"
+                    required
+                    placeholder={addItemType === 'AC' ? "e.g. AC-CAR-15" : "e.g. PART-CAP-45UF"}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 0.9rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: '#0f172a',
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                    }}
+                  />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Brand *</label>
-                  <input type="text" name="brand" required placeholder="e.g. Carrier, Panasonic" style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Brand *</label>
+                  <input
+                    type="text"
+                    name="brand"
+                    required
+                    placeholder={addItemType === 'AC' ? "e.g. Carrier, Panasonic, Daikin" : "e.g. Carrier Genuine, Copeland"}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 0.9rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: '#0f172a',
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                    }}
+                  />
                 </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Model Name *</label>
-                <input type="text" name="model" required placeholder="e.g. Aura Inverter 1.5 HP Split Type" style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Category *</label>
-                  <select name="category" required style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                    <option value="Split Type Inverter">Split Type Inverter</option>
-                    <option value="Window Type">Window Type</option>
-                    <option value="Floor Standing">Floor Standing</option>
-                    <option value="Spare Parts">Spare Parts</option>
-                    <option value="Parts & Accessories">Parts & Accessories</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>AC HP (Horsepower)</label>
-                  <select name="horsepower" style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                    <option value="0.75 HP">0.75 HP</option>
-                    <option value="1.0 HP">1.0 HP</option>
-                    <option value="1.5 HP">1.5 HP</option>
-                    <option value="2.0 HP">2.0 HP</option>
-                    <option value="2.5 HP">2.5 HP</option>
-                    <option value="3.0 HP">3.0 HP</option>
-                    <option value="N/A - Spare Part">N/A - Spare Part</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Item Description *</label>
-                <textarea
-                  name="description"
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  {addItemType === 'AC' ? 'Model Name (AC Unit) *' : 'Part Name / Model *'}
+                </label>
+                <input
+                  type="text"
+                  name="model"
                   required
-                  placeholder="Detailed specifications, energy rating, inverter technology, and features..."
-                  rows={3}
-                  style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }}
+                  placeholder={addItemType === 'AC' ? "e.g. Aura Inverter 1.5 HP Split Type" : "e.g. Dual Run Capacitor 45+5uF 450V"}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 0.9rem',
+                    borderRadius: '8px',
+                    border: '1.5px solid #cbd5e1',
+                    backgroundColor: '#ffffff',
+                    color: '#0f172a',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    outline: 'none',
+                  }}
                 />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Stock Quantity</label>
-                  <input type="number" name="stock" defaultValue={10} min={0} style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                    {addItemType === 'AC' ? 'AC Category *' : 'Spare Part Category *'}
+                  </label>
+                  <select
+                    name="category"
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 0.9rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: '#0f172a',
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                    }}
+                  >
+                    {addItemType === 'AC' ? (
+                      <>
+                        <option value="Split Type Inverter" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>Split Type Inverter</option>
+                        <option value="Window Type" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>Window Type</option>
+                        <option value="Floor Standing" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>Floor Standing</option>
+                        <option value="Cassette / Ceiling" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>Cassette / Ceiling</option>
+                        <option value="Portable AC" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>Portable AC</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="Spare Parts" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>General Spare Parts</option>
+                        <option value="Compressor" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>Compressor</option>
+                        <option value="Capacitor" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>Capacitor</option>
+                        <option value="Fan Motor & Blade" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>Fan Motor & Blade</option>
+                        <option value="Copper Tube & Insulation" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>Copper Tube & Insulation</option>
+                        <option value="Refrigerant & Freon" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>Refrigerant & Freon</option>
+                        <option value="Filter & Accessories" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>Filter & Accessories</option>
+                        <option value="Parts & Accessories" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>Other Parts & Accessories</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                    {addItemType === 'AC' ? 'Cooling Capacity (HP) *' : 'Capacity / HP'}
+                  </label>
+                  {addItemType === 'AC' ? (
+                    <select
+                      name="horsepower"
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem 0.9rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid #cbd5e1',
+                        backgroundColor: '#ffffff',
+                        color: '#0f172a',
+                        fontWeight: 600,
+                        fontSize: '0.9rem',
+                        outline: 'none',
+                      }}
+                    >
+                      <option value="0.75 HP" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>0.75 HP</option>
+                      <option value="1.0 HP" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>1.0 HP</option>
+                      <option value="1.5 HP" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>1.5 HP</option>
+                      <option value="2.0 HP" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>2.0 HP</option>
+                      <option value="2.5 HP" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>2.5 HP</option>
+                      <option value="3.0 HP" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>3.0 HP</option>
+                      <option value="4.0 HP" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>4.0 HP</option>
+                      <option value="5.0 HP" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>5.0 HP</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      name="horsepower"
+                      readOnly
+                      value="N/A - Spare Part"
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem 0.9rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid #e2e8f0',
+                        backgroundColor: '#f8fafc',
+                        color: '#64748b',
+                        fontWeight: 600,
+                        fontSize: '0.9rem',
+                        cursor: 'not-allowed',
+                        outline: 'none',
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Item Description *</label>
+                <textarea
+                  name="description"
+                  required
+                  placeholder={addItemType === 'AC' ? "Detailed specifications, energy rating, inverter technology, and features..." : "Part compatibility, voltage, specs, and materials..."}
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 0.9rem',
+                    borderRadius: '8px',
+                    border: '1.5px solid #cbd5e1',
+                    backgroundColor: '#ffffff',
+                    color: '#0f172a',
+                    fontWeight: 500,
+                    fontSize: '0.9rem',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Stock Quantity</label>
+                  <input
+                    type="number"
+                    name="stock"
+                    defaultValue={10}
+                    min={0}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 0.9rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: '#0f172a',
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                    }}
+                  />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Price (₱) *</label>
-                  <input type="number" name="price" step="0.01" required placeholder="25000" style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Price (₱) *</label>
+                  <input
+                    type="number"
+                    name="price"
+                    step="0.01"
+                    required
+                    placeholder={addItemType === 'AC' ? "25000" : "1500"}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 0.9rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: '#0f172a',
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                    }}
+                  />
                 </div>
               </div>
 
@@ -4544,11 +4761,11 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ display: 'flex', gap: '0.8rem', marginTop: '0.5rem' }}>
-                <button type="button" onClick={() => setIsAddProductModalOpen(false)} className="btn btn-secondary" style={{ flex: 1 }}>
+                <button type="button" onClick={() => setIsAddProductModalOpen(false)} className="btn btn-secondary" style={{ flex: 1, padding: '0.75rem' }}>
                   Cancel
                 </button>
-                <button type="submit" className="btn" style={{ flex: 1 }}>
-                  Save & Publish Brand New Product
+                <button type="submit" className="btn" style={{ flex: 1, padding: '0.75rem', fontWeight: 800 }}>
+                  {addItemType === 'AC' ? 'Save & Publish Brand New AC' : 'Save & Add Spare Part'}
                 </button>
               </div>
             </form>
