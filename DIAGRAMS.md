@@ -1,6 +1,10 @@
 # FrostTech - System Architecture & Specification Diagrams
 
-This document contains the complete software architecture diagrams for **FrostTech**, including the Level-0 System Context Diagram, Use Case Diagram, User Activity Flowcharts (Customer, Technician, Admin, Clerk), and the comprehensive Entity Relationship Diagram (ERD).
+This document contains the complete and verified software architecture diagrams for **FrostTech**, including the Level-0 System Context Diagram, Use Case Diagram, User Activity Flowcharts (Customer, Technician, Admin, Clerk), the Entity Relationship Diagram (ERD), and the Input-Process-Output (IPO) Model.
+
+> **Operational Note:**
+> 1. All commercial air conditioning units sold by FrostTech are **100% Brand New** (Factory-sealed units with official manufacturer warranty; no second-hand or refurbished units).
+> 2. On-site technician material requisitions (`TechRequest`) have been removed from system scope; technician workflows center strictly on installation, cleaning, diagnostic repair, and job completion reporting.
 
 ---
 
@@ -23,16 +27,16 @@ flowchart TB
         GoogleMaps["🗺️ Google Maps API\n(Places Autocomplete & Geocoding)"]
         SMSGateway["📱 PhilSMS / Semaphore API\n(OTP & Dispatch SMS Alerts)"]
         EmailSMTP["📧 Gmail SMTP Service\n(Invoice Delivery & Notifications)"]
-        Cloudinary["☁️ Cloudinary Storage\n(Product Media & Downpayment Proof)"]
+        Cloudinary["☁️ Cloudinary Storage\n(Unit Media & Downpayment Proof)"]
         GoogleAuth["🔐 Google OAuth\n(Direct Social Sign-In)"]
     end
 
     %% Customer Data Flows
     Customer -->|"Orders, Installment Applications, AC Registrations, Maintenance Requests"| System
-    System -->|"Order Status, Invoices, Service Alerts, Catalog"| Customer
+    System -->|"Order Status, Invoices, Service Alerts, Brand New Catalog"| Customer
 
     %% Technician Data Flows
-    Technician -->|"Job Status Updates, Part Requests, Completion Notes"| System
+    Technician -->|"Job Status Updates, Diagnostic Findings, Completion Notes"| System
     System -->|"Assigned Jobs, Calendar Schedule, Route Details"| Technician
 
     %% Admin Data Flows
@@ -65,25 +69,25 @@ flowchart LR
     end
 
     subgraph FrostTechUseCases["FrostTech System Use Cases"]
-        UC1(["Browse Catalog & Condition Variants"])
+        UC1(["Browse Brand New AC Catalog (Split / Window / Inverter)"])
         UC2(["Manage Cart & Saved Addresses"])
-        UC3(["Checkout (Cash or Installment with Proof)"])
-        UC4(["Register AC Units (Store & External)"])
-        UC5(["Schedule AC Maintenance / Deep Clean"])
+        UC3(["Checkout (Cash on Delivery or Installment with Proof)"])
+        UC4(["Register AC Units (Store-Purchased & Existing Units)"])
+        UC5(["Schedule AC Maintenance / Deep Clean / Diagnostic Repair"])
         UC6(["Track Order & Service Status"])
         UC7(["Submit Product Reviews"])
 
         UC8(["View Assigned Dispatch & Maintenance Jobs"])
         UC9(["View Personal Schedule & Calendar"])
-        UC10(["Update Job Status (In-Progress / Done)"])
-        UC11(["Submit Technician Part Requests (TechRequest)"])
+        UC10(["Update Job Status (Queued ➔ In Progress ➔ Completed)"])
+        UC11(["Log On-Site Technical Diagnostics & Completion Notes"])
 
-        UC12(["Manage Inventory & Condition Pricing"])
-        UC13(["Approve / Reject Installments (CI Process)"])
-        UC14(["Assign Technicians to Dispatches & Maintenance"])
-        UC15(["Manage User Roles & Permissions"])
-        UC16(["Generate & Dispatch Invoices"])
-        UC17(["Verify Downpayment Proofs & Orders"])
+        UC12(["Manage Brand New Inventory Stock & Pricing"])
+        UC13(["Approve / Reject Installments (Credit Investigation CI Process)"])
+        UC14(["Assign Technicians to Dispatches & Maintenance Schedules"])
+        UC15(["Manage User Roles, Staff Ranks & Custom Permissions"])
+        UC16(["Generate & Dispatch Digital Invoices via Email"])
+        UC17(["Verify Downpayment Proofs & Validate Orders"])
     end
 
     %% Customer mappings
@@ -129,9 +133,9 @@ flowchart TD
     AuthChoice -- Login / Google --> Login[Authenticate via Credentials or Google OAuth]
     Register --> Login
     Login --> AuthCheck
-    AuthCheck -- Yes --> Browse[Browse Catalog & Filter by Brand/HP/Condition]
+    AuthCheck -- Yes --> Browse[Browse 100% Brand New AC Catalog by Brand, HP & Type]
 
-    Browse --> ProductSelect[Select Unit & Condition: Brand New, Second Hand, On-Hand]
+    Browse --> ProductSelect[Select Brand New Unit: Split Type / Window Type / Inverter]
     ProductSelect --> AddCart[Add to Cart with Map-Pinned Address]
 
     AddCart --> PaymentChoice{Payment Method}
@@ -145,7 +149,7 @@ flowchart TD
     AppSubmit --> CustomerSpace
 
     CustomerSpace --> ACManagement{Manage AC Services?}
-    ACManagement -- Register AC --> RegUnit[Register Air Conditioner - Location, HP, Pin Address]
+    ACManagement -- Register AC --> RegUnit[Register Air Conditioner - Room Location, HP, Pin Address]
     ACManagement -- Maintenance --> RequestMnt[Book Maintenance: Cleaning, Repair, Diagnostics]
     ACManagement -- View Invoices --> ViewInv[Review & Download Invoices]
     ACManagement -- Done --> End([Session Complete])
@@ -169,11 +173,7 @@ flowchart TD
     JobSelect --> StartJob[Change Status to 'In Progress']
     StartJob --> Inspect[Inspect Unit at Pinned Map Location]
 
-    Inspect --> NeedsParts{Parts / Extra Items Needed?}
-    NeedsParts -- Yes --> SubmitRequest[Create TechRequest: Item, Quantity, Reason]
-    SubmitRequest --> WaitAdmin[Admin Approves Request & Allocates Item]
-    WaitAdmin --> CompleteWork[Execute Service: Installation / Repair / Cleaning]
-    NeedsParts -- No --> CompleteWork
+    Inspect --> CompleteWork[Execute Service: Installation / Repair / Deep Cleaning]
 
     CompleteWork --> UpdateJob[Upload Service Notes & Mark Job 'Completed']
     UpdateJob --> SyncStatus[Order / Maintenance Schedule Updates to 'Completed']
@@ -195,7 +195,7 @@ flowchart TD
     AdminPanel --> Actions{Select Administrative Action}
 
     %% Branch 1: Inventory
-    Actions -- Inventory Control --> Inv[Add/Edit Products, Stock Quantities, Condition Variants]
+    Actions -- Inventory Control --> Inv[Add/Edit Brand New Products, Stock Quantities & Specs]
     Inv --> InvDone[Update Database & Storefront]
 
     %% Branch 2: Installments & Orders
@@ -302,22 +302,13 @@ erDiagram
         Float originalPrice
         Float rating
         Int sold
+        Int stock "Brand New Stock Counter"
         String image
         StringArray images
         String horsepower
         String badge
         StringArray specs
         String description
-        DateTime createdAt
-        DateTime updatedAt
-    }
-
-    product_variants {
-        String id PK
-        String productId FK
-        String condition "Brand New | Second Hand | On-Hand"
-        Float price
-        Int stock
         DateTime createdAt
         DateTime updatedAt
     }
@@ -437,18 +428,6 @@ erDiagram
         DateTime createdAt
     }
 
-    tech_requests {
-        String id PK
-        String reqId UK
-        String technicianId FK
-        String itemNeeded
-        Int quantity
-        String reason
-        String status "Pending | Approved | Declined"
-        DateTime createdAt
-        DateTime updatedAt
-    }
-
     addresses {
         String id PK
         String userId FK
@@ -507,17 +486,13 @@ erDiagram
     users ||--o{ cart_items : "adds to"
     users ||--o{ maintenance_schedules : "requests as Customer"
     users ||--o{ maintenance_schedules : "assigned as Technician"
-    users ||--o{ tech_requests : "submits as Technician"
     users ||--o{ _TechnicianDispatch : "assigned to"
     dispatch_items ||--o{ _TechnicianDispatch : "assigned crew"
-    products ||--o{ product_variants : "has condition pricing"
 ```
 
 ---
 
 ## 5. Input-Process-Output (IPO) Model
-
-The **Input-Process-Output (IPO)** architecture describes the inputs provided by users and external APIs, the computational/database processes executed by the FrostTech platform, and the resulting outputs produced.
 
 ### 5.1. System-Level Visual IPO Diagram
 
@@ -525,7 +500,7 @@ The **Input-Process-Output (IPO)** architecture describes the inputs provided by
 flowchart LR
     subgraph INPUT["📥 INPUT"]
         direction TB
-        I1["• User Credentials & Signups\n• Google OAuth Tokens\n• Product Search & Filters\n• Map Pin / Pinned Coordinates\n• Cart Selections & Condition Variants\n• Downpayment Proof (Image/File)\n• Installment Forms (Income/Employer/ID)\n• AC Unit Registration Details\n• Maintenance Date & Service Type\n• Technician Status Updates & Notes\n• Tech Parts Requests (TechRequest)\n• Admin Stock, SKUs, Prices & Roles"]
+        I1["• User Credentials & Signups\n• Google OAuth Tokens\n• Brand New Product Search & Filters\n• Map Pin / Pinned Coordinates\n• Cart Selections (Brand New Units)\n• Downpayment Proof (Image/File)\n• Installment Forms (Income/Employer/ID)\n• AC Unit Registration Details\n• Maintenance Date & Service Type\n• Technician Status Updates & Notes\n• Admin Stock, SKUs, Prices & Roles"]
     end
 
     subgraph PROCESS["⚙️ PROCESS"]
@@ -535,7 +510,7 @@ flowchart LR
 
     subgraph OUTPUT["📤 OUTPUT"]
         direction TB
-        O1["• Authenticated User Sessions & Profiles\n• Dynamic Product Catalog & Variant Pricing\n• Pinned Delivery Address & Route Map\n• Order Records (Status: Processing/Shipped)\n• Installment CI Approvals / Rejections\n• Dispatch Queue Items & Field Assignments\n• Technician Calendar Events & Work Orders\n• Registered AC Units & Maintenance Timelines\n• Customer Invoices (Sent, Viewed, Paid)\n• SMS Dispatch Notifications to Customers\n• Email Receipts & Service Summaries\n• Real-Time Administrative Analytics"]
+        O1["• Authenticated User Sessions & Profiles\n• Dynamic Catalog of 100% Brand New ACs\n• Pinned Delivery Address & Route Map\n• Order Records (Status: Processing/Shipped)\n• Installment CI Approvals / Rejections\n• Dispatch Queue Items & Field Assignments\n• Technician Calendar Events & Work Orders\n• Registered AC Units & Maintenance Timelines\n• Customer Invoices (Sent, Viewed, Paid)\n• SMS Dispatch Notifications to Customers\n• Email Receipts & Service Summaries\n• Real-Time Administrative Analytics"]
     end
 
     INPUT -->|"Transmitted via HTTP / REST API"| PROCESS
@@ -554,7 +529,7 @@ flowchart LR
 #### Module 2: E-Commerce Storefront, Inventory & Cart
 | **INPUT** | **PROCESS** | **OUTPUT** |
 |---|---|---|
-| • Brand, horsepower, and category filter criteria<br>• Selected product condition (`Brand New`, `Second Hand`, `On-Hand`)<br>• Add-to-cart clicks with product ID & quantity<br>• Delivery address and Google Maps pinpoint coordinates | • Query active products and join with `product_variants`<br>• Enforce mandatory login/registration check prior to cart addition<br>• Upsert cart items into `cart_items` table<br>• Compute subtotal, taxes, and shipping rates based on location<br>• Validate inventory stock levels from `inventory_items` | • Interactive catalog cards with condition-based price tags<br>• Updated user cart drawer with real-time total calculation<br>• Pinned map marker displaying exact delivery drop point<br>• Low stock badges and out-of-stock disable flags |
+| • Brand, horsepower, and category filter criteria (Brand New units)<br>• Add-to-cart clicks with product ID & quantity<br>• Delivery address and Google Maps pinpoint coordinates | • Query active brand-new products from catalog<br>• Enforce mandatory login/registration check prior to cart addition<br>• Upsert cart items into `cart_items` table<br>• Compute subtotal, taxes, and shipping rates based on location<br>• Validate inventory stock levels from `inventory_items` | • Interactive catalog cards for Brand New AC models<br>• Updated user cart drawer with real-time total calculation<br>• Pinned map marker displaying exact delivery drop point<br>• Low stock badges and out-of-stock disable flags |
 
 #### Module 3: Checkout, Orders & Payment Processing
 | **INPUT** | **PROCESS** | **OUTPUT** |
@@ -576,13 +551,12 @@ flowchart LR
 |---|---|---|
 | • AC brand/model, horsepower, unit room location (e.g. Master Bedroom)<br>• Purchase origin (`purchasedFromStore` true/false)<br>• Maintenance enrollment opt-in and preferred schedule date<br>• Pause / resume maintenance toggle | • Insert record into `registered_acs` table linked to user ID<br>• Automatically calculate recommended recurring maintenance due date<br>• Evaluate 3-day notice window (`notice3Days` & `notice3DaysAt`)<br>• Auto-create entry in `maintenance_schedules` (`MNT-XXXX`) | • Digital AC passport card displayed in Customer Space<br>• Maintenance countdown meter and cleaning reminder badge<br>• Proactive SMS/Email reminders 3 days before scheduled service<br>• Service log tracking cleaning and diagnostic history |
 
-#### Module 7: Technician Field Work & Parts Requisition
+#### Module 7: Technician Field Work & Execution
 | **INPUT** | **PROCESS** | **OUTPUT** |
 |---|---|---|
-| • Technician task status update (`Queued` → `In Progress` → `Completed`)<br>• On-site diagnostic inspection notes<br>• Technician part request form: item needed, quantity, and urgency reason | • Validate technician assignment authorization<br>• Update `dispatch_items` and `maintenance_schedules` status<br>• Generate unique part requisition record (`REQ-XXXX`) in `tech_requests`<br>• Update corresponding customer order to `Completed` | • Real-time status update displayed on Customer tracking screen<br>• Pending part request card on Admin operations board<br>• Updated technician completed job count and performance stats<br>• Historical service record logged for customer unit |
+| • Technician task status update (`Queued` → `In Progress` → `Completed`)<br>• On-site diagnostic inspection notes and service findings | • Validate technician assignment authorization<br>• Update `dispatch_items` and `maintenance_schedules` status<br>• Update corresponding customer order to `Completed` | • Real-time status update displayed on Customer tracking screen<br>• Updated technician completed job count and performance stats<br>• Historical service record logged for customer unit |
 
 #### Module 8: Invoicing, Receipts & Cloud Communications
 | **INPUT** | **PROCESS** | **OUTPUT** |
 |---|---|---|
 | • Completed dispatch ID or maintenance schedule ID<br>• Service amount, technician name, customer name, unit details<br>• Payment status updates (`Sent`, `Viewed`, `Paid`)<br>• Invoice transmission trigger | • Generate unique invoice number (`INV-XXXX`) in `invoices` table<br>• Compose structured HTML email receipt with line items<br>• Authenticate with Gmail SMTP and deliver email to customer<br>• Format SMS payload and invoke PhilSMS / Semaphore REST endpoint | • Formal invoice record with tracking status (`Sent` / `Paid`)<br>• Customer invoice PDF / email delivered to customer inbox<br>• Instant SMS text notification delivered to recipient phone<br>• Revenue and accounting records updated in Admin dashboard |
-

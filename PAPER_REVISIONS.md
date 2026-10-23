@@ -1,9 +1,11 @@
 # FrostTech - Thesis & Capstone Paper Revisions (Chapters 1, 2, and 3)
 
-This document contains the complete, revised, and defense-ready text for **Chapters 1, 2, and 3** of your manuscript:
+This document contains the verified, updated, and defense-ready text for **Chapters 1, 2, and 3** of your manuscript:
 **"FROST TECH COOLING SOLUTION: A WEB-BASED AIR CONDITIONING SALES AND SERVICES MANAGEMENT SYSTEM"**
 
-Each section below is formatted with exact section numbers and academic prose so you can copy and paste directly into your Microsoft Word document (`FrosTech latest version.docx`).
+> **Key Operational Principles Verified:**
+> 1. **100% Brand New Inventory:** All commercial air conditioning units sold through FrostTech are strictly **Brand New** (Factory-sealed with official manufacturer warranty; second-hand/refurbished unit sales are not part of the commercial catalog).
+> 2. **Removal of Tech Request:** On-site material requisitions (`TechRequest`) have been removed from the technician workflow. Technicians focus directly on task execution: installation, deep cleaning, repair, and logging service diagnostics.
 
 ---
 
@@ -12,8 +14,8 @@ Each section below is formatted with exact section numbers and academic prose so
 ### 1.1 Introduction
 *(Replace the typo in Heading 1.1: change `1.1 Intoduction` to `1.1 Introduction`)*
 
-*(In Paragraph 2, replace the mention of simple Facebook selling with the expanded operational scope:)*
-> FrostTech Cooling Solutions Co., located in Zone 2 Upper Solana, Jasaan, Misamis Oriental, is a service-oriented business specializing in refrigeration and air conditioning solutions for residential, commercial, and industrial clients. The company offers a wide range of services, including installation, reinstallation, repair, and both standard and deep cleaning of air conditioning units, as well as the sale of brand-new, second-hand (refurbished), and on-hand units. At present, FrostTech primarily uses its Facebook page to post available products, showcase completed projects, and respond to customer inquiries through chat. However, this informal setup lacks a structured, real-time view of inventory, does not support automated credit investigation for installment purchases, and cannot systematically coordinate multi-technician dispatch schedules or track unit maintenance lifecycles.
+*(Paragraph 2 update:)*
+> FrostTech Cooling Solutions Co., located in Zone 2 Upper Solana, Jasaan, Misamis Oriental, is a service-oriented business specializing in refrigeration and air conditioning solutions for residential, commercial, and industrial clients. The company offers a wide range of services, including installation, reinstallation, repair, and both standard and deep cleaning of air conditioning units, alongside the sale of 100% brand-new, factory-sealed air conditioning equipment. At present, FrostTech primarily uses its Facebook page to post available products, showcase completed projects, and respond to customer inquiries through chat. However, this informal setup lacks a structured, real-time view of inventory, does not support automated credit investigation for installment purchases, and cannot systematically coordinate multi-technician dispatch schedules or track unit maintenance lifecycles.
 
 ---
 
@@ -27,14 +29,14 @@ This study adopts the **Input-Process-Output (IPO)** model as its conceptual fra
 +-----------------------------------------------------------------------------------+
 | • User Credentials & Roles (Customer, Technician, Admin, Clerk)                   |
 | • Google OAuth Authentication Tokens & Profile Payload                            |
-| • Aircon Unit Data (Split-type, Window-type, Inverter, Horsepower, Condition)     |
+| • Brand New Aircon Unit Data (Split-type, Window-type, Inverter, Horsepower)      |
 | • Geospatial Coordinates & Address Pins via Google Maps API                       |
-| • Cart Hardware Selections & Condition Variants (Brand New, 2nd Hand, On-Hand)    |
+| • Cart Hardware Selections (100% Brand New Units & Capacities)                    |
 | • Installment Application Forms (Monthly Income, Employer, Valid Gov't IDs)       |
 | • Digital Downpayment Proof-of-Payment Receipts (Image Files)                     |
 | • Customer AC Unit Registration Details (Brand, HP, Room Location, Purchase Type) |
 | • Service Booking Dates, Preferred Time Slots & Service Classifications           |
-| • Technician Field Status Updates, Diagnostic Notes & Parts Requests (TechRequest)|
+| • Technician Field Status Updates, Diagnostic Notes & Service Findings            |
 | • Admin Stock Encodings, Pricing, and Staff Permissions JSON Matrix               |
 +-----------------------------------------------------------------------------------+
                                          │
@@ -46,12 +48,11 @@ This study adopts the **Input-Process-Output (IPO)** model as its conceptual fra
 | • Agile Iterative Software Development Life Cycle (SDLC) Methodology              |
 | • Interactive Google Maps Geocoding & Address Autocomplete Processing             |
 | • Cloudinary Media Processing & Storage for Downpayment Slips and Unit Photos     |
-| • Multi-Condition Inventory Stock Management & Automatic Quantity Decrements      |
+| • Brand New Inventory Stock Tracking & Automatic Quantity Decrements              |
 | • Credit Investigation (CI) Assessment & Installment Amortization Calculation     |
 | • Multi-Technician Crew Dispatch Assignment (_TechnicianDispatch Relation)        |
 | • Proactive Maintenance Scheduling Engine & 3-Day Notice Alert Evaluation         |
 | • Dynamic Technician Scheduling & Double-Booking Conflict Prevention Algorithms   |
-| • On-Site Technician Requisition Evaluation & Processing (TechRequest Engine)     |
 | • Automated Digital Invoicing Calculation with Gmail SMTP Email Transmission      |
 | • Multi-Channel SMS Gateway Integration (PhilSMS / Semaphore) for Dispatch Alerts |
 +-----------------------------------------------------------------------------------+
@@ -62,7 +63,7 @@ This study adopts the **Input-Process-Output (IPO)** model as its conceptual fra
 +-----------------------------------------------------------------------------------+
 | • Centralized Web Platform: FrostTech Sales & Services Management System          |
 | • Authenticated Portals for Customers, Technicians, Clerks, and Administrators    |
-| • Dynamic E-Commerce Storefront with Condition-Based Variant Pricing              |
+| • Dynamic E-Commerce Storefront Catalog for 100% Brand New AC Units               |
 | • Verified Customer Orders with Unique Reference Numbers (ORD-XXXX)               |
 | • Approved Installment Amortization Schedules & CI Verification Records           |
 | • Pinned Delivery Drops & Geospatial Route Information                            |
@@ -80,10 +81,6 @@ This study adopts the **Input-Process-Output (IPO)** model as its conceptual fra
 
 **Figure 1.1 IPO Diagram of FrostTech**
 
-* **Input:** Comprises authenticated user registration details across four stakeholder roles (Customer, Technician, Admin, Clerk); air conditioning unit specifications (brand, type, horsepower, condition); Google Maps geospatial coordinates; customer installment applications and uploaded downpayment slips; registered AC unit parameters; service booking requests; and technician diagnostic field notes and spare-part requisitions.
-* **Process:** Involves system computation and database operations utilizing Next.js (Turbopack), React, and Prisma ORM backed by a PostgreSQL cloud database (Neon). It applies Bcrypt password encryption, runs an automated Credit Investigation (CI) state machine, optimizes image assets via Cloudinary, performs geospatial reverse geocoding via Google Maps API, calculates installment amortization schedules, executes multi-technician dispatch allocations, triggers proactive maintenance interval reminders, and dispatches automated SMS alerts and Gmail SMTP invoice transmissions.
-* **Output:** Yields a fully integrated web-based management platform featuring role-specific dashboards, an interactive multi-condition e-commerce storefront, digital customer AC passports with service interval tracking, dynamic dispatch and scheduling calendars, instant SMS customer notifications, official digital invoices, and administrative inventory monitoring reports.
-
 ---
 
 ### 1.6 Scope and Limitation
@@ -91,12 +88,12 @@ This study adopts the **Input-Process-Output (IPO)** model as its conceptual fra
 The study focuses on developing a web-based air conditioning sales, inventory monitoring, and service management system for FrostTech Cooling Solutions Co. located in Zone 2 Upper Solana, Jasaan, Misamis Oriental.
 
 #### Scope of the System:
-1. **Multi-Condition Inventory & E-Commerce Storefront:** Centralizes the cataloging of air conditioning units categorized under three condition tiers—**Brand New**, **Second Hand (Refurbished)**, and **On-Hand** units—with independent stock counts, technical specifications, and tier-based pricing.
-2. **Financing & Credit Investigation (CI) Pipeline:** Accommodates cash purchases and installment financing across 3, 6, 9, or 12-month amortization terms. Incorporates an administrative Credit Investigation module where applicants submit employment details, monthly income, valid identification, and upload downpayment payment slips via Cloudinary for digital validation.
+1. **Brand New Inventory & E-Commerce Storefront:** Centralizes the cataloging of brand-new, factory-sealed air conditioning equipment across split-type, window-type, inverter, and non-inverter models with real-time stock counters and technical specifications.
+2. **Financing & Credit Investigation (CI) Pipeline:** Accommodates cash purchases and installment financing across 3, 6, 9, or 12-month amortization terms. Incorporates an administrative Credit Investigation module where applicants submit employment details, monthly income, valid identification, and upload downpayment slips via Cloudinary for digital validation.
 3. **Interactive Geospatial Pinpointing:** Integrates the Google Maps API (Places Autocomplete and Geocoding) allowing customers to drop exact latitude and longitude pins for delivery and service locations, ensuring field crews pinpoint customer premises without navigational ambiguity.
-4. **Digital AC Passport & Proactive Maintenance:** Features a dedicated unit registry (`registered_acs`) where customers record both store-purchased and third-party external AC units. The system tracks installation dates, computes 6-month cleaning cycles, and generates proactive 3-day maintenance reminders.
-5. **Direct Service Booking & Dispatch Management:** Provides on-demand booking for installation, reinstallation, diagnostic repair, and standard or deep cleaning without a redundant service cart. Dispatches support multi-technician crew assignments (`_TechnicianDispatch`) linked to an interactive scheduling calendar to prevent overlapping appointments.
-6. **Field Requisitions & Job Tracking:** Technicians can update job statuses in real time (`Queued` ➔ `In Progress` ➔ `Completed`) and submit on-site material requests (`TechRequest`) for unexpected parts or refrigerant needed during servicing.
+4. **Digital AC Passport & Proactive Maintenance:** Features a dedicated unit registry (`registered_acs`) where customers record both store-purchased and third-party existing AC units. The system tracks installation dates, computes 6-month cleaning cycles, and generates proactive 3-day maintenance reminders.
+5. **Direct Service Booking & Dispatch Management:** Provides on-demand booking for installation, reinstallation, diagnostic repair, and standard or deep cleaning without an e-commerce service cart. Dispatches support multi-technician crew assignments (`_TechnicianDispatch`) linked to an interactive scheduling calendar to prevent overlapping appointments.
+6. **Field Task Execution & Logging:** Technicians can update job statuses in real time (`Queued` ➔ `In Progress` ➔ `Completed`) and record on-site diagnostic inspection findings and completion notes directly into the unit's permanent service history.
 7. **Automated Multi-Channel Communications:** Features automated SMS dispatch alerts sent to customers via PhilSMS / Semaphore and digital invoice generation (`invoices`) transmitted directly to customer emails via Gmail SMTP.
 
 #### Limitations of the System:
@@ -110,9 +107,8 @@ The study focuses on developing a web-based air conditioning sales, inventory mo
 # CHAPTER II: REVIEW OF RELATED LITERATURE AND STUDIES
 
 ### Table 2.2 Feature Comparison of Related Studies and the Proposed FrostTech System
-*(Replace the entire Table 2.2 with this updated matrix that removes the outdated "Service Cart" and includes FrostTech's true novel capabilities:)*
 
-| Related Study / System | Installation / Re-install | Repair Service | Cleaning / Deep Clean | Installment Financing | Date Calendar | Service Booking | Inventory Monitoring | SMS / Notif Support | Product Cart | Maint. Reminder | *Geospatial Map Pinpoint* | *Digital AC Passport* | *Condition Tier Pricing* | *Tech Parts Requisition* | *Digital Invoicing (SMTP)* |
+| Related Study / System | Installation / Re-install | Repair Service | Cleaning / Deep Clean | Installment Financing | Date Calendar | Service Booking | Inventory Monitoring | SMS / Notif Support | Product Cart | Maint. Reminder | *Geospatial Map Pinpoint* | *Digital AC Passport* | *Brand New Warranty Catalog* | *Multi-Tech Crew Dispatch* | *Digital Invoicing (SMTP)* |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | **Aguisanda et al. (2020)** | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✔ | ✗ | ✔ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | **Dela Rosa & Santos (2023)** | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✔ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
@@ -130,35 +126,34 @@ The study focuses on developing a web-based air conditioning sales, inventory mo
 
 ### Synthesis of Related Literature and Systems (Section 2.5)
 
-> As demonstrated in Table 2.2, existing commercial applications and academic systems typically bifurcate e-commerce functions from field service operations. Systems developed by Aguisanda et al. (2020) and Patel & Kumar (2021) center strictly on retail sales and inventory logging, lacking modules for field service deployment, technician allocation, or preventative maintenance. Conversely, HVAC service tools investigated by Adams & Lee (2022) and Rahman & Singh (2023) facilitate service scheduling but omit flexible installment financing, multi-condition refurbished inventory tiers, and customer unit registration.
+> As demonstrated in Table 2.2, existing commercial applications and academic systems typically bifurcate e-commerce functions from field service operations. Systems developed by Aguisanda et al. (2020) and Patel & Kumar (2021) center strictly on retail sales and inventory logging, lacking modules for field service deployment, technician allocation, or preventative maintenance. Conversely, HVAC service tools investigated by Adams & Lee (2022) and Rahman & Singh (2023) facilitate service scheduling but omit flexible installment financing, customer unit lifecycle registration, and digital proof-of-payment validation.
 >
-> The proposed **FrostTech** platform resolves these limitations by synthesizing retail e-commerce, installment financing, and field service logistics into a cohesive full-lifecycle framework. Rather than separating sales from service or relying on an unnatural "service cart," FrostTech implements **Direct Service Booking** combined with a **Digital AC Passport** for tracking preventative maintenance intervals. Furthermore, FrostTech introduces novel technical contributions unaddressed by earlier literature, notably **interactive Google Maps geospatial pinpointing**, **multi-condition tier pricing (Brand New, Second Hand, On-Hand)**, **automated Credit Investigation (CI) with digital proof-of-payment validation**, **multi-technician dispatch crew scheduling**, and **in-app technician parts requisitions (`TechRequest`) integrated with automated SMTP digital invoicing**.
+> The proposed **FrostTech** platform resolves these limitations by synthesizing retail e-commerce, installment financing, and field service logistics into a unified framework. Rather than separating sales from service or relying on an unnatural "service cart," FrostTech implements **Direct Service Booking** combined with a **Digital AC Passport** for tracking preventative maintenance intervals. Furthermore, FrostTech introduces novel technical contributions unaddressed by earlier literature, notably **interactive Google Maps geospatial pinpointing**, **dedicated cataloging of 100% brand-new warrantied units**, **automated Credit Investigation (CI) with digital proof-of-payment validation**, **multi-technician dispatch crew scheduling**, and **automated SMTP digital invoicing**.
 
 ---
 
 # CHAPTER III: RESEARCH METHODOLOGY
 
 ### 3.1.1 Software Development Life Cycle (Agile Model)
-*(In Section 3.1.1, ensure mentions of "service cart" are replaced as follows:)*
 
-* **Requirements Phase:** Gather detailed business requirements from the owner, staff, and field crew of FrostTech. Prioritize modules including multi-condition inventory monitoring, technician scheduling calendar, direct service booking, digital AC passport tracking, integrated SMS alerts, installment credit investigation, and automated invoicing.
-* **Development Phase:** System modules are programmed in iterative sprints using Next.js, React, Tailwind CSS, and Prisma ORM connected to a PostgreSQL database hosted on Neon. Features such as Google Maps geospatial geocoding, Cloudinary upload pipelines, multi-technician assignment relations, and on-site technician parts requisitions (`TechRequest`) are incrementally integrated and verified.
+* **Requirements Phase:** Gather detailed business requirements from the owner, staff, and field crew of FrostTech. Prioritize modules including brand-new unit inventory monitoring, technician scheduling calendar, direct service booking, digital AC passport tracking, integrated SMS alerts, installment credit investigation, and automated invoicing.
+* **Development Phase:** System modules are programmed in iterative sprints using Next.js, React, Tailwind CSS, and Prisma ORM connected to a PostgreSQL database hosted on Neon. Features such as Google Maps geospatial geocoding, Cloudinary upload pipelines, multi-technician assignment relations, and automated email invoicing are incrementally integrated and verified.
 
 ---
 
 ### 3.1.2 to 3.1.5 System User Flowcharts
 
 #### 3.1.2 Administrator Flowchart Narrative
-The administrator workflow begins with credential authentication. Upon verifying that the user holds the `ADMIN` role, the system opens the Admin Command Center. The administrator can manage multi-condition inventory stocks, review pending customer orders, assess uploaded proof-of-payment receipts for installment Credit Investigation (CI), assign field crews to dispatches with schedule conflict detection, approve newly registered technician accounts (`techRank == 'Pending'`), adjust user access permissions, and generate official digital invoices delivered via Gmail SMTP.
+The administrator workflow begins with credential authentication. Upon verifying that the user holds the `ADMIN` role, the system opens the Admin Command Center. The administrator can manage brand-new inventory stocks, review pending customer orders, assess uploaded proof-of-payment receipts for installment Credit Investigation (CI), assign field crews to dispatches with schedule conflict detection, approve newly registered technician accounts (`techRank == 'Pending'`), adjust user access permissions, and generate official digital invoices delivered via Gmail SMTP.
 
 #### 3.1.3 Operations Clerk Flowchart Narrative
 The clerk workflow begins with secure login where access is validated against the `CLERK` role. Clerks operate within a specialized administrative portal to review incoming customer orders, verify uploaded downpayment payment slips, check customer service records, and issue billing receipts, facilitating fast desk operations without accessing master security settings.
 
 #### 3.1.4 Technician Flowchart Narrative
-The technician workflow starts at `/login`. Before granting dashboard access, the system performs an approval verification check: if the technician's account is tagged with `techRank == 'Pending'`, access is restricted until approved by an administrator. Once authorized, the technician accesses the Technician Dashboard and interactive Calendar Schedule. Technicians review assigned dispatches, view pinpointed Google Maps customer locations, update job progress (`Queued` ➔ `In Progress` ➔ `Completed`), log technical findings, and submit on-site material requests (`TechRequest`) whenever extra parts or refrigerants are required.
+The technician workflow starts at `/login`. Before granting dashboard access, the system performs an approval verification check: if the technician's account is tagged with `techRank == 'Pending'`, access is restricted until approved by an administrator. Once authorized, the technician accesses the Technician Dashboard and interactive Calendar Schedule. Technicians review assigned dispatches, view pinpointed Google Maps customer locations, update job progress (`Queued` ➔ `In Progress` ➔ `Completed`), and log on-site diagnostic findings and service completion notes.
 
 #### 3.1.5 Customer Flowchart Narrative
-The customer journey begins on the storefront where clients browse air conditioning units filtered by brand, horsepower, and condition (`Brand New`, `Second Hand`, `On-Hand`). Upon adding items to the cart, the system enforces session authentication (supporting email/password or one-tap Google OAuth). During checkout, customers select between Cash on Delivery or Installment Financing (submitting employer, income, and proof-of-payment slips). In the Customer Space (`/profile`), clients can pinpoint delivery addresses on an interactive Google Map, register their existing AC units, track 6-month cleaning countdowns, and schedule direct maintenance services.
+The customer journey begins on the storefront where clients browse 100% brand-new air conditioning units filtered by brand, horsepower, and unit form factor (Split Type, Window Type, Inverter). Upon adding items to the cart, the system enforces session authentication (supporting email/password or one-tap Google OAuth). During checkout, customers select between Cash on Delivery or Installment Financing (submitting employer, income, and proof-of-payment slips). In the Customer Space (`/profile`), clients can pinpoint delivery addresses on an interactive Google Map, register their AC units into the Digital AC Passport, track 6-month cleaning countdowns, and schedule direct maintenance services.
 
 ---
 
@@ -174,15 +169,14 @@ Figure 3.6 delineates the system boundary of FrostTech and its external entities
 
 ### 3.1.7 Use Case Diagram Narrative
 Figure 3.7 presents the primary use cases supported by FrostTech, organized across its four operational actors:
-* **Customer Actor:** Browse Catalog, Filter Condition Variants, Add to Cart, Select Payment Mode (Cash/Installment), Upload Downpayment Proof, Register AC Unit, Request Direct Maintenance, Pinpoint Map Location, and Submit Product Reviews.
-* **Technician Actor:** View Assigned Dispatches, Inspect Calendar Schedule, Update Job Status, Submit Diagnostic Findings, and Submit On-Site Parts Requests (`TechRequest`).
+* **Customer Actor:** Browse Brand New Catalog, Add to Cart, Select Payment Mode (Cash/Installment), Upload Downpayment Proof, Register AC Unit, Request Direct Maintenance, Pinpoint Map Location, and Submit Product Reviews.
+* **Technician Actor:** View Assigned Dispatches, Inspect Calendar Schedule, Update Job Status, and Submit Diagnostic Findings & Completion Notes.
 * **Clerk Actor:** Verify Customer Orders, Inspect Uploaded Downpayment Receipts, Access Registered AC History, and Issue Invoices.
-* **Administrator Actor:** Manage Inventory and Variant Pricing, Evaluate Installment Applications (CI Process), Assign Technicians to Dispatches, Authorize Technician Registrations, Configure User Roles and Permissions JSON, and Generate Financial Reports.
+* **Administrator Actor:** Manage Brand New Inventory Stock & Pricing, Evaluate Installment Applications (CI Process), Assign Technicians to Dispatches, Authorize Technician Registrations, Configure User Roles and Permissions JSON, and Generate Financial Reports.
 
 ---
 
 ### 3.1.8 Entity-Relationship Diagram (ERD) & Complete Data Dictionary
-*(Replace the obsolete generic tables in Section 3.1.8 with the exact 14-table relational database dictionary matching your Prisma and PostgreSQL schema:)*
 
 The database schema of FrostTech is structured using PostgreSQL to enforce relational data integrity, referential cascades, and indexing across sales, financing, and field service operations.
 
@@ -203,7 +197,7 @@ Stores user account profiles, authentication hashes, system roles, and granular 
 | `updatedAt` | TIMESTAMP | ON UPDATE | Record last modification timestamp |
 
 #### Table 3.2: `registered_acs` Table (Digital AC Passport)
-Stores air conditioning units registered by customers for warranty, maintenance monitoring, and diagnostics.
+Stores air conditioning units registered by customers for maintenance monitoring and service tracking.
 | Field Name | Data Type | Key / Constraint | Description |
 |---|---|---|---|
 | `id` | VARCHAR(30) | PRIMARY KEY | Unique CUID identifier for registered AC unit |
@@ -227,7 +221,7 @@ Stores air conditioning units registered by customers for warranty, maintenance 
 | `updatedAt` | TIMESTAMP | ON UPDATE | Record last modification timestamp |
 
 #### Table 3.3: `products` Table
-Stores master catalog air conditioning equipment displayed in the storefront.
+Stores 100% brand-new air conditioning equipment cataloged for commercial sale.
 | Field Name | Data Type | Key / Constraint | Description |
 |---|---|---|---|
 | `id` | VARCHAR(30) | PRIMARY KEY | Unique product identifier |
@@ -235,32 +229,21 @@ Stores master catalog air conditioning equipment displayed in the storefront.
 | `name` | VARCHAR(150) | NOT NULL | Commercial product name |
 | `brand` | VARCHAR(50) | NOT NULL | Brand manufacturer name (Carrier, Daikin, etc.) |
 | `category` | VARCHAR(50) | NOT NULL | Equipment category (Inverter, Split, Window) |
-| `price` | DOUBLE | NOT NULL | Baseline lowest display price |
+| `price` | DOUBLE | NOT NULL | Brand-new unit selling price |
 | `originalPrice`| DOUBLE | NULLABLE | MSRP strike-through promotional price |
 | `rating` | DOUBLE | DEFAULT 0 | Aggregated star rating (1.0 to 5.0) |
-| `sold` | INTEGER | DEFAULT 0 | Count of units successfully sold |
+| `sold` | INTEGER | DEFAULT 0 | Count of brand-new units sold |
+| `stock` | INTEGER | DEFAULT 0 | Physical stock counter for brand-new units |
 | `image` | VARCHAR(255) | NOT NULL | Primary display image URL |
 | `images` | TEXT[] | DEFAULT ARRAY[] | Array of supplementary product image URLs |
 | `horsepower` | VARCHAR(20) | NULLABLE | Rated horsepower capacity |
-| `badge` | VARCHAR(50) | NULLABLE | Promotional tag (e.g., 'Best Seller', 'Top Rated') |
+| `badge` | VARCHAR(50) | NULLABLE | Promotional tag (e.g., 'Best Seller', 'Brand New') |
 | `specs` | TEXT[] | DEFAULT ARRAY[] | Array of technical specification bullet points |
 | `description` | TEXT | NULLABLE | Detailed product overview and warranty terms |
 | `createdAt` | TIMESTAMP | DEFAULT NOW() | Record creation timestamp |
 | `updatedAt` | TIMESTAMP | ON UPDATE | Record last modification timestamp |
 
-#### Table 3.4: `product_variants` Table
-Maintains multi-condition tier pricing and stock quantities for products.
-| Field Name | Data Type | Key / Constraint | Description |
-|---|---|---|---|
-| `id` | VARCHAR(30) | PRIMARY KEY | Unique condition variant identifier |
-| `productId` | VARCHAR(30) | FOREIGN KEY (products.id)| Associated parent product identifier |
-| `condition` | VARCHAR(30) | NOT NULL | Tier: 'Brand New', 'Second Hand', 'On-Hand' |
-| `price` | DOUBLE | NOT NULL | Price for this specific condition tier |
-| `stock` | INTEGER | DEFAULT 0 | Units physically in stock for this condition |
-| `createdAt` | TIMESTAMP | DEFAULT NOW() | Record creation timestamp |
-| `updatedAt` | TIMESTAMP | ON UPDATE | Record last modification timestamp |
-
-#### Table 3.5: `orders` Table
+#### Table 3.4: `orders` Table
 Stores sales orders placed through the e-commerce storefront.
 | Field Name | Data Type | Key / Constraint | Description |
 |---|---|---|---|
@@ -278,14 +261,14 @@ Stores sales orders placed through the e-commerce storefront.
 | `notice3Days` | BOOLEAN | DEFAULT FALSE | Flag indicating 3-day delivery notice sent |
 | `notice3DaysAt`| TIMESTAMP | NULLABLE | Timestamp when 3-day notice was triggered |
 | `hp` | VARCHAR(20) | NULLABLE | Unit horsepower |
-| `itemType` | VARCHAR(50) | NULLABLE | Unit condition or type |
+| `itemType` | VARCHAR(50) | NULLABLE | Unit type |
 | `price` | DOUBLE | NULLABLE | Order item price |
 | `assignedTech`| VARCHAR(100) | NULLABLE | Primary assigned technician name |
 | `scheduledDate`| VARCHAR(30) | NULLABLE | Scheduled installation date string |
 | `createdAt` | TIMESTAMP | DEFAULT NOW() | Record creation timestamp |
 | `updatedAt` | TIMESTAMP | ON UPDATE | Record last modification timestamp |
 
-#### Table 3.6: `installments` Table
+#### Table 3.5: `installments` Table
 Manages customer credit financing applications and Credit Investigation (CI) states.
 | Field Name | Data Type | Key / Constraint | Description |
 |---|---|---|---|
@@ -293,7 +276,7 @@ Manages customer credit financing applications and Credit Investigation (CI) sta
 | `appId` | VARCHAR(30) | UNIQUE | Application reference code (e.g., 'APP-0992') |
 | `userId` | VARCHAR(30) | FOREIGN KEY (users.id) | Applicant customer user identifier |
 | `name` | VARCHAR(100) | NOT NULL | Applicant full name |
-| `item` | VARCHAR(150) | NOT NULL | Financed air conditioning unit |
+| `item` | VARCHAR(150) | NOT NULL | Financed air conditioning equipment |
 | `date` | VARCHAR(30) | NOT NULL | Application filing date |
 | `status` | ENUM | DEFAULT 'PENDING' | Status: `PENDING`, `CI_ACCEPTED`, `REPENDING`, `COMPLETED`, `REJECTED` |
 | `issue` | TEXT | DEFAULT '' | Assessment remarks / deficiency notes from CI clerk |
@@ -307,7 +290,7 @@ Manages customer credit financing applications and Credit Investigation (CI) sta
 | `createdAt` | TIMESTAMP | DEFAULT NOW() | Record creation timestamp |
 | `updatedAt` | TIMESTAMP | ON UPDATE | Record last modification timestamp |
 
-#### Table 3.7: `dispatch_items` Table
+#### Table 3.6: `dispatch_items` Table
 Stores logistics dispatch tasks for unit deliveries, installations, and cleaning services.
 | Field Name | Data Type | Key / Constraint | Description |
 |---|---|---|---|
@@ -326,14 +309,14 @@ Stores logistics dispatch tasks for unit deliveries, installations, and cleaning
 | `createdAt` | TIMESTAMP | DEFAULT NOW() | Record creation timestamp |
 | `updatedAt` | TIMESTAMP | ON UPDATE | Record last modification timestamp |
 
-#### Table 3.8: `_TechnicianDispatch` Table
+#### Table 3.7: `_TechnicianDispatch` Table
 Many-to-many junction table linking multiple technicians to a single dispatch task.
 | Field Name | Data Type | Key / Constraint | Description |
 |---|---|---|---|
 | `A` | VARCHAR(30) | FOREIGN KEY (dispatch_items.id) | Linked dispatch task identifier |
 | `B` | VARCHAR(30) | FOREIGN KEY (users.id) | Linked technician user identifier |
 
-#### Table 3.9: `maintenance_schedules` Table
+#### Table 3.8: `maintenance_schedules` Table
 Stores scheduled preventative maintenance inspections and routine checkups.
 | Field Name | Data Type | Key / Constraint | Description |
 |---|---|---|---|
@@ -353,21 +336,7 @@ Stores scheduled preventative maintenance inspections and routine checkups.
 | `createdAt` | TIMESTAMP | DEFAULT NOW() | Record creation timestamp |
 | `updatedAt` | TIMESTAMP | ON UPDATE | Record last modification timestamp |
 
-#### Table 3.10: `tech_requests` Table
-Records on-site material, spare part, and supply requisitions submitted by technicians.
-| Field Name | Data Type | Key / Constraint | Description |
-|---|---|---|---|
-| `id` | VARCHAR(30) | PRIMARY KEY | Unique requisition identifier |
-| `reqId` | VARCHAR(30) | UNIQUE | Tracking code (e.g., 'REQ-101') |
-| `technicianId`| VARCHAR(30) | FOREIGN KEY (users.id) | Requesting technician user identifier |
-| `itemNeeded` | VARCHAR(150) | NOT NULL | Material name (e.g., 'R410A Refrigerant', 'Capacitor') |
-| `quantity` | INTEGER | NOT NULL | Quantity units required |
-| `reason` | TEXT | NOT NULL | Justification / on-site diagnostic finding |
-| `status` | VARCHAR(30) | DEFAULT 'Pending' | Approval status: 'Pending', 'Approved', 'Declined' |
-| `createdAt` | TIMESTAMP | DEFAULT NOW() | Record creation timestamp |
-| `updatedAt` | TIMESTAMP | ON UPDATE | Record last modification timestamp |
-
-#### Table 3.11: `invoices` Table
+#### Table 3.9: `invoices` Table
 Maintains digital billing receipts generated for customers and administrative accounting.
 | Field Name | Data Type | Key / Constraint | Description |
 |---|---|---|---|
@@ -387,7 +356,7 @@ Maintains digital billing receipts generated for customers and administrative ac
 | `createdAt` | TIMESTAMP | DEFAULT NOW() | Record creation timestamp |
 | `updatedAt` | TIMESTAMP | ON UPDATE | Record last modification timestamp |
 
-#### Table 3.12: `addresses` Table
+#### Table 3.10: `addresses` Table
 Stores customer address books and Google Maps pinpointed coordinates.
 | Field Name | Data Type | Key / Constraint | Description |
 |---|---|---|---|
@@ -402,8 +371,8 @@ Stores customer address books and Google Maps pinpointed coordinates.
 | `createdAt` | TIMESTAMP | DEFAULT NOW() | Record creation timestamp |
 | `updatedAt` | TIMESTAMP | ON UPDATE | Record last modification timestamp |
 
-#### Table 3.13: `cart_items` Table
-Stores customer hardware e-commerce cart selections.
+#### Table 3.11: `cart_items` Table
+Stores customer brand-new hardware e-commerce cart selections.
 | Field Name | Data Type | Key / Constraint | Description |
 |---|---|---|---|
 | `id` | VARCHAR(30) | PRIMARY KEY | Unique cart item identifier |
@@ -418,7 +387,7 @@ Stores customer hardware e-commerce cart selections.
 | `createdAt` | TIMESTAMP | DEFAULT NOW() | Record creation timestamp |
 | `updatedAt` | TIMESTAMP | ON UPDATE | Record last modification timestamp |
 
-#### Table 3.14: `calendar_events` Table
+#### Table 3.12: `calendar_events` Table
 Stores events visualized on the technician and dispatch scheduling calendar.
 | Field Name | Data Type | Key / Constraint | Description |
 |---|---|---|---|
@@ -428,3 +397,16 @@ Stores events visualized on the technician and dispatch scheduling calendar.
 | `technician` | VARCHAR(100) | NOT NULL | Assigned technician name |
 | `type` | VARCHAR(50) | NOT NULL | Event category ('Installation', 'Cleaning', 'Repair') |
 | `createdAt` | TIMESTAMP | DEFAULT NOW() | Record creation timestamp |
+
+---
+
+### Database Entity Relationships
+
+1. **`User` to `RegisteredAC` (One-to-Many):** One customer can register and track multiple air conditioning units (`User.id` ➔ `RegisteredAC.userId`), while each registered unit belongs to exactly one customer.
+2. **`User` to `Order` (One-to-Many):** One customer can place multiple sales orders over time (`User.id` ➔ `Order.userId`).
+3. **`User` to `Installment` (One-to-Many):** One customer can submit multiple installment applications (`User.id` ➔ `Installment.userId`).
+4. **`User` to `MaintenanceSchedule` (Dual Foreign Key Relationship):**
+   * **`customerId` ➔ `users.id`:** Connects the customer who requested the maintenance service.
+   * **`technicianId` ➔ `users.id`:** Connects the field technician assigned to perform the service.
+5. **`DispatchItem` to `User` via `_TechnicianDispatch` (Many-to-Many):** A dispatch job can be assigned to multiple technicians (crew deployment), and a technician can be assigned to multiple dispatch tasks throughout the workday.
+6. **`User` to `Address` (One-to-Many):** A customer can maintain multiple delivery and service addresses with pinned map coordinates (`User.id` ➔ `Address.userId`).
