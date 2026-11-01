@@ -10,6 +10,7 @@ export async function GET() {
         orders: true,
         installments: true,
         registeredACs: true,
+        addresses: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -19,9 +20,12 @@ export async function GET() {
       const activeInstallments = customer.installments.filter(i => i.status !== 'COMPLETED').length;
       const totalOrders = customer.orders.length;
       
-      // Determine the primary contact location from the latest order/installment, or use a default
+      // Determine the primary contact location from saved default address or latest order/installment
       let location = 'Not Provided';
-      if (customer.orders.length > 0) {
+      const defaultAddr = customer.addresses?.find((a: any) => a.isDefault) || customer.addresses?.[0];
+      if (defaultAddr) {
+        location = `${defaultAddr.label}: ${defaultAddr.fullAddress}`;
+      } else if (customer.orders.length > 0) {
         location = customer.orders[0].location;
       } else if (customer.installments.length > 0) {
         location = customer.installments[0].location || 'Not Provided';
@@ -38,6 +42,7 @@ export async function GET() {
         installments: customer.installments,
         orders: customer.orders,
         registeredACs: customer.registeredACs,
+        addresses: customer.addresses || [],
       };
     });
 

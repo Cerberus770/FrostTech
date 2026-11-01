@@ -843,6 +843,187 @@ header {
   box-shadow: var(--shadow-md);
 }
 
+/* ============================================
+   Genuine Spare Parts — Premium Section
+   ============================================ */
+.spare-parts-section {
+  position: relative;
+  padding: 4rem 5% 5rem;
+  background: linear-gradient(160deg, #023e6b 0%, #0369a1 35%, #0284c7 65%, #0ea5e9 100%);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.spare-parts-bg-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.25;
+  pointer-events: none;
+  z-index: 0;
+  animation: spareOrbFloat 12s ease-in-out infinite alternate;
+}
+
+.spare-parts-bg-orb-1 {
+  width: 360px;
+  height: 360px;
+  background: #38bdf8;
+  top: -80px;
+  right: -60px;
+}
+
+.spare-parts-bg-orb-2 {
+  width: 280px;
+  height: 280px;
+  background: #7dd3fc;
+  bottom: -40px;
+  left: -40px;
+  animation-delay: -4s;
+}
+
+.spare-parts-bg-orb-3 {
+  width: 200px;
+  height: 200px;
+  background: #bae6fd;
+  top: 40%;
+  left: 50%;
+  animation-delay: -8s;
+}
+
+@keyframes spareOrbFloat {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(20px, -20px) scale(1.1); }
+}
+
+.spare-parts-header {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.spare-parts-badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #e0f2fe;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 6px 18px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  margin-bottom: 1rem;
+}
+
+.spare-parts-title {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+.spare-parts-subtitle {
+  font-size: 1.05rem;
+  color: #bae6fd;
+  max-width: 600px;
+  margin: 0 auto;
+  line-height: 1.65;
+}
+
+.spare-parts-section .product-grid {
+  position: relative;
+  z-index: 1;
+}
+
+.spare-parts-card {
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease !important;
+}
+
+.spare-parts-card:hover {
+  border-color: rgba(125, 211, 252, 0.5) !important;
+  box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.35), 0 0 30px rgba(56, 189, 248, 0.15) !important;
+  transform: translateY(-8px) !important;
+}
+
+.spare-parts-card .product-image {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.spare-parts-card .product-brand {
+  color: #7dd3fc;
+}
+
+.spare-parts-card .product-title {
+  color: #f0f9ff;
+}
+
+.spare-parts-card .product-price {
+  color: #ffffff;
+}
+
+.spare-parts-card .product-rating .stars {
+  color: #fbbf24;
+}
+
+.spare-parts-card .product-rating {
+  color: #bae6fd;
+}
+
+.spare-part-desc {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: #bae6fd;
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  border-left: 3px solid #38bdf8;
+  line-height: 1.5;
+}
+
+.spare-part-desc i {
+  color: #38bdf8;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.spare-parts-card .btn-secondary {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #e0f2fe;
+}
+
+.spare-parts-card .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.spare-parts-card .btn-buy {
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  border: none;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.spare-parts-card .btn-buy:hover {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.4);
+}
+
 /* Details Page Refinement */
 .details-container {
   display: grid;

@@ -155,7 +155,31 @@ export async function PATCH(request: NextRequest) {
       data,
     });
 
-    // If a technician is being assigned, send an SMS to the customer
+    // If a technician is being assigned, sync CalendarEvent & send SMS
+    if (data.technicianName && schedule.scheduledDate) {
+      try {
+        const datePart = schedule.scheduledDate.split(' ')[0];
+        const existing = await prisma.calendarEvent.findFirst({
+          where: {
+            title: { contains: schedule.scheduleNo || schedule.id },
+            technician: data.technicianName,
+          }
+        });
+        if (!existing) {
+          await prisma.calendarEvent.create({
+            data: {
+              title: `${schedule.scheduleNo ? schedule.scheduleNo + ' - ' : ''}Maintenance: ${schedule.serviceType} (${schedule.name})`,
+              date: datePart,
+              technician: data.technicianName,
+              type: 'maintenance',
+            }
+          });
+        }
+      } catch (calError) {
+        console.warn('Failed to sync CalendarEvent for maintenance:', calError);
+      }
+    }
+
     if (data.technicianId) {
       try {
         const customer = await prisma.user.findUnique({

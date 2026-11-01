@@ -13,6 +13,19 @@ import { Product, CartItem } from '@/lib/types';
 export default function ProductDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string>('');
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
+  const [zoomScale, setZoomScale] = useState(1);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsZoomOpen(false);
+    };
+    if (isZoomOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isZoomOpen]);
   const [quantity, setQuantity] = useState(1);
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -331,17 +344,36 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
 
           {/* Left: Product Image */}
           <div>
-            <div style={{
-              background: 'var(--media-bg, rgba(255,255,255,0.03))',
-              borderRadius: 'var(--radius-md)',
-              padding: '2rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              position: 'relative',
-              aspectRatio: '1',
-            }}>
-              <img src={product.image} alt={product.name} style={{ width: '400px', height: '400px', objectFit: 'contain', maxWidth: '100%', maxHeight: '100%' }} />
+            <div
+              onClick={() => { setIsZoomOpen(true); setZoomScale(1); }}
+              title="Click to Zoom Image"
+              style={{
+                background: 'var(--media-bg, rgba(255,255,255,0.03))',
+                borderRadius: 'var(--radius-lg, 16px)',
+                padding: '1.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                width: '100%',
+                height: '420px',
+                cursor: 'zoom-in',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                overflow: 'hidden',
+                transition: 'border 0.2s, box-shadow 0.2s',
+              }}
+            >
+              <img
+                src={selectedImage || product.image}
+                alt={product.name}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  transition: 'transform 0.3s ease',
+                }}
+              />
               {product.badge && (
                 <span style={{
                   position: 'absolute',
@@ -358,7 +390,65 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
                   {product.badge}
                 </span>
               )}
+              {/* Click to Zoom Pill */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '14px',
+                  right: '14px',
+                  background: 'rgba(15, 23, 42, 0.8)',
+                  backdropFilter: 'blur(6px)',
+                  color: 'white',
+                  padding: '6px 12px',
+                  borderRadius: '20px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  pointerEvents: 'none',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                }}
+              >
+                <i className="fa-solid fa-magnifying-glass-plus" style={{ color: '#38bdf8' }}></i>
+                Click to Zoom
+              </div>
             </div>
+
+            {/* Multiple Images Thumbnail Gallery */}
+            {(() => {
+              const galleryImages = (product.images && product.images.length > 0)
+                ? product.images
+                : [product.image].filter(Boolean);
+              if (galleryImages.length <= 1) return null;
+              const currentImg = selectedImage || product.image;
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginTop: '14px' }}>
+                  {galleryImages.map((imgSrc: string, idx: number) => (
+                    <div
+                      key={idx}
+                      onClick={() => setSelectedImage(imgSrc)}
+                      style={{
+                        height: '75px',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                        border: currentImg === imgSrc ? '2.5px solid var(--primary, #0284c7)' : '1px solid #cbd5e1',
+                        background: 'rgba(255,255,255,0.05)',
+                        transition: 'border 0.2s, transform 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '4px',
+                      }}
+                    >
+                      <img src={imgSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Right: Product Info */}
@@ -918,6 +1008,274 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
           setPendingAction(null);
         }}
       />
+
+      {/* FULLSCREEN IMAGE ZOOM LIGHTBOX MODAL */}
+      {isZoomOpen && product && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(10, 15, 29, 0.94)',
+            backdropFilter: 'blur(10px)',
+            zIndex: 999999,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            padding: '1.5rem',
+          }}
+          onClick={() => setIsZoomOpen(false)}
+        >
+          {/* Top Bar: Title & Controls */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              width: '100%',
+              maxWidth: '1200px',
+              margin: '0 auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <span style={{ fontSize: '0.78rem', color: '#38bdf8', fontWeight: 700, textTransform: 'uppercase' }}>
+                {product.brand}
+              </span>
+              <h3 style={{ margin: 0, color: 'white', fontSize: '1.15rem', fontWeight: 800 }}>
+                {product.name}
+              </h3>
+            </div>
+
+            {/* Zoom Controls */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setZoomScale((prev) => Math.max(1, Number((prev - 0.5).toFixed(1))))}
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  color: 'white',
+                  borderRadius: '8px',
+                  width: '38px',
+                  height: '38px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.9rem',
+                }}
+                title="Zoom Out"
+              >
+                <i className="fa-solid fa-magnifying-glass-minus"></i>
+              </button>
+              <span style={{ color: '#94a3b8', fontSize: '0.82rem', fontWeight: 700, minWidth: '45px', textAlign: 'center' }}>
+                {Math.round(zoomScale * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={() => setZoomScale((prev) => Math.min(3, Number((prev + 0.5).toFixed(1))))}
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  color: 'white',
+                  borderRadius: '8px',
+                  width: '38px',
+                  height: '38px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.9rem',
+                }}
+                title="Zoom In"
+              >
+                <i className="fa-solid fa-magnifying-glass-plus"></i>
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoomScale(1)}
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  color: 'white',
+                  borderRadius: '8px',
+                  padding: '0 12px',
+                  height: '38px',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                }}
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsZoomOpen(false)}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.85)',
+                  border: 'none',
+                  color: 'white',
+                  borderRadius: '8px',
+                  width: '38px',
+                  height: '38px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.2rem',
+                  marginLeft: '8px',
+                }}
+                title="Close (Esc)"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+
+          {/* Center Image Viewport */}
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              position: 'relative',
+              margin: '1rem 0',
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setZoomScale((prev) => (prev === 1 ? 2 : 1));
+            }}
+          >
+            {/* Prev Image Arrow */}
+            {(() => {
+              const gallery: string[] = (product.images && product.images.length > 0)
+                ? product.images
+                : [product.image].filter(Boolean);
+              if (gallery.length <= 1) return null;
+              const currentIdx = gallery.indexOf(selectedImage || product.image);
+              return (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const prevIdx = (currentIdx - 1 + gallery.length) % gallery.length;
+                      setSelectedImage(gallery[prevIdx]);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      left: '20px',
+                      background: 'rgba(15, 23, 42, 0.75)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: 'white',
+                      width: '46px',
+                      height: '46px',
+                      borderRadius: '50%',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.2rem',
+                      zIndex: 10,
+                      backdropFilter: 'blur(4px)',
+                    }}
+                  >
+                    <i className="fa-solid fa-chevron-left"></i>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const nextIdx = (currentIdx + 1) % gallery.length;
+                      setSelectedImage(gallery[nextIdx]);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      right: '20px',
+                      background: 'rgba(15, 23, 42, 0.75)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: 'white',
+                      width: '46px',
+                      height: '46px',
+                      borderRadius: '50%',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.2rem',
+                      zIndex: 10,
+                      backdropFilter: 'blur(4px)',
+                    }}
+                  >
+                    <i className="fa-solid fa-chevron-right"></i>
+                  </button>
+                </>
+              );
+            })()}
+
+            <img
+              src={selectedImage || product.image}
+              alt={product.name}
+              style={{
+                maxWidth: '85vw',
+                maxHeight: '70vh',
+                objectFit: 'contain',
+                transform: `scale(${zoomScale})`,
+                transition: 'transform 0.25s ease-out',
+                cursor: zoomScale > 1 ? 'zoom-out' : 'zoom-in',
+                userSelect: 'none',
+              }}
+            />
+          </div>
+
+          {/* Bottom Thumbnails */}
+          {(() => {
+            const gallery: string[] = (product.images && product.images.length > 0)
+              ? product.images
+              : [product.image].filter(Boolean);
+            if (gallery.length <= 1) return null;
+            const currentImg = selectedImage || product.image;
+            return (
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '10px',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {gallery.map((imgSrc: string, idx: number) => (
+                  <div
+                    key={idx}
+                    onClick={() => { setSelectedImage(imgSrc); setZoomScale(1); }}
+                    style={{
+                      width: '65px',
+                      height: '65px',
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      cursor: 'pointer',
+                      border: currentImg === imgSrc ? '2.5px solid #38bdf8' : '1px solid rgba(255,255,255,0.2)',
+                      background: 'rgba(255,255,255,0.06)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '3px',
+                      transform: currentImg === imgSrc ? 'scale(1.08)' : 'scale(1)',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <img src={imgSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
     </>
   );
 }

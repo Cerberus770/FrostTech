@@ -19,9 +19,22 @@ export default function Header({ hideSearch = false }: { hideSearch?: boolean })
   const [cartCount, setCartCount] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [headerSearch, setHeaderSearch] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    const syncQuery = () => {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        setHeaderSearch(params.get('q') || '');
+      }
+    };
+    syncQuery();
+    window.addEventListener('popstate', syncQuery);
+    return () => window.removeEventListener('popstate', syncQuery);
+  }, []);
 
   useEffect(() => {
     // Get cart count from localStorage (matching cart page)
@@ -160,28 +173,38 @@ export default function Header({ hideSearch = false }: { hideSearch?: boolean })
       </Link>
 
       {!hideSearch && (
-        <form className="search-bar" onSubmit={(e) => {
-          e.preventDefault();
-          const query = (document.getElementById('search-input') as HTMLInputElement).value;
-          if (query.trim()) {
-            router.push(`/?q=${encodeURIComponent(query.trim())}`);
-          } else {
-            router.push('/');
-          }
-        }} style={{
-          display: 'flex',
-          flex: 1,
-          maxWidth: '520px',
-          margin: '0 1.5rem',
-          background: 'rgba(255,255,255,0.15)',
-          border: '1px solid rgba(255,255,255,0.25)',
-          borderRadius: '999px',
-          overflow: 'hidden',
-          transition: 'all 0.2s',
-        }}>
+        <form
+          className="search-bar"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const query = headerSearch.trim();
+            const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
+            const targetBase = currentPath === '/profile' ? '/profile' : '/';
+            if (query) {
+              router.push(`${targetBase}?q=${encodeURIComponent(query)}`);
+            } else {
+              router.push(targetBase);
+            }
+          }}
+          style={{
+            display: 'flex',
+            flex: 1,
+            maxWidth: '520px',
+            margin: '0 1.5rem',
+            background: 'rgba(255,255,255,0.15)',
+            border: '1px solid rgba(255,255,255,0.25)',
+            borderRadius: '999px',
+            overflow: 'hidden',
+            alignItems: 'center',
+            transition: 'all 0.2s',
+            paddingRight: '6px',
+          }}
+        >
           <input
             type="text"
             id="search-input"
+            value={headerSearch}
+            onChange={(e) => setHeaderSearch(e.target.value)}
             placeholder="Search air conditioners, horsepower, parts..."
             style={{
               flex: 1,
@@ -193,14 +216,46 @@ export default function Header({ hideSearch = false }: { hideSearch?: boolean })
               outline: 'none',
             }}
           />
-          <button type="submit" id="search-btn" style={{
-            background: 'transparent',
-            border: 'none',
-            padding: '0 1.2rem',
-            cursor: 'pointer',
-            color: '#c3e4ff',
-            fontSize: '1rem',
-          }}>
+          {headerSearch && (
+            <button
+              type="button"
+              onClick={() => {
+                setHeaderSearch('');
+                const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
+                const targetBase = currentPath === '/profile' ? '/profile' : '/';
+                if (typeof window !== 'undefined' && window.location.search) {
+                  router.push(targetBase);
+                }
+              }}
+              title="Clear search"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'rgba(255, 255, 255, 0.7)',
+                cursor: 'pointer',
+                padding: '0 6px',
+                fontSize: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
+          )}
+          <button
+            type="submit"
+            id="search-btn"
+            title="Search"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: '0 0.8rem',
+              cursor: 'pointer',
+              color: '#c3e4ff',
+              fontSize: '1rem',
+            }}
+          >
             <i className="fa-solid fa-magnifying-glass"></i>
           </button>
         </form>

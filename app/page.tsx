@@ -202,17 +202,39 @@ export default function HomePage() {
     showToast('<i class="fa-solid fa-check-circle"></i> ' + name + ' added to cart!');
   };
 
+  const defaultBrands = ['Carrier', 'Chiq', 'iFFALCON', 'Midea', 'Samsung', 'TCL'];
+  const availableBrands = Array.from(
+    new Set([
+      ...defaultBrands,
+      ...storeInventory.map((p) => p.brand).filter(Boolean),
+    ])
+  ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
   const filteredProducts = storeInventory.filter(item => {
-    const matchesSearch = item.brand.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          item.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesBrand = selectedBrands.length === 0 || selectedBrands.includes(item.brand);
+    const q = searchQuery.toLowerCase().trim();
+    const specsString = (item.specs || []).join(' ').toLowerCase();
+    const descString = (item.description || '').toLowerCase();
+    const brandLower = (item.brand || '').toLowerCase();
+    const nameLower = (item.name || '').toLowerCase();
+    const catLower = (item.category || '').toLowerCase();
+
+    // Check brand, name, category, specs array, and description
+    const matchesSearch = !q ||
+      brandLower.includes(q) ||
+      nameLower.includes(q) ||
+      catLower.includes(q) ||
+      specsString.includes(q) ||
+      descString.includes(q);
+
+    const matchesBrand = selectedBrands.length === 0 || selectedBrands.some(b => b.toLowerCase() === (item.brand || '').toLowerCase());
+    const isSpareCategory = item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories';
+
     const matchesCategory = selectedCategory === 'All' 
-      ? !(item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories')
+      ? true
       : (
-          item.category.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+          catLower.includes(selectedCategory.toLowerCase()) ||
           (selectedCategory === 'Second Hand Deals' && item.badge === 'Used') ||
-          (selectedCategory === 'Spare Parts' && (item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories'))
+          (selectedCategory === 'Spare Parts' && isSpareCategory)
         );
     
     const matchesPrice = selectedPrices.length === 0 || selectedPrices.some(range => {
@@ -224,9 +246,8 @@ export default function HomePage() {
     });
     
     const matchesType = selectedTypes.length === 0 || selectedTypes.some(type => {
-      const isPart = item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories';
-      if (type === 'Spare Parts') return isPart;
-      if (type === 'Air Conditioners') return !isPart;
+      if (type === 'Spare Parts') return isSpareCategory;
+      if (type === 'Air Conditioners') return !isSpareCategory;
       return false;
     });
 
@@ -249,9 +270,6 @@ export default function HomePage() {
     }
   });
 
-  const sparePartProducts = storeInventory.filter(item => 
-    item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories'
-  );
 
   const showDashboard = mounted && isCustomerLoggedIn;
 
@@ -378,13 +396,13 @@ export default function HomePage() {
               <span>Brand</span>
               <i className="fa-solid fa-chevron-up" style={{ fontSize: '0.8rem' }}></i>
             </div>
-            {['Carrier', 'Chiq', 'iFFALCON', 'Midea', 'Samsung', 'TCL'].map(brand => (
+            {availableBrands.map(brand => (
               <label key={brand} className="filter-option">
                 <input 
                   type="checkbox" 
                   className="brand-filter" 
                   value={brand}
-                  checked={selectedBrands.includes(brand)}
+                  checked={selectedBrands.some(b => b.toLowerCase() === brand.toLowerCase())}
                   onChange={() => handleBrandChange(brand)}
                 /> {brand}
               </label>
@@ -446,10 +464,84 @@ export default function HomePage() {
 
           <div className="facets__active-filters" id="active-filters-container"></div>
 
+          {searchQuery.trim() && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.75rem 1.25rem',
+                background: '#f0f9ff',
+                border: '1px solid #bae6fd',
+                borderRadius: '12px',
+                marginBottom: '1.25rem',
+                fontSize: '0.9rem',
+                color: '#0369a1',
+                boxShadow: '0 1px 3px rgba(2, 132, 199, 0.08)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="fa-solid fa-magnifying-glass"></i>
+                <span>
+                  Search results for: <strong>"{searchQuery}"</strong> ({sortedProducts.length} product{sortedProducts.length === 1 ? '' : 's'} found)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  router.push('/');
+                }}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  padding: '4px 10px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  color: '#475569',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <i className="fa-solid fa-xmark"></i> Clear Search
+              </button>
+            </div>
+          )}
+
           {/* Product Grid */}
           <div className={`product-grid ${viewMode === 'list' ? 'list-view' : ''}`} id="dynamic-products">
             {sortedProducts.length === 0 ? (
-              <div className="empty-cart-msg" style={{ gridColumn: '1 / -1' }}>No products found matching your criteria.</div>
+              <div
+                className="empty-cart-msg"
+                style={{
+                  gridColumn: '1 / -1',
+                  textAlign: 'center',
+                  padding: '3rem 1.5rem',
+                  background: '#ffffff',
+                  borderRadius: '12px',
+                  border: '1px solid #e2e8f0',
+                }}
+              >
+                <i className="fa-solid fa-magnifying-glass" style={{ fontSize: '2.5rem', color: '#cbd5e1', display: 'block', marginBottom: '1rem' }}></i>
+                <h3 style={{ margin: '0 0 0.5rem', color: '#334155', fontSize: '1.2rem' }}>No products found</h3>
+                <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>
+                  {searchQuery.trim()
+                    ? `We couldn't find any products matching "${searchQuery}". Try different keywords or clear your search.`
+                    : 'No products match your selected filters.'}
+                </p>
+                {searchQuery.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => router.push('/')}
+                    className="btn btn-secondary"
+                    style={{ marginTop: '1.25rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <i className="fa-solid fa-arrow-rotate-left"></i> Clear Search
+                  </button>
+                )}
+              </div>
             ) : (
               sortedProducts.map(item => {
                 const price = item.price;
@@ -500,66 +592,6 @@ export default function HomePage() {
             )}
           </div>
         </main>
-      </section>
-
-      {/* Genuine Spare Parts Section */}
-      <section id="spare-parts" className="section-container" style={{ background: 'rgba(15, 31, 56, 0.4)', scrollMarginTop: '80px' }}>
-        <h2 className="section-title">Genuine Spare Parts</h2>
-        <p style={{ color: 'var(--text-light)', marginBottom: '2rem' }}>Keep your units running efficiently with original replacement parts.</p>
-        <div className="product-grid">
-          {sparePartProducts.length === 0 ? (
-            <div className="empty-cart-msg" style={{ gridColumn: '1 / -1' }}>No spare parts available.</div>
-          ) : (
-            sparePartProducts.map(item => {
-              const price = item.price;
-              const imgPlaceholder = item.image || '/hero-bg.png';
-              
-              return (
-                <div 
-                  key={item.id} 
-                  className="product-card" 
-                  onClick={() => router.push(`/product/${item.slug || item.id}`)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="product-image-wrapper">
-                    <img src={imgPlaceholder} alt={item.name} className="product-image" />
-                    {item.badge && <span className="product-badge">{item.badge}</span>}
-                  </div>
-                  <div className="product-card-body">
-                    <div className="product-brand">{item.brand}</div>
-                    <h3 className="product-title">{item.name}</h3>
-                    <div className="product-price">
-                      ₱ {price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      {item.originalPrice && item.originalPrice > price && (
-                        <span className="original-price">₱ {item.originalPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                      )}
-                    </div>
-                    <div className="product-rating">
-                      <span className="stars">
-                        {'★'.repeat(Math.floor(item.rating))}{'☆'.repeat(5 - Math.floor(item.rating))}
-                      </span>
-                      <span>{item.rating}</span>
-                      <span className="sold-count">&bull; {item.sold} sold</span>
-                    </div>
-                    {/* Optional feedback/description area if it's a spare part */}
-                    <div className="product-feedback" style={{ fontStyle: 'italic', fontSize: '0.8rem', color: 'var(--text-light)', marginTop: '0.5rem', marginBottom: '0.5rem', padding: '0.4rem', background: 'rgba(255,255,255,0.03)', borderRadius: '4px' }}>
-                      <i className="fa-solid fa-quote-left" style={{ opacity: 0.5, marginRight: '4px' }}></i>
-                      {item.description ? item.description.substring(0, 50) + "..." : "High-quality genuine replacement part."}
-                    </div>
-                    <div className="product-actions" onClick={(e) => e.stopPropagation()}>
-                      <Link href={`/product/${item.slug || item.id}`} className="btn btn-secondary">
-                        <i className="fa-solid fa-eye"></i> Details
-                      </Link>
-                      <button className="btn btn-buy" onClick={(e) => { e.stopPropagation(); addToCart(`${item.brand} ${item.name}`, price, item.brand, imgPlaceholder, item.id); }}>
-                        <i className="fa-solid fa-cart-plus"></i> Add to Cart
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
       </section>
 
       {/* Brands Section */}

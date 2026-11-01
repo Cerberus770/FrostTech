@@ -31,7 +31,24 @@ export async function POST(request: NextRequest) {
         connect: technicianIds.map((techId: string) => ({ id: techId }))
       };
     }
-    const item = await prisma.dispatchItem.create({ data: createData });
+    const item = await prisma.dispatchItem.create({ data: createData, include: { technicians: true } });
+
+    // Sync to CalendarEvent for assigned technicians
+    if (item.scheduledDate && item.technicians && item.technicians.length > 0) {
+      const datePart = item.scheduledDate.split(' ')[0];
+      for (const tech of item.technicians) {
+        const techName = `${tech.firstName} ${tech.lastName}`.trim();
+        await prisma.calendarEvent.create({
+          data: {
+            title: `Dispatch: ${item.type || 'Service'} (${item.name})`,
+            date: datePart,
+            technician: techName,
+            type: item.type || 'job',
+          }
+        }).catch((e: any) => console.warn('Failed to sync CalendarEvent for dispatch:', e));
+      }
+    }
+
     return NextResponse.json(item, { status: 201 });
   } catch (error) {
     console.error('Dispatch create error:', error);
@@ -55,7 +72,32 @@ export async function PATCH(request: NextRequest) {
     const item = await prisma.dispatchItem.update({
       where: { id },
       data: updateData,
+      include: { technicians: true }
     });
+
+    // Sync to CalendarEvent for assigned technicians
+    if (item.scheduledDate && item.technicians && item.technicians.length > 0) {
+      const datePart = item.scheduledDate.split(' ')[0];
+      for (const tech of item.technicians) {
+        const techName = `${tech.firstName} ${tech.lastName}`.trim();
+        const existing = await prisma.calendarEvent.findFirst({
+          where: {
+            title: { contains: item.dispatchNo || item.id },
+            technician: techName,
+          }
+        });
+        if (!existing) {
+          await prisma.calendarEvent.create({
+            data: {
+              title: `${item.dispatchNo ? item.dispatchNo + ' - ' : ''}${item.type || 'Dispatch'}: ${item.name}`,
+              date: datePart,
+              technician: techName,
+              type: item.type || 'job',
+            }
+          }).catch((e: any) => console.warn('Failed to sync CalendarEvent:', e));
+        }
+      }
+    }
 
     // If status is changed to Assigned, send an SMS to the customer
     if (data.status === 'Assigned') {

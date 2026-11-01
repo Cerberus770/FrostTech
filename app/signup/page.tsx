@@ -170,10 +170,19 @@ export default function SignupPage() {
           </span>
         </Link>
 
-        <div className="search-bar">
+        <form
+          className="search-bar"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const input = e.currentTarget.querySelector('input') as HTMLInputElement;
+            if (input?.value.trim()) {
+              router.push(`/?q=${encodeURIComponent(input.value.trim())}`);
+            }
+          }}
+        >
           <input type="text" placeholder="Search for air conditioners, brands..." />
-          <button><i className="fa-solid fa-magnifying-glass"></i></button>
-        </div>
+          <button type="submit"><i className="fa-solid fa-magnifying-glass"></i></button>
+        </form>
 
         <div className="header-icons">
           <Link href="/login"><i className="fa-solid fa-user"></i> Account</Link>

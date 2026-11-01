@@ -54,28 +54,92 @@ export default function CartPage() {
   const [showDeliveryMap, setShowDeliveryMap] = useState(false);
   const [deliveryCoords, setDeliveryCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [saveToAddressBook, setSaveToAddressBook] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
+  const [dbProducts, setDbProducts] = useState<any[]>([]);
+  const [expiredNoticeCount, setExpiredNoticeCount] = useState(0);
+
+  const isItemExpired = (item: CartItem, currentTime: number = Date.now()) => {
+    const rawTime = (item.notice3Days && item.notice3DaysAt) ? item.notice3DaysAt : (item.createdAt || item.addedAt);
+    if (!rawTime) return false;
+    const addedTime = new Date(rawTime).getTime();
+    if (isNaN(addedTime)) return false;
+    const expiryTime = addedTime + 3 * 24 * 60 * 60 * 1000;
+    return (expiryTime - currentTime) <= 0;
+  };
+
+  const getProductDetailUrl = (item: CartItem) => {
+    if (item.productId && !item.productId.startsWith('PROD-')) {
+      return `/product/${item.productId}`;
+    }
+    const cleanItemName = item.name.toLowerCase().trim();
+    const found = dbProducts.find(p => 
+      p.id === item.productId || 
+      (p.slug && p.slug === item.productId) ||
+      p.name.toLowerCase().trim() === cleanItemName ||
+      `${p.brand} ${p.name}`.toLowerCase().trim() === cleanItemName ||
+      cleanItemName.includes(p.name.toLowerCase().trim()) ||
+      (p.brand && item.brand && p.brand.toLowerCase() === item.brand.toLowerCase() && cleanItemName.includes(p.name.toLowerCase()))
+    );
+    if (found) {
+      return `/product/${found.slug || found.id}`;
+    }
+    return `/product/${item.productId || item.id}`;
+  };
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
+  // Fetch store products for matching detail links
+  useEffect(() => {
+    fetch('/api/products')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setDbProducts(data); })
+      .catch(() => {});
+  }, []);
+
+  // Real-time automatic removal of expired cart items
+  useEffect(() => {
+    if (cartItems.length === 0) return;
+    const expiredList = cartItems.filter(item => isItemExpired(item, now));
+    if (expiredList.length > 0) {
+      const remaining = cartItems.filter(item => !isItemExpired(item, now));
+      setCartItems(remaining);
+      calculateTotal(remaining);
+      localStorage.setItem('frostTechCart', JSON.stringify(remaining));
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new Event('cartUpdated'));
+
+      // Automatically release from database and restore inventory stock
+      expiredList.forEach(exp => {
+        fetch(`/api/cart?id=${exp.id}`, { method: 'DELETE' }).catch(() => {});
+      });
+
+      setExpiredNoticeCount(prev => prev + expiredList.length);
+    }
+  }, [now, cartItems]);
+
   useEffect(() => {
     const userId = sessionStorage.getItem('userId');
     const localCart: CartItem[] = (() => {
       try {
         const saved = JSON.parse(localStorage.getItem('frostTechCart') || '[]');
-        const threeDaysAgoMs = Date.now() - 3 * 24 * 60 * 60 * 1000;
-        return saved.filter((item: any) => {
-          const timestamp = item.addedAt || item.createdAt ? new Date(item.addedAt || item.createdAt).getTime() : Date.now();
-          return timestamp > threeDaysAgoMs;
-        });
+        return saved.filter((item: any) => !isItemExpired(item));
       } catch {
         return [];
       }
     })();
 
     if (userId) {
+      // Fetch saved addresses from database
+      fetch(`/api/addresses?userId=${userId}`)
+        .then(res => res.json())
+        .then(data => { if (Array.isArray(data)) setSavedAddresses(data); })
+        .catch(() => {});
+
       // Fetch from API if logged in
       fetch(`/api/cart?userId=${userId}`)
         .then(res => res.json())
@@ -104,9 +168,36 @@ export default function CartPage() {
               }
             });
           } else {
-            // API returned empty or error, use localCart
+            // API returned empty or error, use localCart and sync to DB
             merged = localCart;
+            localCart.forEach((loc) => {
+              fetch('/api/cart', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId,
+                  productId: loc.productId || 'PROD-' + loc.id,
+                  name: loc.name,
+                  brand: loc.brand || '',
+                  price: loc.price,
+                  image: loc.image,
+                  quantity: loc.quantity || 1
+                })
+              }).catch(() => {});
+            });
           }
+
+          // Automatically purge expired items from merged list
+          const activeItems = merged.filter(i => !isItemExpired(i));
+          const expiredCount = merged.length - activeItems.length;
+          if (expiredCount > 0) {
+            merged.filter(i => isItemExpired(i)).forEach(exp => {
+              fetch(`/api/cart?id=${exp.id}`, { method: 'DELETE' }).catch(() => {});
+            });
+            setExpiredNoticeCount(prev => prev + expiredCount);
+            merged = activeItems;
+          }
+
           setCartItems(merged);
           calculateTotal(merged);
           localStorage.setItem('frostTechCart', JSON.stringify(merged));
@@ -114,8 +205,9 @@ export default function CartPage() {
         })
         .catch(err => {
           console.error('Cart fetch error, using local fallback:', err);
-          setCartItems(localCart);
-          calculateTotal(localCart);
+          const activeLocal = localCart.filter(i => !isItemExpired(i));
+          setCartItems(activeLocal);
+          calculateTotal(activeLocal);
         });
 
       // Check if new customer
@@ -125,9 +217,10 @@ export default function CartPage() {
         .catch(console.error);
     } else {
       setIsNewCustomer(true);
-      setCartItems(localCart);
-      calculateTotal(localCart);
-      localStorage.setItem('frostTechCart', JSON.stringify(localCart));
+      const activeLocal = localCart.filter(i => !isItemExpired(i));
+      setCartItems(activeLocal);
+      calculateTotal(activeLocal);
+      localStorage.setItem('frostTechCart', JSON.stringify(activeLocal));
       window.dispatchEvent(new Event('storage'));
     }
   }, []);
@@ -304,6 +397,23 @@ export default function CartPage() {
 
       setState(newState);
       saveState(newState);
+
+      // Save to address book if requested
+      if (saveToAddressBook && userId && userId !== 'CUS-NEW') {
+        fetch('/api/addresses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            label: checkoutCity ? `Delivery (${checkoutCity})` : 'Delivery Address',
+            fullAddress: finalLocation,
+            phone: checkoutPhone,
+            lat: deliveryCoords?.lat || null,
+            lng: deliveryCoords?.lng || null,
+            isDefault: false
+          })
+        }).catch(e => console.warn('Failed to save to address book:', e));
+      }
 
       // Clear cart
       if (userId && userId !== 'CUS-NEW') {
@@ -486,6 +596,58 @@ FrostTech Representative: ______________  Date: ___________
           </div>
         )}
 
+        {/* Automatic Expiration Notice Banner */}
+        {expiredNoticeCount > 0 && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: '12px',
+            padding: '1rem 1.25rem',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                background: '#ef4444',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <i className="fa-solid fa-clock-rotate-left"></i>
+              </div>
+              <div>
+                <p style={{ margin: 0, fontWeight: 700, color: '#b91c1c', fontSize: '0.9rem' }}>
+                  Reservation Time Limit Reached
+                </p>
+                <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#7f1d1d' }}>
+                  {expiredNoticeCount} item{expiredNoticeCount > 1 ? 's were' : ' was'} automatically removed from your cart because the 3-day hold expired and released back to stock.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setExpiredNoticeCount(0)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#b91c1c',
+                cursor: 'pointer',
+                fontSize: '1.25rem',
+                padding: '4px 8px',
+              }}
+            >
+              &times;
+            </button>
+          </div>
+        )}
+
         {cartItems.length === 0 ? (
           /* Empty Cart State */
           <div style={{
@@ -528,7 +690,9 @@ FrostTech Representative: ______________  Date: ___________
           }}>
             {/* Cart Items */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {cartItems.map((item) => (
+              {cartItems.map((item) => {
+                const productUrl = getProductDetailUrl(item);
+                return (
                 <div key={item.id} className="cart-item-card" style={{
                   background: 'var(--bg-card)',
                   border: '1px solid rgba(255,255,255,0.06)',
@@ -539,18 +703,34 @@ FrostTech Representative: ______________  Date: ___________
                   alignItems: 'center',
                   transition: 'border-color 0.2s, box-shadow 0.2s',
                 }}>
-                  {/* Product Image */}
-                  <div style={{
-                    width: '100px',
-                    height: '100px',
-                    background: 'var(--media-bg)',
-                    borderRadius: 'var(--radius-md)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '0.5rem',
-                    flexShrink: 0,
-                  }}>
+                  {/* Clickable Product Image */}
+                  <Link
+                    href={productUrl}
+                    title={`View ${item.name} details`}
+                    style={{
+                      width: '100px',
+                      height: '100px',
+                      background: 'var(--media-bg)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-color)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0.5rem',
+                      flexShrink: 0,
+                      cursor: 'pointer',
+                      transition: 'border-color 0.2s, transform 0.2s',
+                      textDecoration: 'none',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--primary)';
+                      e.currentTarget.style.transform = 'scale(1.02)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-color)';
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                  >
                     <Image
                       src={item.image || '/hero-bg.png'}
                       alt={item.name}
@@ -558,28 +738,57 @@ FrostTech Representative: ______________  Date: ___________
                       height={80}
                       style={{ objectFit: 'contain' }}
                     />
-                  </div>
+                  </Link>
 
                   {/* Product Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      color: 'var(--primary)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
-                    }}>
-                      {item.brand}
-                    </span>
-                    <h3 style={{
-                      fontSize: '1rem',
-                      fontWeight: 600,
-                      color: 'var(--text-dark)',
-                      marginBottom: '0.4rem',
-                      lineHeight: 1.3,
-                    }}>
-                      {item.name}
-                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                      <span style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: 'var(--primary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                      }}>
+                        {item.brand}
+                      </span>
+                      <Link
+                        href={productUrl}
+                        style={{
+                          fontSize: '0.75rem',
+                          color: 'var(--primary)',
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                        }}
+                      >
+                        <i className="fa-solid fa-arrow-up-right-from-square" style={{ fontSize: '0.65rem' }}></i> View Details
+                      </Link>
+                    </div>
+
+                    <Link
+                      href={productUrl}
+                      title={`View ${item.name} details`}
+                      style={{ textDecoration: 'none' }}
+                    >
+                      <h3 style={{
+                        fontSize: '1.05rem',
+                        fontWeight: 700,
+                        color: 'var(--text-dark)',
+                        marginBottom: '0.4rem',
+                        lineHeight: 1.3,
+                        cursor: 'pointer',
+                        transition: 'color 0.2s',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--primary)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-dark)')}
+                      >
+                        {item.name}
+                      </h3>
+                    </Link>
+
                     <p style={{
                       fontFamily: 'var(--font-display)',
                       fontSize: '1.2rem',
@@ -615,7 +824,7 @@ FrostTech Representative: ______________  Date: ___________
                           <i className={`fa-solid ${hold.expired ? 'fa-triangle-exclamation' : hold.hasNotice ? 'fa-bell' : 'fa-hourglass-half'}`}></i>
                           <span>
                             {hold.expired
-                              ? 'Expired — returned to stock'
+                              ? 'Expired — releasing back to stock...'
                               : hold.hasNotice
                               ? `3-Day Admin Notice: ${hold.text} remaining to checkout`
                               : `Cart Hold: ${hold.text} to proceed for payment`}
@@ -688,7 +897,8 @@ FrostTech Representative: ______________  Date: ___________
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
 
             {/* Order Summary */}
@@ -880,6 +1090,40 @@ FrostTech Representative: ______________  Date: ___________
                 <i className="fa-solid fa-location-dot" style={{ color: 'var(--primary)', fontSize: '0.85rem' }}></i> Delivery Address
               </h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                {savedAddresses.length > 0 && (
+                  <div style={{ gridColumn: '1 / -1', marginBottom: '0.5rem', background: 'rgba(0,155,213,0.06)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(0,155,213,0.2)' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '0.35rem' }}>
+                      <i className="fa-solid fa-bookmark" style={{ marginRight: '6px' }}></i> Choose from Saved Address Book
+                    </label>
+                    <select
+                      value={selectedAddressId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        setSelectedAddressId(id);
+                        const found = savedAddresses.find(a => a.id === id);
+                        if (found) {
+                          setCheckoutAddress(found.fullAddress);
+                          if (found.phone) setCheckoutPhone(found.phone);
+                          if (found.lat && found.lng) {
+                            setDeliveryCoords({ lat: found.lat, lng: found.lng });
+                          }
+                        }
+                      }}
+                      style={{
+                        width: '100%', padding: '0.65rem 0.85rem', border: '1px solid var(--border-color)', borderRadius: '6px',
+                        fontSize: '0.88rem', fontFamily: 'inherit', background: 'var(--bg-card)', color: 'var(--text-dark)', fontWeight: 600
+                      }}
+                    >
+                      <option value="">-- Or enter / search address manually below --</option>
+                      {savedAddresses.map(addr => (
+                        <option key={addr.id} value={addr.id}>
+                          {addr.label}: {addr.fullAddress} {addr.isDefault ? '(Default)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-light)', marginBottom: '0.3rem' }}>Street Address <span style={{ color: 'var(--accent-red)' }}>*</span></label>
                   <AddressAutocomplete 
@@ -899,6 +1143,20 @@ FrostTech Representative: ______________  Date: ___________
                     width: '100%', padding: '0.7rem 0.9rem', border: '1px solid var(--border-color)', borderRadius: '8px',
                     fontSize: '0.9rem', fontFamily: 'inherit', background: 'rgba(255,255,255,0.03)', color: 'var(--text-dark)',
                   }} />
+                </div>
+
+                {/* Save to address book option */}
+                <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '8px', margin: '0.25rem 0' }}>
+                  <input 
+                    type="checkbox" 
+                    id="saveToAddressBook"
+                    checked={saveToAddressBook}
+                    onChange={e => setSaveToAddressBook(e.target.checked)}
+                    style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--primary)' }}
+                  />
+                  <label htmlFor="saveToAddressBook" style={{ fontSize: '0.82rem', color: 'var(--text-dark)', cursor: 'pointer', fontWeight: 500 }}>
+                    Save this address to my Address Book for future services & deliveries
+                  </label>
                 </div>
 
                 {/* Pinpoint on Map */}

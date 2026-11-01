@@ -18,13 +18,30 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const cleanSku = (body.sku || '').trim();
+
+    if (!cleanSku) {
+      return NextResponse.json({ error: 'SKU code is required.' }, { status: 400 });
+    }
+
+    // Check for duplicate SKU before inserting
+    const existingSkuItem = await prisma.inventoryItem.findUnique({
+      where: { sku: cleanSku },
+    });
+    if (existingSkuItem) {
+      return NextResponse.json(
+        { error: `The SKU code "${cleanSku}" is already used by "${existingSkuItem.brand} ${existingSkuItem.model}". Please provide a unique SKU code.` },
+        { status: 409 }
+      );
+    }
+
     const images: string[] = Array.isArray(body.images) && body.images.length > 0
       ? body.images
       : body.image ? [body.image] : [];
     const mainImage = images[0] || body.image || 'https://via.placeholder.com/300';
 
     const inventoryData = {
-      sku: body.sku,
+      sku: cleanSku,
       brand: body.brand,
       model: body.model,
       category: body.category,
@@ -47,6 +64,7 @@ export async function POST(request: NextRequest) {
       where: {
         name: inventoryData.model,
         brand: inventoryData.brand,
+        category: inventoryData.category,
       },
       include: { variants: true },
     });
@@ -67,9 +85,11 @@ export async function POST(request: NextRequest) {
         where: { id: existingProduct.id },
         data: {
           price: lowestPrice,
+          image: mainImage || existingProduct.image,
           images: images.length > 0 ? images : existingProduct.images,
           horsepower: inventoryData.horsepower || existingProduct.horsepower,
           description: inventoryData.description || existingProduct.description,
+          badge: 'Brand New',
         },
       });
     } else {
@@ -102,6 +122,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(item, { status: 201 });
   } catch (error: any) {
     console.error('Inventory create error:', error);
+    if (error.code === 'P2002' && error.meta?.target?.includes('sku')) {
+      return NextResponse.json(
+        { error: 'This SKU code is already taken by another inventory item. Please enter a unique SKU.' },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({ error: error.message || 'Failed to create inventory item' }, { status: 500 });
   }
 }

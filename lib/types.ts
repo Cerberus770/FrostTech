@@ -7,6 +7,7 @@ export interface InventoryItem {
   stock: number;
   price: number;
   image?: string;
+  images?: string[];
 }
 
 // ===== Installments =====
@@ -129,6 +130,7 @@ export interface Product {
   rating: number;
   sold: number;
   image: string;
+  images?: string[];
   specs?: string[];
   description?: string;
   badge?: string;

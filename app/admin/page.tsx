@@ -197,11 +197,13 @@ export default function AdminDashboard() {
   // Add Product Modal & Multi-image state
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
   const [addItemType, setAddItemType] = useState<'AC' | 'SparePart'>('AC');
+  const [newProductSku, setNewProductSku] = useState('');
   const [newProductImages, setNewProductImages] = useState<string[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
 
   // View Item Description Modal
   const [viewingItem, setViewingItem] = useState<InventoryItem | null>(null);
+  const [viewingImageIndex, setViewingImageIndex] = useState(0);
 
   // POS State (Merged Storefront + Inventory + Discount)
   const [posCart, setPosCart] = useState<(InventoryItem & { cartQty: number })[]>([]);
@@ -303,6 +305,15 @@ export default function AdminDashboard() {
   // Customer Services sub-filter (All, Cleaning, Repair, Re-installation)
   const [serviceTypeFilter, setServiceTypeFilter] = useState<'ALL' | 'CLEANING' | 'REPAIR' | 'REINSTALLATION'>('ALL');
 
+  // 8-items-per-page pagination states
+  const ITEMS_PER_PAGE_8 = 8;
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [cartHoldsPage, setCartHoldsPage] = useState(1);
+  const [servicesPage, setServicesPage] = useState(1);
+  const [installmentsPage, setInstallmentsPage] = useState(1);
+  const [maintenancePage, setMaintenancePage] = useState(1);
+  const [invoicesPage, setInvoicesPage] = useState(1);
+
   useEffect(() => {
     setIsLoggedIn(sessionStorage.getItem('isAdmin') === 'true' || sessionStorage.getItem('isLoggedIn') === 'true');
 
@@ -340,33 +351,51 @@ export default function AdminDashboard() {
     filesToProcess.forEach((file) => {
       const readerPromise = new Promise<string>((resolve) => {
         const reader = new FileReader();
+        reader.onerror = () => resolve('');
         reader.onloadend = () => {
+          if (!reader.result) {
+            resolve('');
+            return;
+          }
           const img = new Image();
+          img.onerror = () => resolve('');
           img.src = reader.result as string;
           img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 800;
-            const MAX_HEIGHT = 800;
-            let width = img.width;
-            let height = img.height;
+            try {
+              const canvas = document.createElement('canvas');
+              const MAX_WIDTH = 600;
+              const MAX_HEIGHT = 600;
+              let width = img.width;
+              let height = img.height;
 
-            if (width > height) {
-              if (width > MAX_WIDTH) {
-                height *= MAX_WIDTH / width;
-                width = MAX_WIDTH;
+              if (width > height) {
+                if (width > MAX_WIDTH) {
+                  height *= MAX_WIDTH / width;
+                  width = MAX_WIDTH;
+                }
+              } else {
+                if (height > MAX_HEIGHT) {
+                  width *= MAX_HEIGHT / height;
+                  height = MAX_HEIGHT;
+                }
               }
-            } else {
-              if (height > MAX_HEIGHT) {
-                width *= MAX_HEIGHT / height;
-                height = MAX_HEIGHT;
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx?.drawImage(img, 0, 0, width, height);
+
+              // Progressively lower quality until under 120KB
+              let quality = 0.6;
+              let result = canvas.toDataURL('image/jpeg', quality);
+              while (result.length > 120000 && quality > 0.15) {
+                quality -= 0.1;
+                result = canvas.toDataURL('image/jpeg', quality);
               }
+              resolve(result);
+            } catch {
+              resolve('');
             }
-
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx?.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.7));
           };
         };
         reader.readAsDataURL(file);
@@ -374,10 +403,18 @@ export default function AdminDashboard() {
       readers.push(readerPromise);
     });
 
-    Promise.all(readers).then((compressedBase64List) => {
-      setNewProductImages((prev) => [...prev, ...compressedBase64List].slice(0, 4));
-      setIsUploadingImages(false);
-    });
+    Promise.all(readers)
+      .then((compressedBase64List) => {
+        const validImages = compressedBase64List.filter(Boolean);
+        setNewProductImages((prev) => [...prev, ...validImages].slice(0, 4));
+        setIsUploadingImages(false);
+      })
+      .catch(() => {
+        setIsUploadingImages(false);
+      });
+
+    // Reset input value to allow re-selection of same files if needed
+    e.target.value = '';
   };
 
   const handleRemoveImage = (index: number) => {
@@ -398,6 +435,17 @@ export default function AdminDashboard() {
 
     if (!sku || !brand || !model || !category || isNaN(price)) {
       showAlert({ title: 'Validation', message: 'Please fill out all required product fields.', type: 'warning' });
+      return;
+    }
+
+    const cleanSku = (sku || '').trim();
+    const existingSku = inventory.find((item) => item.sku?.toLowerCase() === cleanSku.toLowerCase());
+    if (existingSku) {
+      showAlert({
+        title: 'Duplicate SKU Code',
+        message: `The SKU code "${cleanSku}" is already used by "${existingSku.brand} ${existingSku.model}". Please choose a different unique SKU code.`,
+        type: 'warning',
+      });
       return;
     }
 
@@ -428,6 +476,7 @@ export default function AdminDashboard() {
       if (res.ok) {
         setIsAddProductModalOpen(false);
         setNewProductImages([]);
+        setNewProductSku('');
         fetch('/api/inventory').then((r) => r.json()).then(setInventory).catch(console.error);
         showAlert({ title: 'Success', message: 'Product added to inventory & storefront successfully!' });
       } else {
@@ -546,28 +595,257 @@ export default function AdminDashboard() {
 
   // Filtered inventory items
   const filteredInventory = inventory.filter((item) => {
-    const isSpare = item.category.toLowerCase().includes('part') || item.category.toLowerCase().includes('accessories');
+    const cat = (item.category || '').toLowerCase();
+    const isSpare = cat.includes('part') || cat.includes('accessories');
     if (invFilterType === 'AC' && isSpare) return false;
     if (invFilterType === 'Parts' && !isSpare) return false;
-    if (invModelFilter !== 'All' && !item.model.toLowerCase().includes(invModelFilter.toLowerCase())) return false;
+    if (invModelFilter !== 'All' && !(item.model || '').toLowerCase().includes(invModelFilter.toLowerCase())) return false;
     if (invCategoryFilter !== 'All' && item.category !== invCategoryFilter) return false;
     if (invStatusFilter !== 'All') {
       const status = item.stock > 5 ? 'In Stock' : item.stock > 0 ? 'Low Stock' : 'Out of Stock';
       if (status !== invStatusFilter) return false;
     }
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
       return (
-        item.brand.toLowerCase().includes(q) ||
-        item.model.toLowerCase().includes(q) ||
-        item.sku.toLowerCase().includes(q)
+        (item.brand || '').toLowerCase().includes(q) ||
+        (item.model || '').toLowerCase().includes(q) ||
+        (item.sku || '').toLowerCase().includes(q) ||
+        (item.category || '').toLowerCase().includes(q) ||
+        (item.horsepower || '').toLowerCase().includes(q) ||
+        (item.description || '').toLowerCase().includes(q)
       );
     }
     return true;
   });
 
   // Unique models for dropdown filter
-  const uniqueModels = Array.from(new Set(inventory.map((i) => i.model))).slice(0, 20);
+  const uniqueModels = Array.from(new Set(inventory.map((i) => i.model))).filter(Boolean).slice(0, 20);
+
+  // Filtered Orders for Order & Services tab
+  const filteredOrders = orders.filter((o) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      (o.orderNo || '').toLowerCase().includes(q) ||
+      (o.name || '').toLowerCase().includes(q) ||
+      (o.item || '').toLowerCase().includes(q) ||
+      (o.location || '').toLowerCase().includes(q) ||
+      (o.payment || '').toLowerCase().includes(q) ||
+      (o.status || '').toLowerCase().includes(q) ||
+      (o.hp || '').toLowerCase().includes(q)
+    );
+  });
+
+  // Filtered Cart Holds
+  const filteredCartHolds = adminCartItems.filter((c) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    const customerName = c.user ? `${c.user.firstName || ''} ${c.user.lastName || ''}` : '';
+    const contact = `${c.user?.phone || ''} ${c.user?.email || ''}`;
+    return (
+      customerName.toLowerCase().includes(q) ||
+      contact.toLowerCase().includes(q) ||
+      (c.name || '').toLowerCase().includes(q)
+    );
+  });
+
+  // Filtered Installments
+  const filteredInstallments = installments.filter((inst) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      (inst.appId || '').toLowerCase().includes(q) ||
+      (inst.name || '').toLowerCase().includes(q) ||
+      (inst.item || '').toLowerCase().includes(q) ||
+      (inst.employer || '').toLowerCase().includes(q) ||
+      (inst.idType || '').toLowerCase().includes(q) ||
+      (inst.status || '').toLowerCase().includes(q) ||
+      (inst.location || '').toLowerCase().includes(q)
+    );
+  });
+
+  // Filtered Maintenance (for tab-maintenance)
+  const filteredMaintenance = maintenance.filter((m) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      (m.scheduleNo || '').toLowerCase().includes(q) ||
+      (m.name || '').toLowerCase().includes(q) ||
+      (m.phone || '').toLowerCase().includes(q) ||
+      (m.address || '').toLowerCase().includes(q) ||
+      (m.item || '').toLowerCase().includes(q) ||
+      (m.serviceType || '').toLowerCase().includes(q) ||
+      (m.technicianName || '').toLowerCase().includes(q) ||
+      (m.status || '').toLowerCase().includes(q) ||
+      (m.notes || '').toLowerCase().includes(q)
+    );
+  });
+
+  // Filtered Users
+  const filteredUsers = allUsers.filter((u) => {
+    if (userRoleFilter !== 'ALL' && u.role !== userRoleFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        (u.firstName || '').toLowerCase().includes(q) ||
+        (u.lastName || '').toLowerCase().includes(q) ||
+        `${u.firstName || ''} ${u.lastName || ''}`.toLowerCase().includes(q) ||
+        (u.email || '').toLowerCase().includes(q) ||
+        (u.phone || '').toLowerCase().includes(q) ||
+        (u.role || '').toLowerCase().includes(q) ||
+        (u.techRank || '').toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
+  // Filtered Invoices
+  const filteredInvoices = invoices.filter((inv) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      (inv.invoiceNo || '').toLowerCase().includes(q) ||
+      (inv.customerName || '').toLowerCase().includes(q) ||
+      (inv.serviceType || '').toLowerCase().includes(q) ||
+      (inv.acUnit || '').toLowerCase().includes(q) ||
+      (inv.technicianName || '').toLowerCase().includes(q) ||
+      (inv.status || '').toLowerCase().includes(q) ||
+      String(inv.amount || '').toLowerCase().includes(q)
+    );
+  });
+
+  // Reusable 8-items-per-page Pagination Component
+  const renderTablePagination = (
+    currentPage: number,
+    totalItems: number,
+    onPageChange: (newPage: number) => void,
+    pageSize: number = 8
+  ) => {
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+    const startItem = totalItems === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+    const endItem = Math.min(safeCurrentPage * pageSize, totalItems);
+
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '0.85rem 1.25rem',
+          borderTop: '1px solid #e2e8f0',
+          background: '#f8fafc',
+          flexWrap: 'wrap',
+          gap: '1rem',
+        }}
+      >
+        <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+          Showing <strong style={{ color: '#0f172a' }}>{startItem}</strong> to{' '}
+          <strong style={{ color: '#0f172a' }}>{endItem}</strong> of{' '}
+          <strong style={{ color: '#0f172a' }}>{totalItems}</strong> entries
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Previous Button */}
+          <button
+            type="button"
+            onClick={() => onPageChange(Math.max(1, safeCurrentPage - 1))}
+            disabled={safeCurrentPage <= 1}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: safeCurrentPage <= 1 ? '#f1f5f9' : '#ffffff',
+              color: safeCurrentPage <= 1 ? '#94a3b8' : '#1e293b',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: safeCurrentPage <= 1 ? 'not-allowed' : 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <i className="fa-solid fa-chevron-left" style={{ fontSize: '0.72rem' }}></i>
+            Previous
+          </button>
+
+          {/* Page Numbers */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+              if (
+                totalPages > 7 &&
+                Math.abs(pageNum - safeCurrentPage) > 2 &&
+                pageNum !== 1 &&
+                pageNum !== totalPages
+              ) {
+                if (pageNum === 2 || pageNum === totalPages - 1) {
+                  return (
+                    <span key={pageNum} style={{ padding: '0 4px', color: '#94a3b8', fontSize: '0.8rem' }}>
+                      ...
+                    </span>
+                  );
+                }
+                return null;
+              }
+
+              const isCurrent = pageNum === safeCurrentPage;
+              return (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => onPageChange(pageNum)}
+                  style={{
+                    minWidth: '32px',
+                    height: '32px',
+                    padding: '0 6px',
+                    borderRadius: '6px',
+                    border: isCurrent ? '1px solid #0284c7' : '1px solid #cbd5e1',
+                    background: isCurrent ? '#0284c7' : '#ffffff',
+                    color: isCurrent ? '#ffffff' : '#334155',
+                    fontSize: '0.82rem',
+                    fontWeight: isCurrent ? 800 : 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Next Button */}
+          <button
+            type="button"
+            onClick={() => onPageChange(Math.min(totalPages, safeCurrentPage + 1))}
+            disabled={safeCurrentPage >= totalPages}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              background: safeCurrentPage >= totalPages ? '#f1f5f9' : '#ffffff',
+              color: safeCurrentPage >= totalPages ? '#94a3b8' : '#1e293b',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: safeCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            Next
+            <i className="fa-solid fa-chevron-right" style={{ fontSize: '0.72rem' }}></i>
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   // ==========================================
   // POS ACTIONS (COMBINED PRODUCTS + DISCOUNT)
@@ -591,8 +869,8 @@ export default function AdminDashboard() {
     posDiscountType === 'percent'
       ? (posSubtotal * posDiscountValue) / 100
       : posDiscountType === 'fixed'
-      ? posDiscountValue
-      : 0;
+        ? posDiscountValue
+        : 0;
   const posFinalTotal = Math.max(0, posSubtotal - posDiscountAmount);
 
   const handleApplyDiscountPrompt = async () => {
@@ -867,12 +1145,12 @@ export default function AdminDashboard() {
         prev.map((o) =>
           o.id === selectedOrderToSchedule.id
             ? {
-                ...o,
-                status: 'Approved',
-                assignedTech: `${assignedTech.firstName} ${assignedTech.lastName}`,
-                scheduledDate: scheduledDateStr,
-                hasDownpayment: overrideDownpayment ? true : o.hasDownpayment,
-              }
+              ...o,
+              status: 'Approved',
+              assignedTech: `${assignedTech.firstName} ${assignedTech.lastName}`,
+              scheduledDate: scheduledDateStr,
+              hasDownpayment: overrideDownpayment ? true : o.hasDownpayment,
+            }
             : o
         )
       );
@@ -999,12 +1277,12 @@ export default function AdminDashboard() {
         maintenance.map((m) =>
           m.id === selectedServiceToSchedule.id
             ? {
-                ...m,
-                status: 'IN_PROGRESS',
-                technicianId: assignedTech.id,
-                technicianName: `${assignedTech.firstName} ${assignedTech.lastName}`,
-                scheduledDate: scheduledDateStr,
-              }
+              ...m,
+              status: 'IN_PROGRESS',
+              technicianId: assignedTech.id,
+              technicianName: `${assignedTech.firstName} ${assignedTech.lastName}`,
+              scheduledDate: scheduledDateStr,
+            }
             : m
         )
       );
@@ -1168,11 +1446,11 @@ export default function AdminDashboard() {
         prev.map((i) =>
           i.id === selectedInstallmentToSchedule.id
             ? {
-                ...i,
-                status: 'COMPLETED',
-                assignedTech: `${assignedTech.firstName} ${assignedTech.lastName}`,
-                scheduledDate: scheduledDateStr,
-              }
+              ...i,
+              status: 'COMPLETED',
+              assignedTech: `${assignedTech.firstName} ${assignedTech.lastName}`,
+              scheduledDate: scheduledDateStr,
+            }
             : i
         )
       );
@@ -1448,14 +1726,14 @@ export default function AdminDashboard() {
         prev.map((m) =>
           m.id === selectedMaintenanceModal.id
             ? {
-                ...m,
-                technicianId: assignedTech ? assignedTech.id : undefined,
-                technicianName: techName,
-                scheduledDate: scheduledDateStr,
-                lastMaintenance: maintLastDate || 'First Service (New Unit)',
-                status: maintStatus,
-                notes: maintNotes,
-              }
+              ...m,
+              technicianId: assignedTech ? assignedTech.id : undefined,
+              technicianName: techName,
+              scheduledDate: scheduledDateStr,
+              lastMaintenance: maintLastDate || 'First Service (New Unit)',
+              status: maintStatus,
+              notes: maintNotes,
+            }
             : m
         )
       );
@@ -1551,12 +1829,26 @@ export default function AdminDashboard() {
   }).length;
   const countDispatchCompleted = categoryScopedDispatch.filter((d) => (d.status || '').toLowerCase() === 'completed').length;
 
-  // Final filtered list including status filter
+  // Final filtered list including status filter and searchQuery
   const filteredDispatch = categoryScopedDispatch.filter((d) => {
     const s = (d.status || '').toLowerCase();
     if (dispatchStatusFilter === 'Assigned' && s !== 'assigned') return false;
     if (dispatchStatusFilter === 'Pending' && s !== 'pending' && s !== 'queued') return false;
     if (dispatchStatusFilter === 'Completed' && s !== 'completed') return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        (d.dispatchNo || '').toLowerCase().includes(q) ||
+        (d.name || '').toLowerCase().includes(q) ||
+        (d.location || '').toLowerCase().includes(q) ||
+        (d.item || '').toLowerCase().includes(q) ||
+        (d.type || '').toLowerCase().includes(q) ||
+        (d.assignedTechName || '').toLowerCase().includes(q) ||
+        (d.status || '').toLowerCase().includes(q) ||
+        (d.notes || '').toLowerCase().includes(q) ||
+        (d.horsepower || '').toLowerCase().includes(q)
+      );
+    }
     return true;
   });
 
@@ -1624,10 +1916,19 @@ export default function AdminDashboard() {
               type="text"
               placeholder="Search SKU, customer, model, orders..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setDispatchCurrentPage(1);
+                setOrdersPage(1);
+                setCartHoldsPage(1);
+                setServicesPage(1);
+                setInstallmentsPage(1);
+                setMaintenancePage(1);
+                setInvoicesPage(1);
+              }}
               style={{
                 width: '100%',
-                padding: '0.65rem 1rem 0.65rem 2.5rem',
+                padding: searchQuery ? '0.65rem 2.2rem 0.65rem 2.5rem' : '0.65rem 1rem 0.65rem 2.5rem',
                 borderRadius: '999px',
                 border: '1px solid rgba(255, 255, 255, 0.28)',
                 background: 'rgba(255, 255, 255, 0.16)',
@@ -1636,7 +1937,42 @@ export default function AdminDashboard() {
                 outline: 'none',
               }}
             />
-            <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#bae6fd' }}></i>
+            <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#bae6fd', pointerEvents: 'none' }}></i>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setDispatchCurrentPage(1);
+                  setOrdersPage(1);
+                  setCartHoldsPage(1);
+                  setServicesPage(1);
+                  setInstallmentsPage(1);
+                  setMaintenancePage(1);
+                  setInvoicesPage(1);
+                }}
+                style={{
+                  position: 'absolute',
+                  right: '0.75rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'rgba(255, 255, 255, 0.25)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '20px',
+                  height: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
+                }}
+                title="Clear search"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            )}
           </div>
         </div>
 
@@ -2241,6 +2577,68 @@ export default function AdminDashboard() {
 
         {/* Main Workspace */}
         <main style={{ flex: 1, padding: '2rem 3%', overflowY: 'auto' }}>
+          {searchQuery.trim() && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.65rem 1.2rem',
+                background: '#f0f9ff',
+                border: '1px solid #bae6fd',
+                borderRadius: '12px',
+                marginBottom: '1.5rem',
+                fontSize: '0.88rem',
+                color: '#0369a1',
+                boxShadow: '0 1px 3px rgba(2, 132, 199, 0.08)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="fa-solid fa-magnifying-glass" style={{ color: '#0284c7' }}></i>
+                <span>
+                  Filtering {
+                    activeTab === 'tab-inventory' ? 'Inventory' :
+                      activeTab === 'tab-pos' ? 'POS Catalog' :
+                        activeTab === 'tab-installations' ? (orderServiceFilter === 'ORDERS' ? 'Orders & Cart Holds' : 'Services') :
+                          activeTab === 'tab-installments' ? 'Installment Applications' :
+                            activeTab === 'tab-dispatch' ? 'Dispatches' :
+                              activeTab === 'tab-maintenance' ? 'Maintenance Schedules' :
+                                activeTab === 'tab-users' ? 'Users' :
+                                  activeTab === 'tab-invoices' ? 'Invoices' : 'Items'
+                  } by: <strong>&ldquo;{searchQuery}&rdquo;</strong>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setDispatchCurrentPage(1);
+                  setOrdersPage(1);
+                  setCartHoldsPage(1);
+                  setServicesPage(1);
+                  setInstallmentsPage(1);
+                  setMaintenancePage(1);
+                  setInvoicesPage(1);
+                }}
+                style={{
+                  background: '#e0f2fe',
+                  border: '1px solid #bae6fd',
+                  borderRadius: '6px',
+                  color: '#0284c7',
+                  cursor: 'pointer',
+                  padding: '4px 10px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+              >
+                <i className="fa-solid fa-xmark"></i> Clear Search
+              </button>
+            </div>
+          )}
+
           {/* TAB 1: UNIFIED INVENTORY */}
           {activeTab === 'tab-inventory' && (
             <div>
@@ -2277,6 +2675,7 @@ export default function AdminDashboard() {
                   <button
                     onClick={() => {
                       setNewProductImages([]);
+                      setNewProductSku('');
                       setIsAddProductModalOpen(true);
                     }}
                     style={{
@@ -2428,7 +2827,10 @@ export default function AdminDashboard() {
                               {/* Eye icon to view description */}
                               <button
                                 title="View Description & Details"
-                                onClick={() => setViewingItem(item)}
+                                onClick={() => {
+                                  setViewingItem(item);
+                                  setViewingImageIndex(0);
+                                }}
                                 style={{
                                   background: '#e0f2fe',
                                   color: '#0284c7',
@@ -2503,7 +2905,45 @@ export default function AdminDashboard() {
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      placeholder="Filter POS catalog..."
+                      value={posSearch}
+                      onChange={(e) => setPosSearch(e.target.value)}
+                      style={{
+                        padding: '0.45rem 1.8rem 0.45rem 2rem',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        width: '180px',
+                      }}
+                    />
+                    <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem', pointerEvents: 'none' }}></i>
+                    {posSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setPosSearch('')}
+                        style={{
+                          position: 'absolute',
+                          right: '0.5rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          color: '#94a3b8',
+                          cursor: 'pointer',
+                          padding: 0,
+                          fontSize: '0.75rem',
+                        }}
+                      >
+                        <i className="fa-solid fa-xmark"></i>
+                      </button>
+                    )}
+                  </div>
+
                   {(['All', 'AC', 'Parts'] as const).map((filter) => (
                     <button
                       key={filter}
@@ -2528,62 +2968,81 @@ export default function AdminDashboard() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
                 {/* Left: Product Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
-                  {inventory
-                    .filter((item) => {
-                      const isSpare = item.category.toLowerCase().includes('part');
-                      if (posFilter === 'AC' && isSpare) return false;
-                      if (posFilter === 'Parts' && !isSpare) return false;
-                      if (posSearch.trim()) {
-                        return (
-                          item.brand.toLowerCase().includes(posSearch.toLowerCase()) ||
-                          item.model.toLowerCase().includes(posSearch.toLowerCase())
-                        );
-                      }
-                      return true;
-                    })
-                    .map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => handleAddToPos(item)}
-                        style={{
-                          background: '#ffffff',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '12px',
-                          padding: '1rem',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = '#0284c7';
-                          e.currentTarget.style.transform = 'translateY(-2px)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = '#e2e8f0';
-                          e.currentTarget.style.transform = 'translateY(0)';
-                        }}
-                      >
-                        <img
-                          src={item.image || '/hero-bg.png'}
-                          alt={item.model}
-                          style={{ width: '100%', height: '110px', objectFit: 'contain', background: '#f8fafc', borderRadius: '8px', marginBottom: '0.5rem' }}
-                        />
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0284c7', textTransform: 'uppercase' }}>{item.brand}</span>
-                        <h4 style={{ margin: '2px 0 4px', fontSize: '0.92rem', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {item.model}
-                        </h4>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>
-                            ₱{item.price.toLocaleString()}
-                          </span>
-                          <span style={{ fontSize: '0.72rem', color: item.stock > 0 ? '#16a34a' : '#dc2626' }}>
-                            {item.stock} left
-                          </span>
-                        </div>
+                {(() => {
+                  const posItems = inventory.filter((item) => {
+                    const isSpare = (item.category || '').toLowerCase().includes('part');
+                    if (posFilter === 'AC' && isSpare) return false;
+                    if (posFilter === 'Parts' && !isSpare) return false;
+                    const q = (posSearch.trim() || searchQuery.trim()).toLowerCase();
+                    if (q) {
+                      return (
+                        (item.brand || '').toLowerCase().includes(q) ||
+                        (item.model || '').toLowerCase().includes(q) ||
+                        (item.sku || '').toLowerCase().includes(q) ||
+                        (item.category || '').toLowerCase().includes(q) ||
+                        (item.horsepower || '').toLowerCase().includes(q)
+                      );
+                    }
+                    return true;
+                  });
+
+                  if (posItems.length === 0) {
+                    return (
+                      <div style={{ padding: '3rem 1.5rem', textAlign: 'center', color: '#64748b', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <i className="fa-solid fa-box-open" style={{ fontSize: '2rem', color: '#cbd5e1', display: 'block', marginBottom: '0.75rem' }}></i>
+                        {searchQuery.trim() || posSearch.trim()
+                          ? `No products found matching "${searchQuery.trim() || posSearch.trim()}".`
+                          : 'No products available.'}
                       </div>
-                    ))}
-                </div>
+                    );
+                  }
+
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
+                      {posItems.map((item) => (
+                        <div
+                          key={item.id}
+                          onClick={() => handleAddToPos(item)}
+                          style={{
+                            background: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '12px',
+                            padding: '1rem',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = '#0284c7';
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = '#e2e8f0';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                          }}
+                        >
+                          <img
+                            src={item.image || '/hero-bg.png'}
+                            alt={item.model}
+                            style={{ width: '100%', height: '110px', objectFit: 'contain', background: '#f8fafc', borderRadius: '8px', marginBottom: '0.5rem' }}
+                          />
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0284c7', textTransform: 'uppercase' }}>{item.brand}</span>
+                          <h4 style={{ margin: '2px 0 4px', fontSize: '0.92rem', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.model}
+                          </h4>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>
+                              ₱{item.price.toLocaleString()}
+                            </span>
+                            <span style={{ fontSize: '0.72rem', color: item.stock > 0 ? '#16a34a' : '#dc2626' }}>
+                              {item.stock} left
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 {/* Right: POS Order & Discount Cart */}
                 <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', display: 'flex', flexDirection: 'column', height: 'fit-content' }}>
@@ -2827,139 +3286,147 @@ export default function AdminDashboard() {
                             </tr>
                           </thead>
                           <tbody>
-                            {orders.length === 0 ? (
+                            {filteredOrders.length === 0 ? (
                               <tr>
                                 <td colSpan={8} style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
-                                  No customer pick-up orders found.
+                                  {searchQuery.trim()
+                                    ? `No customer pick-up orders found matching "${searchQuery}".`
+                                    : 'No customer pick-up orders found.'}
                                 </td>
                               </tr>
                             ) : (
-                              orders.map((o) => (
-                                <tr key={o.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                  <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>{o.orderNo}</td>
-                                  <td style={{ padding: '0.8rem 1rem' }}>
-                                    <strong style={{ color: '#0f172a' }}>{o.name}</strong>
-                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{o.location?.split('| COORDS:')[0].trim()}</div>
-                                  </td>
-                                  <td style={{ padding: '0.8rem 1rem', color: '#0f172a' }}>{o.item}</td>
-                                  <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0284c7' }}>{o.hp || '1.5 HP'}</td>
-                                  <td style={{ padding: '0.8rem 1rem' }}>
-                                    <div style={{ fontWeight: 700, color: '#0f172a' }}>₱{(o.price || 30000).toLocaleString()}</div>
-                                    <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                      <i className="fa-solid fa-money-bill-wave"></i> Cash
-                                    </span>
-                                  </td>
-                                  <td style={{ padding: '0.8rem 1rem' }}>
-                                    <span style={{ background: '#f1f5f9', color: '#475569', padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                                      <i className="fa-solid fa-store" style={{ color: '#0284c7' }}></i> Store Pick Up
-                                    </span>
-                                  </td>
-                                  <td style={{ padding: '0.8rem 1rem' }}>
-                                    <span
-                                      style={{
-                                        padding: '3px 8px',
-                                        borderRadius: '6px',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 700,
-                                        background:
-                                          o.status === 'Picked Up' || o.status === 'Completed'
-                                            ? '#dcfce7'
-                                            : o.status === 'Ready for Pick Up'
-                                            ? '#e0f2fe'
-                                            : o.status === 'Cancelled'
-                                            ? '#fee2e2'
-                                            : '#fef3c7',
-                                        color:
-                                          o.status === 'Picked Up' || o.status === 'Completed'
-                                            ? '#16a34a'
-                                            : o.status === 'Ready for Pick Up'
-                                            ? '#0284c7'
-                                            : o.status === 'Cancelled'
-                                            ? '#dc2626'
-                                            : '#b45309',
-                                      }}
-                                    >
-                                      {o.status || 'Pending'}
-                                    </span>
-                                  </td>
-                                  <td style={{ padding: '0.8rem 1rem', textAlign: 'right' }}>
-                                    <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
-                                      {/* Eye icon to view description */}
-                                      <button
-                                        title="View Order Details"
-                                        onClick={() => setSelectedOrderDetails(o)}
-                                        style={{
-                                          background: '#e0f2fe',
-                                          color: '#0284c7',
-                                          border: 'none',
-                                          borderRadius: '6px',
-                                          width: '32px',
-                                          height: '32px',
-                                          cursor: 'pointer',
-                                        }}
-                                      >
-                                        <i className="fa-solid fa-eye"></i>
-                                      </button>
-
-                                      {/* Mark Ready for Pick Up */}
-                                      {o.status !== 'Ready for Pick Up' && o.status !== 'Picked Up' && o.status !== 'Completed' && o.status !== 'Cancelled' && (
-                                        <button
-                                          onClick={() => handleMarkOrderReadyForPickup(o)}
-                                          style={{
-                                            background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
-                                            color: 'white',
-                                            border: 'none',
-                                            borderRadius: '6px',
-                                            padding: '5px 12px',
-                                            fontSize: '0.8rem',
-                                            fontWeight: 700,
-                                            cursor: 'pointer',
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '5px',
-                                          }}
-                                        >
-                                          <i className="fa-solid fa-box-archive" style={{ fontSize: '0.75rem' }}></i>
-                                          Ready for Pick Up
-                                        </button>
-                                      )}
-
-                                      {/* Mark as Picked Up */}
-                                      {o.status === 'Ready for Pick Up' && (
-                                        <button
-                                          onClick={() => handleMarkOrderPickedUp(o)}
-                                          style={{
-                                            background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
-                                            color: 'white',
-                                            border: 'none',
-                                            borderRadius: '6px',
-                                            padding: '5px 12px',
-                                            fontSize: '0.8rem',
-                                            fontWeight: 700,
-                                            cursor: 'pointer',
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '5px',
-                                          }}
-                                        >
-                                          <i className="fa-solid fa-circle-check" style={{ fontSize: '0.75rem' }}></i>
-                                          Mark as Picked Up
-                                        </button>
-                                      )}
-
-                                      {(o.status === 'Picked Up' || o.status === 'Completed') && (
-                                        <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                          <i className="fa-solid fa-circle-check"></i> Picked Up
+                              (() => {
+                                const safeOrdersPage = Math.min(Math.max(1, ordersPage), Math.max(1, Math.ceil(filteredOrders.length / ITEMS_PER_PAGE_8)));
+                                return filteredOrders
+                                  .slice((safeOrdersPage - 1) * ITEMS_PER_PAGE_8, safeOrdersPage * ITEMS_PER_PAGE_8)
+                                  .map((o) => (
+                                    <tr key={o.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                      <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>{o.orderNo}</td>
+                                      <td style={{ padding: '0.8rem 1rem' }}>
+                                        <strong style={{ color: '#0f172a' }}>{o.name}</strong>
+                                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{o.location?.split('| COORDS:')[0].trim()}</div>
+                                      </td>
+                                      <td style={{ padding: '0.8rem 1rem', color: '#0f172a' }}>{o.item}</td>
+                                      <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0284c7' }}>{o.hp || '1.5 HP'}</td>
+                                      <td style={{ padding: '0.8rem 1rem' }}>
+                                        <div style={{ fontWeight: 700, color: '#0f172a' }}>₱{(o.price || 30000).toLocaleString()}</div>
+                                        <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                          <i className="fa-solid fa-money-bill-wave"></i> Cash
                                         </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))
+                                      </td>
+                                      <td style={{ padding: '0.8rem 1rem' }}>
+                                        <span style={{ background: '#f1f5f9', color: '#475569', padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                          <i className="fa-solid fa-store" style={{ color: '#0284c7' }}></i> Store Pick Up
+                                        </span>
+                                      </td>
+                                      <td style={{ padding: '0.8rem 1rem' }}>
+                                        <span
+                                          style={{
+                                            padding: '3px 8px',
+                                            borderRadius: '6px',
+                                            fontSize: '0.75rem',
+                                            fontWeight: 700,
+                                            background:
+                                              o.status === 'Picked Up' || o.status === 'Completed'
+                                                ? '#dcfce7'
+                                                : o.status === 'Ready for Pick Up'
+                                                  ? '#e0f2fe'
+                                                  : o.status === 'Cancelled'
+                                                    ? '#fee2e2'
+                                                    : '#fef3c7',
+                                            color:
+                                              o.status === 'Picked Up' || o.status === 'Completed'
+                                                ? '#16a34a'
+                                                : o.status === 'Ready for Pick Up'
+                                                  ? '#0284c7'
+                                                  : o.status === 'Cancelled'
+                                                    ? '#dc2626'
+                                                    : '#b45309',
+                                          }}
+                                        >
+                                          {o.status || 'Pending'}
+                                        </span>
+                                      </td>
+                                      <td style={{ padding: '0.8rem 1rem', textAlign: 'right' }}>
+                                        <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                                          {/* Eye icon to view description */}
+                                          <button
+                                            title="View Order Details"
+                                            onClick={() => setSelectedOrderDetails(o)}
+                                            style={{
+                                              background: '#e0f2fe',
+                                              color: '#0284c7',
+                                              border: 'none',
+                                              borderRadius: '6px',
+                                              width: '32px',
+                                              height: '32px',
+                                              cursor: 'pointer',
+                                            }}
+                                          >
+                                            <i className="fa-solid fa-eye"></i>
+                                          </button>
+
+                                          {/* Mark Ready for Pick Up */}
+                                          {o.status !== 'Ready for Pick Up' && o.status !== 'Picked Up' && o.status !== 'Completed' && o.status !== 'Cancelled' && (
+                                            <button
+                                              onClick={() => handleMarkOrderReadyForPickup(o)}
+                                              style={{
+                                                background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '6px',
+                                                padding: '5px 12px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 700,
+                                                cursor: 'pointer',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '5px',
+                                              }}
+                                            >
+                                              <i className="fa-solid fa-box-archive" style={{ fontSize: '0.75rem' }}></i>
+                                              Ready for Pick Up
+                                            </button>
+                                          )}
+
+                                          {/* Mark as Picked Up */}
+                                          {o.status === 'Ready for Pick Up' && (
+                                            <button
+                                              onClick={() => handleMarkOrderPickedUp(o)}
+                                              style={{
+                                                background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '6px',
+                                                padding: '5px 12px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 700,
+                                                cursor: 'pointer',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '5px',
+                                              }}
+                                            >
+                                              <i className="fa-solid fa-circle-check" style={{ fontSize: '0.75rem' }}></i>
+                                              Mark as Picked Up
+                                            </button>
+                                          )}
+
+                                          {(o.status === 'Picked Up' || o.status === 'Completed') && (
+                                            <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                              <i className="fa-solid fa-circle-check"></i> Picked Up
+                                            </span>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ));
+                              })()
                             )}
                           </tbody>
                         </table>
                       </div>
+                      {renderTablePagination(ordersPage, filteredOrders.length, setOrdersPage, 8)}
                     </div>
                   )}
 
@@ -2971,7 +3438,7 @@ export default function AdminDashboard() {
                         <i className="fa-solid fa-boxes-stacked" style={{ fontSize: '1.2rem', color: '#d97706', marginTop: '2px', flexShrink: 0 }}></i>
                         <div>
                           <strong>Live Cart Stock Holds:</strong> When customers add an AC unit to their shopping cart, the inventory stock is immediately reduced to reserve it.
-                          You can send a <strong>3-Day Notice</strong> SMS urging them to checkout, or click <strong>Release to Stock</strong> to return the items back to the inventory stack and remove them from the customer's cart.
+                          You can send a <strong>3-Day Notice</strong> SMS urging them to checkout, or click <strong>Release to Stock</strong> to return the items back to the inventory stack and remove them from the customer&apos;s cart.
                         </div>
                       </div>
 
@@ -2990,119 +3457,127 @@ export default function AdminDashboard() {
                               </tr>
                             </thead>
                             <tbody>
-                              {adminCartItems.length === 0 ? (
+                              {filteredCartHolds.length === 0 ? (
                                 <tr>
                                   <td colSpan={7} style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
-                                    No active cart holds recorded. All store stock is currently in the general inventory.
+                                    {searchQuery.trim()
+                                      ? `No active cart holds found matching "${searchQuery}".`
+                                      : 'No active cart holds recorded. All store stock is currently in the general inventory.'}
                                   </td>
                                 </tr>
                               ) : (
-                                adminCartItems.map((c) => {
-                                  const customerName = c.user ? `${c.user.firstName} ${c.user.lastName}` : 'Guest Customer';
-                                  const customerContact = c.user?.phone || c.user?.email || 'No contact provided';
-                                  return (
-                                    <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                      <td style={{ padding: '0.8rem 1rem' }}>
-                                        <div style={{ fontWeight: 700, color: '#0f172a' }}>{customerName}</div>
-                                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{customerContact}</div>
-                                      </td>
-                                      <td style={{ padding: '0.8rem 1rem' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                          {c.image && (
-                                            <img
-                                              src={c.image}
-                                              alt={c.name}
-                                              style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
-                                            />
-                                          )}
-                                          <strong style={{ color: '#0284c7' }}>{c.name}</strong>
-                                        </div>
-                                      </td>
-                                      <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>
-                                        ₱{(c.price || 0).toLocaleString()}
-                                      </td>
-                                      <td style={{ padding: '0.8rem 1rem' }}>
-                                        <span style={{ background: '#fee2e2', color: '#dc2626', padding: '3px 9px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800 }}>
-                                          -{c.quantity} from stack
-                                        </span>
-                                      </td>
-                                      <td style={{ padding: '0.8rem 1rem', color: '#64748b', fontSize: '0.82rem' }}>
-                                        {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent'}
-                                      </td>
-                                      <td style={{ padding: '0.8rem 1rem' }}>
-                                        {c.notice3Days ? (
-                                          <div>
-                                            <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                              <i className="fa-solid fa-clock"></i> 3-Day Notice Sent
+                                (() => {
+                                  const safeCartHoldsPage = Math.min(Math.max(1, cartHoldsPage), Math.max(1, Math.ceil(filteredCartHolds.length / ITEMS_PER_PAGE_8)));
+                                  return filteredCartHolds
+                                    .slice((safeCartHoldsPage - 1) * ITEMS_PER_PAGE_8, safeCartHoldsPage * ITEMS_PER_PAGE_8)
+                                    .map((c) => {
+                                      const customerName = c.user ? `${c.user.firstName} ${c.user.lastName}` : 'Guest Customer';
+                                      const customerContact = c.user?.phone || c.user?.email || 'No contact provided';
+                                      return (
+                                        <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                          <td style={{ padding: '0.8rem 1rem' }}>
+                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{customerName}</div>
+                                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{customerContact}</div>
+                                          </td>
+                                          <td style={{ padding: '0.8rem 1rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                              {c.image && (
+                                                <img
+                                                  src={c.image}
+                                                  alt={c.name}
+                                                  style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                                                />
+                                              )}
+                                              <strong style={{ color: '#0284c7' }}>{c.name}</strong>
+                                            </div>
+                                          </td>
+                                          <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>
+                                            ₱{(c.price || 0).toLocaleString()}
+                                          </td>
+                                          <td style={{ padding: '0.8rem 1rem' }}>
+                                            <span style={{ background: '#fee2e2', color: '#dc2626', padding: '3px 9px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800 }}>
+                                              -{c.quantity} from stack
                                             </span>
-                                            {c.notice3DaysAt && (
-                                              <div style={{ fontSize: '0.72rem', color: '#92400e', marginTop: '2px' }}>
-                                                {new Date(c.notice3DaysAt).toLocaleDateString()}
+                                          </td>
+                                          <td style={{ padding: '0.8rem 1rem', color: '#64748b', fontSize: '0.82rem' }}>
+                                            {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent'}
+                                          </td>
+                                          <td style={{ padding: '0.8rem 1rem' }}>
+                                            {c.notice3Days ? (
+                                              <div>
+                                                <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                  <i className="fa-solid fa-clock"></i> 3-Day Notice Sent
+                                                </span>
+                                                {c.notice3DaysAt && (
+                                                  <div style={{ fontSize: '0.72rem', color: '#92400e', marginTop: '2px' }}>
+                                                    {new Date(c.notice3DaysAt).toLocaleDateString()}
+                                                  </div>
+                                                )}
                                               </div>
+                                            ) : (
+                                              <span style={{ background: '#e0f2fe', color: '#0284c7', padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
+                                                In Cart (Holding)
+                                              </span>
                                             )}
-                                          </div>
-                                        ) : (
-                                          <span style={{ background: '#e0f2fe', color: '#0284c7', padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
-                                            In Cart (Holding)
-                                          </span>
-                                        )}
-                                      </td>
-                                      <td style={{ padding: '0.8rem 1rem', textAlign: 'right' }}>
-                                        <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
-                                          {/* Send 3-Day Notice Button */}
-                                          {!c.notice3Days && (
-                                            <button
-                                              onClick={() => handleSendCart3DayNotice(c)}
-                                              title="Send SMS 3-Day Notice to Customer"
-                                              style={{
-                                                background: '#fffbeb',
-                                                border: '1px solid #fde68a',
-                                                color: '#b45309',
-                                                borderRadius: '6px',
-                                                padding: '5px 10px',
-                                                fontSize: '0.78rem',
-                                                fontWeight: 700,
-                                                cursor: 'pointer',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '5px',
-                                              }}
-                                            >
-                                              <i className="fa-solid fa-paper-plane"></i>
-                                              3-Day Notice
-                                            </button>
-                                          )}
+                                          </td>
+                                          <td style={{ padding: '0.8rem 1rem', textAlign: 'right' }}>
+                                            <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                                              {/* Send 3-Day Notice Button */}
+                                              {!c.notice3Days && (
+                                                <button
+                                                  onClick={() => handleSendCart3DayNotice(c)}
+                                                  title="Send SMS 3-Day Notice to Customer"
+                                                  style={{
+                                                    background: '#fffbeb',
+                                                    border: '1px solid #fde68a',
+                                                    color: '#b45309',
+                                                    borderRadius: '6px',
+                                                    padding: '5px 10px',
+                                                    fontSize: '0.78rem',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '5px',
+                                                  }}
+                                                >
+                                                  <i className="fa-solid fa-paper-plane"></i>
+                                                  3-Day Notice
+                                                </button>
+                                              )}
 
-                                          {/* Release to Stock Button */}
-                                          <button
-                                            onClick={() => handleReleaseCartToStock(c)}
-                                            title="Return item to inventory stock and remove from customer cart"
-                                            style={{
-                                              background: '#f1f5f9',
-                                              border: '1px solid #cbd5e1',
-                                              color: '#0f172a',
-                                              borderRadius: '6px',
-                                              padding: '5px 10px',
-                                              fontSize: '0.78rem',
-                                              fontWeight: 700,
-                                              cursor: 'pointer',
-                                              display: 'inline-flex',
-                                              alignItems: 'center',
-                                              gap: '5px',
-                                            }}
-                                          >
-                                            <i className="fa-solid fa-arrow-rotate-left" style={{ color: '#16a34a' }}></i>
-                                            Release to Stock
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  );
-                                })
+                                              {/* Release to Stock Button */}
+                                              <button
+                                                onClick={() => handleReleaseCartToStock(c)}
+                                                title="Return item to inventory stock and remove from customer cart"
+                                                style={{
+                                                  background: '#f1f5f9',
+                                                  border: '1px solid #cbd5e1',
+                                                  color: '#0f172a',
+                                                  borderRadius: '6px',
+                                                  padding: '5px 10px',
+                                                  fontSize: '0.78rem',
+                                                  fontWeight: 700,
+                                                  cursor: 'pointer',
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  gap: '5px',
+                                                }}
+                                              >
+                                                <i className="fa-solid fa-arrow-rotate-left" style={{ color: '#16a34a' }}></i>
+                                                Release to Stock
+                                              </button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    });
+                                })()
                               )}
                             </tbody>
                           </table>
                         </div>
+                        {renderTablePagination(cartHoldsPage, filteredCartHolds.length, setCartHoldsPage, 8)}
                       </div>
                     </div>
                   )}
@@ -3116,11 +3591,26 @@ export default function AdminDashboard() {
                 const reinstallCount = maintenance.filter((m) => (m.serviceType || '').toLowerCase().includes('install') || (m.serviceType || '').toLowerCase().includes('relocation')).length;
 
                 const filteredServices = maintenance.filter((m) => {
-                  if (serviceTypeFilter === 'ALL') return true;
-                  const st = (m.serviceType || '').toLowerCase();
-                  if (serviceTypeFilter === 'CLEANING') return st.includes('cleaning');
-                  if (serviceTypeFilter === 'REPAIR') return st.includes('repair') || st.includes('diagnostic');
-                  if (serviceTypeFilter === 'REINSTALLATION') return st.includes('install') || st.includes('relocation');
+                  if (serviceTypeFilter !== 'ALL') {
+                    const st = (m.serviceType || '').toLowerCase();
+                    if (serviceTypeFilter === 'CLEANING' && !st.includes('cleaning')) return false;
+                    if (serviceTypeFilter === 'REPAIR' && !(st.includes('repair') || st.includes('diagnostic'))) return false;
+                    if (serviceTypeFilter === 'REINSTALLATION' && !(st.includes('install') || st.includes('relocation'))) return false;
+                  }
+                  if (searchQuery.trim()) {
+                    const q = searchQuery.toLowerCase().trim();
+                    return (
+                      (m.scheduleNo || '').toLowerCase().includes(q) ||
+                      (m.name || '').toLowerCase().includes(q) ||
+                      (m.phone || '').toLowerCase().includes(q) ||
+                      (m.address || '').toLowerCase().includes(q) ||
+                      (m.item || '').toLowerCase().includes(q) ||
+                      (m.serviceType || '').toLowerCase().includes(q) ||
+                      (m.technicianName || '').toLowerCase().includes(q) ||
+                      (m.status || '').toLowerCase().includes(q) ||
+                      (m.notes || '').toLowerCase().includes(q)
+                    );
+                  }
                   return true;
                 });
 
@@ -3149,7 +3639,10 @@ export default function AdminDashboard() {
                             <button
                               key={sf.key}
                               type="button"
-                              onClick={() => setServiceTypeFilter(sf.key as any)}
+                              onClick={() => {
+                                setServiceTypeFilter(sf.key as any);
+                                setServicesPage(1);
+                              }}
                               style={{
                                 padding: '4px 10px',
                                 borderRadius: '16px',
@@ -3193,95 +3686,103 @@ export default function AdminDashboard() {
                             {filteredServices.length === 0 ? (
                               <tr>
                                 <td colSpan={8} style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
-                                  No customer service requests found matching filter.
+                                  {searchQuery.trim()
+                                    ? `No customer service requests found matching "${searchQuery}".`
+                                    : 'No customer service requests found matching filter.'}
                                 </td>
                               </tr>
                             ) : (
-                              filteredServices.map((m) => {
-                                const stLower = (m.serviceType || '').toLowerCase();
-                                const isCleaning = stLower.includes('cleaning');
-                                const isRepair = stLower.includes('repair') || stLower.includes('diagnostic');
-                                const isReinstall = stLower.includes('install') || stLower.includes('relocation');
-                                const badgeBg = isCleaning ? '#e0f2fe' : isRepair ? '#fee2e2' : isReinstall ? '#f3e8ff' : '#fef3c7';
-                                const badgeColor = isCleaning ? '#0284c7' : isRepair ? '#dc2626' : isReinstall ? '#7c3aed' : '#b45309';
+                              (() => {
+                                const safeServicesPage = Math.min(Math.max(1, servicesPage), Math.max(1, Math.ceil(filteredServices.length / ITEMS_PER_PAGE_8)));
+                                return filteredServices
+                                  .slice((safeServicesPage - 1) * ITEMS_PER_PAGE_8, safeServicesPage * ITEMS_PER_PAGE_8)
+                                  .map((m) => {
+                                    const stLower = (m.serviceType || '').toLowerCase();
+                                    const isCleaning = stLower.includes('cleaning');
+                                    const isRepair = stLower.includes('repair') || stLower.includes('diagnostic');
+                                    const isReinstall = stLower.includes('install') || stLower.includes('relocation');
+                                    const badgeBg = isCleaning ? '#e0f2fe' : isRepair ? '#fee2e2' : isReinstall ? '#f3e8ff' : '#fef3c7';
+                                    const badgeColor = isCleaning ? '#0284c7' : isRepair ? '#dc2626' : isReinstall ? '#7c3aed' : '#b45309';
 
-                                return (
-                                  <tr key={m.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                    <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>{m.scheduleNo}</td>
-                                    <td style={{ padding: '0.8rem 1rem' }}>
-                                      <strong style={{ color: '#0f172a' }}>{m.name}</strong>
-                                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{m.phone} • {m.address}</div>
-                                    </td>
-                                    <td style={{ padding: '0.8rem 1rem' }}>
-                                      <span style={{ background: badgeBg, color: badgeColor, padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
-                                        {m.serviceType}
-                                      </span>
-                                    </td>
-                                    <td style={{ padding: '0.8rem 1rem', color: '#0284c7', fontWeight: 600 }}>{m.item}</td>
-                                    <td style={{ padding: '0.8rem 1rem', fontWeight: 600, color: '#0f172a' }}>
-                                      {m.scheduledDate || 'Flexible'}
-                                    </td>
-                                    <td style={{ padding: '0.8rem 1rem', color: '#475569' }}>
-                                      {m.technicianName ? (
-                                        <span style={{ color: '#0284c7', fontWeight: 700 }}>
-                                          <i className="fa-solid fa-user-gear" style={{ marginRight: '5px' }}></i>
-                                          {m.technicianName}
-                                        </span>
-                                      ) : (
-                                        <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Pending Assignment</span>
-                                      )}
-                                    </td>
-                                    <td style={{ padding: '0.8rem 1rem' }}>
-                                      <span
-                                        style={{
-                                          padding: '3px 8px',
-                                          borderRadius: '6px',
-                                          fontSize: '0.75rem',
-                                          fontWeight: 700,
-                                          background: m.status === 'COMPLETED' ? '#dcfce7' : m.status === 'IN_PROGRESS' ? '#e0f2fe' : '#fef3c7',
-                                          color: m.status === 'COMPLETED' ? '#16a34a' : m.status === 'IN_PROGRESS' ? '#0284c7' : '#b45309',
-                                        }}
-                                      >
-                                        {m.status}
-                                      </span>
-                                    </td>
-                                    <td style={{ padding: '0.8rem 1rem', textAlign: 'right' }}>
-                                      <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
-                                        {!(m.technicianName || m.technicianId) ? (
-                                          <button
-                                            onClick={() => openScheduleServiceModal(m)}
+                                    return (
+                                      <tr key={m.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                        <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>{m.scheduleNo}</td>
+                                        <td style={{ padding: '0.8rem 1rem' }}>
+                                          <strong style={{ color: '#0f172a' }}>{m.name}</strong>
+                                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{m.phone} • {m.address}</div>
+                                        </td>
+                                        <td style={{ padding: '0.8rem 1rem' }}>
+                                          <span style={{ background: badgeBg, color: badgeColor, padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
+                                            {m.serviceType}
+                                          </span>
+                                        </td>
+                                        <td style={{ padding: '0.8rem 1rem', color: '#0284c7', fontWeight: 600 }}>{m.item}</td>
+                                        <td style={{ padding: '0.8rem 1rem', fontWeight: 600, color: '#0f172a' }}>
+                                          {m.scheduledDate || 'Flexible'}
+                                        </td>
+                                        <td style={{ padding: '0.8rem 1rem', color: '#475569' }}>
+                                          {m.technicianName ? (
+                                            <span style={{ color: '#0284c7', fontWeight: 700 }}>
+                                              <i className="fa-solid fa-user-gear" style={{ marginRight: '5px' }}></i>
+                                              {m.technicianName}
+                                            </span>
+                                          ) : (
+                                            <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Pending Assignment</span>
+                                          )}
+                                        </td>
+                                        <td style={{ padding: '0.8rem 1rem' }}>
+                                          <span
                                             style={{
-                                              background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
-                                              color: 'white',
-                                              border: 'none',
+                                              padding: '3px 8px',
                                               borderRadius: '6px',
-                                              padding: '5px 12px',
-                                              fontSize: '0.8rem',
+                                              fontSize: '0.75rem',
                                               fontWeight: 700,
-                                              cursor: 'pointer',
-                                              boxShadow: '0 2px 4px rgba(2, 132, 199, 0.3)',
-                                              display: 'inline-flex',
-                                              alignItems: 'center',
-                                              gap: '5px',
+                                              background: m.status === 'COMPLETED' ? '#dcfce7' : m.status === 'IN_PROGRESS' ? '#e0f2fe' : '#fef3c7',
+                                              color: m.status === 'COMPLETED' ? '#16a34a' : m.status === 'IN_PROGRESS' ? '#0284c7' : '#b45309',
                                             }}
                                           >
-                                            <i className="fa-solid fa-calendar-check"></i>
-                                            Assign & Schedule
-                                          </button>
-                                        ) : (
-                                          <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                            <i className="fa-solid fa-check"></i> Dispatched
+                                            {m.status}
                                           </span>
-                                        )}
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })
+                                        </td>
+                                        <td style={{ padding: '0.8rem 1rem', textAlign: 'right' }}>
+                                          <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                                            {!(m.technicianName || m.technicianId) ? (
+                                              <button
+                                                onClick={() => openScheduleServiceModal(m)}
+                                                style={{
+                                                  background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                                                  color: 'white',
+                                                  border: 'none',
+                                                  borderRadius: '6px',
+                                                  padding: '5px 12px',
+                                                  fontSize: '0.8rem',
+                                                  fontWeight: 700,
+                                                  cursor: 'pointer',
+                                                  boxShadow: '0 2px 4px rgba(2, 132, 199, 0.3)',
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  gap: '5px',
+                                                }}
+                                              >
+                                                <i className="fa-solid fa-calendar-check"></i>
+                                                Assign & Schedule
+                                              </button>
+                                            ) : (
+                                              <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                <i className="fa-solid fa-check"></i> Dispatched
+                                              </span>
+                                            )}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  });
+                              })()
                             )}
                           </tbody>
                         </table>
                       </div>
+                      {renderTablePagination(servicesPage, filteredServices.length, setServicesPage, 8)}
                     </div>
                   </div>
                 );
@@ -3315,156 +3816,164 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {installments.length === 0 ? (
+                    {filteredInstallments.length === 0 ? (
                       <tr>
                         <td colSpan={7} style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
-                          No installment applications recorded.
+                          {searchQuery.trim()
+                            ? `No installment applications found matching "${searchQuery}".`
+                            : 'No installment applications recorded.'}
                         </td>
                       </tr>
                     ) : (
-                      installments.map((inst) => (
-                        <tr key={inst.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>{inst.appId}</td>
-                          <td style={{ padding: '0.8rem 1rem', fontWeight: 600, color: '#0f172a' }}>{inst.name}</td>
-                          <td style={{ padding: '0.8rem 1rem' }}>
-                            <strong style={{ color: '#0284c7' }}>{inst.item}</strong>
-                            <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{inst.term} Months Installment</div>
-                          </td>
-                          <td style={{ padding: '0.8rem 1rem' }}>
-                            <div>{inst.employer}</div>
-                            <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 700 }}>₱{inst.income}/mo</span>
-                          </td>
-                          <td style={{ padding: '0.8rem 1rem', color: '#475569' }}>{inst.idType}</td>
-                          <td style={{ padding: '0.8rem 1rem' }}>
-                            <span
-                              style={{
-                                padding: '3px 8px',
-                                borderRadius: '6px',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                background:
-                                  inst.status === 'COMPLETED' ? '#dcfce7' : inst.status === 'CI_ACCEPTED' ? '#e0f2fe' : inst.status === 'REJECTED' ? '#fee2e2' : '#fef3c7',
-                                color:
-                                  inst.status === 'COMPLETED' ? '#16a34a' : inst.status === 'CI_ACCEPTED' ? '#0284c7' : inst.status === 'REJECTED' ? '#dc2626' : '#b45309',
-                              }}
-                            >
-                              {inst.status === 'CI_ACCEPTED' ? 'CI Accepted' : inst.status}
-                            </span>
-                          </td>
-                          <td style={{ padding: '0.8rem 1rem', textAlign: 'right' }}>
-                            <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
-                              {/* Step 1: PENDING applications can ONLY be Accepted for CI (or Rejected) */}
-                              {inst.status === 'PENDING' && (
-                                <>
-                                  <button
-                                    onClick={() => handleAcceptCI(inst)}
-                                    style={{
-                                      padding: '6px 14px',
-                                      borderRadius: '6px',
-                                      background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
-                                      color: 'white',
-                                      border: 'none',
-                                      fontWeight: 700,
-                                      fontSize: '0.82rem',
-                                      cursor: 'pointer',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '5px',
-                                      boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
-                                    }}
-                                    title="Accept application for Credit Investigation"
-                                  >
-                                    <i className="fa-solid fa-user-check" style={{ fontSize: '0.75rem' }}></i>
-                                    Accept for CI
-                                  </button>
-                                  <button
-                                    onClick={() => handleRejectInstallment(inst)}
-                                    style={{
-                                      padding: '6px 12px',
-                                      borderRadius: '6px',
-                                      background: '#fee2e2',
-                                      color: '#dc2626',
-                                      border: '1px solid #fca5a5',
-                                      fontWeight: 700,
-                                      fontSize: '0.82rem',
-                                      cursor: 'pointer',
-                                    }}
-                                    title="Reject application"
-                                  >
-                                    Reject
-                                  </button>
-                                </>
-                              )}
+                      (() => {
+                        const safeInstallmentsPage = Math.min(Math.max(1, installmentsPage), Math.max(1, Math.ceil(filteredInstallments.length / ITEMS_PER_PAGE_8)));
+                        return filteredInstallments
+                          .slice((safeInstallmentsPage - 1) * ITEMS_PER_PAGE_8, safeInstallmentsPage * ITEMS_PER_PAGE_8)
+                          .map((inst) => (
+                            <tr key={inst.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>{inst.appId}</td>
+                              <td style={{ padding: '0.8rem 1rem', fontWeight: 600, color: '#0f172a' }}>{inst.name}</td>
+                              <td style={{ padding: '0.8rem 1rem' }}>
+                                <strong style={{ color: '#0284c7' }}>{inst.item}</strong>
+                                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{inst.term} Months Installment</div>
+                              </td>
+                              <td style={{ padding: '0.8rem 1rem' }}>
+                                <div>{inst.employer}</div>
+                                <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 700 }}>₱{inst.income}/mo</span>
+                              </td>
+                              <td style={{ padding: '0.8rem 1rem', color: '#475569' }}>{inst.idType}</td>
+                              <td style={{ padding: '0.8rem 1rem' }}>
+                                <span
+                                  style={{
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    background:
+                                      inst.status === 'COMPLETED' ? '#dcfce7' : inst.status === 'CI_ACCEPTED' ? '#e0f2fe' : inst.status === 'REJECTED' ? '#fee2e2' : '#fef3c7',
+                                    color:
+                                      inst.status === 'COMPLETED' ? '#16a34a' : inst.status === 'CI_ACCEPTED' ? '#0284c7' : inst.status === 'REJECTED' ? '#dc2626' : '#b45309',
+                                  }}
+                                >
+                                  {inst.status === 'CI_ACCEPTED' ? 'CI Accepted' : inst.status}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.8rem 1rem', textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                                  {/* Step 1: PENDING applications can ONLY be Accepted for CI (or Rejected) */}
+                                  {inst.status === 'PENDING' && (
+                                    <>
+                                      <button
+                                        onClick={() => handleAcceptCI(inst)}
+                                        style={{
+                                          padding: '6px 14px',
+                                          borderRadius: '6px',
+                                          background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                                          color: 'white',
+                                          border: 'none',
+                                          fontWeight: 700,
+                                          fontSize: '0.82rem',
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '5px',
+                                          boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                                        }}
+                                        title="Accept application for Credit Investigation"
+                                      >
+                                        <i className="fa-solid fa-user-check" style={{ fontSize: '0.75rem' }}></i>
+                                        Accept for CI
+                                      </button>
+                                      <button
+                                        onClick={() => handleRejectInstallment(inst)}
+                                        style={{
+                                          padding: '6px 12px',
+                                          borderRadius: '6px',
+                                          background: '#fee2e2',
+                                          color: '#dc2626',
+                                          border: '1px solid #fca5a5',
+                                          fontWeight: 700,
+                                          fontSize: '0.82rem',
+                                          cursor: 'pointer',
+                                        }}
+                                        title="Reject application"
+                                      >
+                                        Reject
+                                      </button>
+                                    </>
+                                  )}
 
-                              {/* Step 2: CI_ACCEPTED - Now they can Assign & Schedule */}
-                              {inst.status === 'CI_ACCEPTED' && (
-                                <>
-                                  <button
-                                    onClick={() => handleOpenScheduleInstallmentModal(inst)}
-                                    style={{
-                                      padding: '6px 14px',
-                                      borderRadius: '6px',
-                                      background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
-                                      color: 'white',
-                                      border: 'none',
-                                      fontWeight: 700,
-                                      fontSize: '0.82rem',
-                                      cursor: 'pointer',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '6px',
-                                      boxShadow: '0 2px 5px rgba(22, 163, 74, 0.25)',
-                                    }}
-                                    title="Assign technician and schedule installation"
-                                  >
-                                    <i className="fa-solid fa-calendar-check" style={{ fontSize: '0.75rem' }}></i>
-                                    Assign & Schedule
-                                  </button>
-                                  <button
-                                    onClick={() => handleRejectInstallment(inst)}
-                                    style={{
-                                      padding: '6px 12px',
-                                      borderRadius: '6px',
-                                      background: '#fee2e2',
-                                      color: '#dc2626',
-                                      border: '1px solid #fca5a5',
-                                      fontWeight: 700,
-                                      fontSize: '0.82rem',
-                                      cursor: 'pointer',
-                                    }}
-                                    title="Reject application"
-                                  >
-                                    Reject
-                                  </button>
-                                </>
-                              )}
+                                  {/* Step 2: CI_ACCEPTED - Now they can Assign & Schedule */}
+                                  {inst.status === 'CI_ACCEPTED' && (
+                                    <>
+                                      <button
+                                        onClick={() => handleOpenScheduleInstallmentModal(inst)}
+                                        style={{
+                                          padding: '6px 14px',
+                                          borderRadius: '6px',
+                                          background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
+                                          color: 'white',
+                                          border: 'none',
+                                          fontWeight: 700,
+                                          fontSize: '0.82rem',
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                          boxShadow: '0 2px 5px rgba(22, 163, 74, 0.25)',
+                                        }}
+                                        title="Assign technician and schedule installation"
+                                      >
+                                        <i className="fa-solid fa-calendar-check" style={{ fontSize: '0.75rem' }}></i>
+                                        Assign & Schedule
+                                      </button>
+                                      <button
+                                        onClick={() => handleRejectInstallment(inst)}
+                                        style={{
+                                          padding: '6px 12px',
+                                          borderRadius: '6px',
+                                          background: '#fee2e2',
+                                          color: '#dc2626',
+                                          border: '1px solid #fca5a5',
+                                          fontWeight: 700,
+                                          fontSize: '0.82rem',
+                                          cursor: 'pointer',
+                                        }}
+                                        title="Reject application"
+                                      >
+                                        Reject
+                                      </button>
+                                    </>
+                                  )}
 
-                              {inst.status === 'COMPLETED' && (
-                                <div style={{ textAlign: 'right' }}>
-                                  <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                    <i className="fa-solid fa-circle-check"></i> Dispatched to Schedule
-                                  </span>
-                                  {inst.assignedTech && (
-                                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                                      {inst.assignedTech} • {inst.scheduledDate}
+                                  {inst.status === 'COMPLETED' && (
+                                    <div style={{ textAlign: 'right' }}>
+                                      <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <i className="fa-solid fa-circle-check"></i> Dispatched to Schedule
+                                      </span>
+                                      {inst.assignedTech && (
+                                        <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                                          {inst.assignedTech} • {inst.scheduledDate}
+                                        </div>
+                                      )}
                                     </div>
                                   )}
-                                </div>
-                              )}
 
-                              {inst.status === 'REJECTED' && (
-                                <span style={{ fontSize: '0.8rem', color: '#dc2626', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                  <i className="fa-solid fa-circle-xmark"></i> Rejected
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                                  {inst.status === 'REJECTED' && (
+                                    <span style={{ fontSize: '0.8rem', color: '#dc2626', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                      <i className="fa-solid fa-circle-xmark"></i> Rejected
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ));
+                      })()
                     )}
                   </tbody>
                 </table>
               </div>
+              {renderTablePagination(installmentsPage, filteredInstallments.length, setInstallmentsPage, 8)}
             </div>
           )}
 
@@ -3485,40 +3994,39 @@ export default function AdminDashboard() {
                           dispatchCategoryFilter === 'INSTALLATION'
                             ? '#e0f2fe'
                             : dispatchCategoryFilter === 'CLEANING'
-                            ? '#ccfbf1'
-                            : '#ffedd5',
+                              ? '#ccfbf1'
+                              : '#ffedd5',
                         color:
                           dispatchCategoryFilter === 'INSTALLATION'
                             ? '#0284c7'
                             : dispatchCategoryFilter === 'CLEANING'
-                            ? '#0d9488'
-                            : '#ea580c',
+                              ? '#0d9488'
+                              : '#ea580c',
                         border:
                           dispatchCategoryFilter === 'INSTALLATION'
                             ? '1px solid #bae6fd'
                             : dispatchCategoryFilter === 'CLEANING'
-                            ? '1px solid #99f6e4'
-                            : '1px solid #fed7aa',
+                              ? '1px solid #99f6e4'
+                              : '1px solid #fed7aa',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '6px',
                       }}
                     >
                       <i
-                        className={`fa-solid ${
-                          dispatchCategoryFilter === 'INSTALLATION'
+                        className={`fa-solid ${dispatchCategoryFilter === 'INSTALLATION'
                             ? 'fa-screwdriver-wrench'
                             : dispatchCategoryFilter === 'CLEANING'
-                            ? 'fa-spray-can-sparkles'
-                            : 'fa-wrench'
-                        }`}
+                              ? 'fa-spray-can-sparkles'
+                              : 'fa-wrench'
+                          }`}
                         style={{ fontSize: '0.75rem' }}
                       ></i>
                       {dispatchCategoryFilter === 'INSTALLATION'
                         ? 'Installation Queue'
                         : dispatchCategoryFilter === 'CLEANING'
-                        ? 'Cleaning Queue'
-                        : 'Repair Queue'}
+                          ? 'Cleaning Queue'
+                          : 'Repair Queue'}
                     </span>
                   </div>
                   <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: '#64748b' }}>
@@ -3815,7 +4323,9 @@ export default function AdminDashboard() {
                         <tr>
                           <td colSpan={9} style={{ padding: '3rem 1.5rem', textAlign: 'center', color: '#64748b' }}>
                             <i className="fa-solid fa-box-open" style={{ fontSize: '2rem', color: '#cbd5e1', display: 'block', marginBottom: '0.75rem' }}></i>
-                            No dispatch assignments found for the selected category and status.
+                            {searchQuery.trim()
+                              ? `No dispatch assignments found matching "${searchQuery}".`
+                              : 'No dispatch assignments found for the selected category and status.'}
                           </td>
                         </tr>
                       ) : (
@@ -3885,41 +4395,40 @@ export default function AdminDashboard() {
                                     background: isReinstall
                                       ? '#f5f3ff'
                                       : isInstall
-                                      ? '#e0f2fe'
-                                      : isDeepClean
-                                      ? '#ccfbf1'
-                                      : isClean
-                                      ? '#ecfdf5'
-                                      : isRep
-                                      ? '#ffedd5'
-                                      : '#f3e8ff',
+                                        ? '#e0f2fe'
+                                        : isDeepClean
+                                          ? '#ccfbf1'
+                                          : isClean
+                                            ? '#ecfdf5'
+                                            : isRep
+                                              ? '#ffedd5'
+                                              : '#f3e8ff',
                                     color: isReinstall
                                       ? '#7c3aed'
                                       : isInstall
-                                      ? '#0369a1'
-                                      : isDeepClean
-                                      ? '#0f766e'
-                                      : isClean
-                                      ? '#047857'
-                                      : isRep
-                                      ? '#c2410c'
-                                      : '#7e22ce',
+                                        ? '#0369a1'
+                                        : isDeepClean
+                                          ? '#0f766e'
+                                          : isClean
+                                            ? '#047857'
+                                            : isRep
+                                              ? '#c2410c'
+                                              : '#7e22ce',
                                   }}
                                 >
                                   <i
-                                    className={`fa-solid ${
-                                      isReinstall
+                                    className={`fa-solid ${isReinstall
                                         ? 'fa-arrows-rotate'
                                         : isInstall
-                                        ? 'fa-screwdriver-wrench'
-                                        : isDeepClean
-                                        ? 'fa-wand-magic-sparkles'
-                                        : isClean
-                                        ? 'fa-spray-can-sparkles'
-                                        : isRep
-                                        ? 'fa-wrench'
-                                        : 'fa-shield-halved'
-                                    }`}
+                                          ? 'fa-screwdriver-wrench'
+                                          : isDeepClean
+                                            ? 'fa-wand-magic-sparkles'
+                                            : isClean
+                                              ? 'fa-spray-can-sparkles'
+                                              : isRep
+                                                ? 'fa-wrench'
+                                                : 'fa-shield-halved'
+                                      }`}
                                   ></i>
                                   {d.type}
                                 </span>
@@ -4120,156 +4629,164 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {maintenance.length === 0 ? (
+                    {filteredMaintenance.length === 0 ? (
                       <tr>
                         <td colSpan={9} style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
-                          No maintenance schedules found.
+                          {searchQuery.trim()
+                            ? `No maintenance schedules found matching "${searchQuery}".`
+                            : 'No maintenance schedules found.'}
                         </td>
                       </tr>
                     ) : (
-                      maintenance.map((m) => (
-                        <tr
-                          key={m.id}
-                          onClick={() => handleOpenMaintenanceDetails(m)}
-                          style={{
-                            borderBottom: '1px solid #f1f5f9',
-                            cursor: 'pointer',
-                            transition: 'background-color 0.15s ease',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#f0f9ff';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }}
-                          title="Click to view AC details & schedule technician"
-                        >
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#0f172a' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <i className="fa-solid fa-calendar-check" style={{ color: '#0284c7', fontSize: '0.8rem' }}></i>
-                              {m.scheduleNo}
-                            </div>
-                          </td>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 600, color: '#0f172a' }}>
-                            <div>{m.name}</div>
-                            {m.phone && <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{m.phone}</div>}
-                          </td>
-                          <td style={{ padding: '0.85rem 1rem' }}>
-                            <div style={{ color: '#0284c7', fontWeight: 700 }}>{m.item}</div>
-                            {m.customer?.registeredACs && m.customer.registeredACs.length > 0 && (
-                              <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>
-                                <i className="fa-solid fa-circle-check" style={{ marginRight: '3px' }}></i> Enrolled AC Registered
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ padding: '0.85rem 1rem' }}>
-                            <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '6px', fontWeight: 600, fontSize: '0.78rem' }}>
-                              {m.serviceType}
-                            </span>
-                          </td>
-                          <td style={{ padding: '0.85rem 1rem', color: '#475569', fontSize: '0.82rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                              <i className="fa-solid fa-clock-rotate-left" style={{ color: '#0284c7', fontSize: '0.75rem' }}></i>
-                              <span>{m.lastMaintenance || 'First Service (New Unit)'}</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#0f172a' }}>
-                            {m.scheduledDate || '6-Month Routine'}
-                          </td>
-                          <td style={{ padding: '0.85rem 1rem' }}>
-                            {m.technicianName ? (
-                              <span style={{ fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                <i className="fa-solid fa-user-check" style={{ color: '#10b981', fontSize: '0.75rem' }}></i>
-                                {m.technicianName}
-                              </span>
-                            ) : (
-                              <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.82rem' }}>
-                                Unassigned
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ padding: '0.85rem 1rem' }}>
-                            <span
+                      (() => {
+                        const safeMaintenancePage = Math.min(Math.max(1, maintenancePage), Math.max(1, Math.ceil(filteredMaintenance.length / ITEMS_PER_PAGE_8)));
+                        return filteredMaintenance
+                          .slice((safeMaintenancePage - 1) * ITEMS_PER_PAGE_8, safeMaintenancePage * ITEMS_PER_PAGE_8)
+                          .map((m) => (
+                            <tr
+                              key={m.id}
+                              onClick={() => handleOpenMaintenanceDetails(m)}
                               style={{
-                                padding: '3px 10px',
-                                borderRadius: '9999px',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                background:
-                                  m.status === 'COMPLETED'
-                                    ? '#dcfce7'
-                                    : m.status === 'OVERDUE'
-                                    ? '#fee2e2'
-                                    : '#e0f2fe',
-                                color:
-                                  m.status === 'COMPLETED'
-                                    ? '#15803d'
-                                    : m.status === 'OVERDUE'
-                                    ? '#b91c1c'
-                                    : '#0369a1',
+                                borderBottom: '1px solid #f1f5f9',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.15s ease',
                               }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#f0f9ff';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                              }}
+                              title="Click to view AC details & schedule technician"
                             >
-                              {m.status || 'SCHEDULED'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
-                            <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleOpenMaintenanceDetails(m);
-                                }}
-                                style={{
-                                  padding: '5px 11px',
-                                  borderRadius: '7px',
-                                  background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
-                                  border: 'none',
-                                  color: '#ffffff',
-                                  fontWeight: 700,
-                                  fontSize: '0.78rem',
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '5px',
-                                  boxShadow: '0 2px 5px rgba(2, 132, 199, 0.25)',
-                                }}
-                                title="View AC Details & Schedule"
-                              >
-                                <i className="fa-solid fa-calendar-check"></i> Manage & Schedule
-                              </button>
+                              <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#0f172a' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <i className="fa-solid fa-calendar-check" style={{ color: '#0284c7', fontSize: '0.8rem' }}></i>
+                                  {m.scheduleNo}
+                                </div>
+                              </td>
+                              <td style={{ padding: '0.85rem 1rem', fontWeight: 600, color: '#0f172a' }}>
+                                <div>{m.name}</div>
+                                {m.phone && <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{m.phone}</div>}
+                              </td>
+                              <td style={{ padding: '0.85rem 1rem' }}>
+                                <div style={{ color: '#0284c7', fontWeight: 700 }}>{m.item}</div>
+                                {m.customer?.registeredACs && m.customer.registeredACs.length > 0 && (
+                                  <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>
+                                    <i className="fa-solid fa-circle-check" style={{ marginRight: '3px' }}></i> Enrolled AC Registered
+                                  </div>
+                                )}
+                              </td>
+                              <td style={{ padding: '0.85rem 1rem' }}>
+                                <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '6px', fontWeight: 600, fontSize: '0.78rem' }}>
+                                  {m.serviceType}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.85rem 1rem', color: '#475569', fontSize: '0.82rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  <i className="fa-solid fa-clock-rotate-left" style={{ color: '#0284c7', fontSize: '0.75rem' }}></i>
+                                  <span>{m.lastMaintenance || 'First Service (New Unit)'}</span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#0f172a' }}>
+                                {m.scheduledDate || '6-Month Routine'}
+                              </td>
+                              <td style={{ padding: '0.85rem 1rem' }}>
+                                {m.technicianName ? (
+                                  <span style={{ fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                    <i className="fa-solid fa-user-check" style={{ color: '#10b981', fontSize: '0.75rem' }}></i>
+                                    {m.technicianName}
+                                  </span>
+                                ) : (
+                                  <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.82rem' }}>
+                                    Unassigned
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ padding: '0.85rem 1rem' }}>
+                                <span
+                                  style={{
+                                    padding: '3px 10px',
+                                    borderRadius: '9999px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    background:
+                                      m.status === 'COMPLETED'
+                                        ? '#dcfce7'
+                                        : m.status === 'OVERDUE'
+                                          ? '#fee2e2'
+                                          : '#e0f2fe',
+                                    color:
+                                      m.status === 'COMPLETED'
+                                        ? '#15803d'
+                                        : m.status === 'OVERDUE'
+                                          ? '#b91c1c'
+                                          : '#0369a1',
+                                  }}
+                                >
+                                  {m.status || 'SCHEDULED'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenMaintenanceDetails(m);
+                                    }}
+                                    style={{
+                                      padding: '5px 11px',
+                                      borderRadius: '7px',
+                                      background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                                      border: 'none',
+                                      color: '#ffffff',
+                                      fontWeight: 700,
+                                      fontSize: '0.78rem',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '5px',
+                                      boxShadow: '0 2px 5px rgba(2, 132, 199, 0.25)',
+                                    }}
+                                    title="View AC Details & Schedule"
+                                  >
+                                    <i className="fa-solid fa-calendar-check"></i> Manage & Schedule
+                                  </button>
 
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSend6MonthReminder(m);
-                                }}
-                                style={{
-                                  padding: '5px 10px',
-                                  borderRadius: '7px',
-                                  background: '#fffbeb',
-                                  border: '1.5px solid #d97706',
-                                  color: '#b45309',
-                                  fontWeight: 700,
-                                  fontSize: '0.78rem',
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                }}
-                                title="Send 6-Month Routine Notification"
-                              >
-                                <i className="fa-solid fa-paper-plane"></i> 6-Mo Notif
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleSend6MonthReminder(m);
+                                    }}
+                                    style={{
+                                      padding: '5px 10px',
+                                      borderRadius: '7px',
+                                      background: '#fffbeb',
+                                      border: '1.5px solid #d97706',
+                                      color: '#b45309',
+                                      fontWeight: 700,
+                                      fontSize: '0.78rem',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                    }}
+                                    title="Send 6-Month Routine Notification"
+                                  >
+                                    <i className="fa-solid fa-paper-plane"></i> 6-Mo Notif
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ));
+                      })()
                     )}
                   </tbody>
                 </table>
               </div>
+              {renderTablePagination(maintenancePage, filteredMaintenance.length, setMaintenancePage, 8)}
             </div>
           )}
 
@@ -4366,95 +4883,95 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {allUsers.filter((u) => (userRoleFilter === 'ALL' ? true : u.role === userRoleFilter)).length === 0 ? (
+                    {filteredUsers.length === 0 ? (
                       <tr>
                         <td colSpan={8} style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
-                          No users found matching the selected filter.
+                          {searchQuery.trim()
+                            ? `No users found matching "${searchQuery}".`
+                            : 'No users found matching the selected filter.'}
                         </td>
                       </tr>
                     ) : (
-                      allUsers
-                        .filter((u) => (userRoleFilter === 'ALL' ? true : u.role === userRoleFilter))
-                        .map((u) => {
+                      filteredUsers.map((u) => {
                         let permCount = 0;
                         try { permCount = JSON.parse(u.permissions || '[]').length; } catch { permCount = 0; }
                         return (
-                        <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>
-                            {u.firstName} {u.lastName}
-                          </td>
-                          <td style={{ padding: '0.8rem 1rem', color: '#475569' }}>{u.email}</td>
-                          <td style={{ padding: '0.8rem 1rem', color: '#64748b' }}>{u.phone || 'N/A'}</td>
-                          <td style={{ padding: '0.8rem 1rem' }}>
-                            <span
-                              style={{
-                                padding: '3px 8px',
-                                borderRadius: '6px',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                background:
-                                  u.role === 'ADMIN'
-                                    ? '#fee2e2'
-                                    : u.role === 'TECHNICIAN'
-                                    ? '#e0f2fe'
-                                    : u.role === 'CLERK'
-                                    ? '#fef3c7'
-                                    : '#dcfce7',
-                                color:
-                                  u.role === 'ADMIN'
-                                    ? '#dc2626'
-                                    : u.role === 'TECHNICIAN'
-                                    ? '#0284c7'
-                                    : u.role === 'CLERK'
-                                    ? '#b45309'
-                                    : '#16a34a',
-                              }}
-                            >
-                              {u.role}
-                            </span>
-                          </td>
-                          <td style={{ padding: '0.8rem 1rem', color: '#64748b' }}>
-                            {u.role === 'TECHNICIAN' ? (
-                              <span style={{ fontWeight: 600, color: '#0f172a' }}>{u.techRank || 'Junior Tech'}</span>
-                            ) : (
-                              <span style={{ color: '#94a3b8' }}>—</span>
-                            )}
-                          </td>
-                          <td style={{ padding: '0.8rem 1rem' }}>
-                            {permCount > 0 ? (
-                              <span style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, background: '#dbeafe', color: '#1d4ed8' }}>
-                                {permCount} feature{permCount > 1 ? 's' : ''}
+                          <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>
+                              {u.firstName} {u.lastName}
+                            </td>
+                            <td style={{ padding: '0.8rem 1rem', color: '#475569' }}>{u.email}</td>
+                            <td style={{ padding: '0.8rem 1rem', color: '#64748b' }}>{u.phone || 'N/A'}</td>
+                            <td style={{ padding: '0.8rem 1rem' }}>
+                              <span
+                                style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  background:
+                                    u.role === 'ADMIN'
+                                      ? '#fee2e2'
+                                      : u.role === 'TECHNICIAN'
+                                        ? '#e0f2fe'
+                                        : u.role === 'CLERK'
+                                          ? '#fef3c7'
+                                          : '#dcfce7',
+                                  color:
+                                    u.role === 'ADMIN'
+                                      ? '#dc2626'
+                                      : u.role === 'TECHNICIAN'
+                                        ? '#0284c7'
+                                        : u.role === 'CLERK'
+                                          ? '#b45309'
+                                          : '#16a34a',
+                                }}
+                              >
+                                {u.role}
                               </span>
-                            ) : (
-                              <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>None</span>
-                            )}
-                          </td>
-                          <td style={{ padding: '0.8rem 1rem', color: '#94a3b8', fontSize: '0.8rem' }}>
-                            {new Date(u.createdAt).toLocaleDateString()}
-                          </td>
-                          <td style={{ padding: '0.8rem 1rem', textAlign: 'right', display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                            <button
-                              onClick={() => openEditUser(u)}
-                              title="Edit User"
-                              style={{ background: 'none', border: 'none', color: '#0284c7', cursor: 'pointer', fontSize: '0.9rem' }}
-                            >
-                              <i className="fa-solid fa-pen-to-square"></i>
-                            </button>
-                            <button
-                              onClick={async () => {
-                                const proceed = await confirm({ title: 'Delete User', message: `Remove ${u.firstName} ${u.lastName}?` });
-                                if (proceed) {
-                                  await fetch(`/api/users?id=${u.id}`, { method: 'DELETE' });
-                                  setAllUsers(allUsers.filter((user) => user.id !== u.id));
-                                }
-                              }}
-                              title="Delete User"
-                              style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.9rem' }}
-                            >
-                              <i className="fa-solid fa-trash"></i>
-                            </button>
-                          </td>
-                        </tr>
+                            </td>
+                            <td style={{ padding: '0.8rem 1rem', color: '#64748b' }}>
+                              {u.role === 'TECHNICIAN' ? (
+                                <span style={{ fontWeight: 600, color: '#0f172a' }}>{u.techRank || 'Junior Tech'}</span>
+                              ) : (
+                                <span style={{ color: '#94a3b8' }}>—</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '0.8rem 1rem' }}>
+                              {permCount > 0 ? (
+                                <span style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, background: '#dbeafe', color: '#1d4ed8' }}>
+                                  {permCount} feature{permCount > 1 ? 's' : ''}
+                                </span>
+                              ) : (
+                                <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>None</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '0.8rem 1rem', color: '#94a3b8', fontSize: '0.8rem' }}>
+                              {new Date(u.createdAt).toLocaleDateString()}
+                            </td>
+                            <td style={{ padding: '0.8rem 1rem', textAlign: 'right', display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              <button
+                                onClick={() => openEditUser(u)}
+                                title="Edit User"
+                                style={{ background: 'none', border: 'none', color: '#0284c7', cursor: 'pointer', fontSize: '0.9rem' }}
+                              >
+                                <i className="fa-solid fa-pen-to-square"></i>
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  const proceed = await confirm({ title: 'Delete User', message: `Remove ${u.firstName} ${u.lastName}?` });
+                                  if (proceed) {
+                                    await fetch(`/api/users?id=${u.id}`, { method: 'DELETE' });
+                                    setAllUsers(allUsers.filter((user) => user.id !== u.id));
+                                  }
+                                }}
+                                title="Delete User"
+                                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.9rem' }}
+                              >
+                                <i className="fa-solid fa-trash"></i>
+                              </button>
+                            </td>
+                          </tr>
                         );
                       })
                     )}
@@ -4490,32 +5007,40 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {invoices.length === 0 ? (
+                    {filteredInvoices.length === 0 ? (
                       <tr>
                         <td colSpan={7} style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
-                          No invoices generated yet.
+                          {searchQuery.trim()
+                            ? `No invoices found matching "${searchQuery}".`
+                            : 'No invoices generated yet.'}
                         </td>
                       </tr>
                     ) : (
-                      invoices.map((inv) => (
-                        <tr key={inv.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>{inv.invoiceNo}</td>
-                          <td style={{ padding: '0.8rem 1rem' }}>{inv.customerName}</td>
-                          <td style={{ padding: '0.8rem 1rem', color: '#0284c7', fontWeight: 600 }}>{inv.serviceType}</td>
-                          <td style={{ padding: '0.8rem 1rem' }}>{inv.acUnit}</td>
-                          <td style={{ padding: '0.8rem 1rem' }}>{inv.technicianName}</td>
-                          <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>₱{inv.amount.toLocaleString()}</td>
-                          <td style={{ padding: '0.8rem 1rem' }}>
-                            <span style={{ background: '#dcfce7', color: '#16a34a', padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
-                              {inv.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
+                      (() => {
+                        const safeInvoicesPage = Math.min(Math.max(1, invoicesPage), Math.max(1, Math.ceil(filteredInvoices.length / ITEMS_PER_PAGE_8)));
+                        return filteredInvoices
+                          .slice((safeInvoicesPage - 1) * ITEMS_PER_PAGE_8, safeInvoicesPage * ITEMS_PER_PAGE_8)
+                          .map((inv) => (
+                            <tr key={inv.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>{inv.invoiceNo}</td>
+                              <td style={{ padding: '0.8rem 1rem' }}>{inv.customerName}</td>
+                              <td style={{ padding: '0.8rem 1rem', color: '#0284c7', fontWeight: 600 }}>{inv.serviceType}</td>
+                              <td style={{ padding: '0.8rem 1rem' }}>{inv.acUnit}</td>
+                              <td style={{ padding: '0.8rem 1rem' }}>{inv.technicianName}</td>
+                              <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>₱{inv.amount.toLocaleString()}</td>
+                              <td style={{ padding: '0.8rem 1rem' }}>
+                                <span style={{ background: '#dcfce7', color: '#16a34a', padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
+                                  {inv.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ));
+                      })()
                     )}
                   </tbody>
                 </table>
               </div>
+              {renderTablePagination(invoicesPage, filteredInvoices.length, setInvoicesPage, 8)}
             </div>
           )}
         </main>
@@ -4615,12 +5140,38 @@ export default function AdminDashboard() {
             <form onSubmit={handleAddProductSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>SKU Code *</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#334155' }}>SKU Code *</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const prefix = addItemType === 'AC' ? 'AC' : 'PRT';
+                        let candidate = '';
+                        do {
+                          candidate = `${prefix}-${Math.floor(1000 + Math.random() * 9000)}`;
+                        } while (inventory.some((i) => i.sku?.toUpperCase() === candidate));
+                        setNewProductSku(candidate);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#0284c7',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
+                    >
+                      <i className="fa-solid fa-wand-magic-sparkles" style={{ marginRight: '3px' }}></i> Auto-generate
+                    </button>
+                  </div>
                   <input
                     type="text"
                     name="sku"
                     required
-                    placeholder={addItemType === 'AC' ? "e.g. AC-CAR-15" : "e.g. PART-CAP-45UF"}
+                    value={newProductSku}
+                    onChange={(e) => setNewProductSku(e.target.value)}
+                    placeholder={addItemType === 'AC' ? "e.g. AC-PAN-15" : "e.g. PART-CAP-45UF"}
                     style={{
                       width: '100%',
                       padding: '0.75rem 0.9rem',
@@ -4894,7 +5445,7 @@ export default function AdminDashboard() {
                 <button type="button" onClick={() => setIsAddProductModalOpen(false)} className="btn btn-secondary" style={{ flex: 1, padding: '0.75rem' }}>
                   Cancel
                 </button>
-                <button type="submit" className="btn" style={{ flex: 1, padding: '0.75rem', fontWeight: 800 }}>
+                <button type="submit" disabled={isUploadingImages} className="btn" style={{ flex: 1, padding: '0.75rem', fontWeight: 800, opacity: isUploadingImages ? 0.5 : 1 }}>
                   {addItemType === 'AC' ? 'Save & Publish Brand New AC' : 'Save & Add Spare Part'}
                 </button>
               </div>
@@ -4938,11 +5489,43 @@ export default function AdminDashboard() {
             </div>
 
             <div style={{ marginBottom: '1.25rem' }}>
-              <img
-                src={viewingItem.image || (viewingItem.images && viewingItem.images[0]) || '/hero-bg.png'}
-                alt={viewingItem.model}
-                style={{ width: '100%', height: '180px', objectFit: 'contain', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}
-              />
+              {(() => {
+                const allImages: string[] = (
+                  viewingItem.images && viewingItem.images.length > 0
+                    ? viewingItem.images
+                    : [viewingItem.image || '/hero-bg.png']
+                ).filter((img): img is string => Boolean(img));
+                const currentImg: string = allImages[viewingImageIndex] || allImages[0] || '/hero-bg.png';
+                return (
+                  <div>
+                    <img
+                      src={currentImg}
+                      alt={viewingItem.model}
+                      style={{ width: '100%', height: '180px', objectFit: 'contain', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}
+                    />
+                    {allImages.length > 1 && (
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'center' }}>
+                        {allImages.map((img: string, idx: number) => (
+                          <img
+                            key={idx}
+                            src={img}
+                            alt=""
+                            onClick={() => setViewingImageIndex(idx)}
+                            style={{
+                              width: '45px',
+                              height: '45px',
+                              objectFit: 'cover',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              border: viewingImageIndex === idx ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem', background: '#f8fafc', padding: '1rem', borderRadius: '10px', marginBottom: '1.25rem', fontSize: '0.88rem' }}>

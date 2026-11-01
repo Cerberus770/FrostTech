@@ -12,13 +12,17 @@ export default function TechnicianCalendar() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [selectedDayTasks, setSelectedDayTasks] = useState<{ day: number, tasks: any[] } | null>(null);
 
-  useEffect(() => {
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [newEvent, setNewEvent] = useState({ title: '', date: new Date().toISOString().split('T')[0], type: 'job' });
+
+  const loadAllTasks = () => {
     const sessionName = sessionStorage.getItem('userName') || 'Carlos Rivera';
     
     Promise.all([
-      fetch('/api/dispatch').then(r => r.json()),
-      fetch('/api/maintenance').then(r => r.json())
-    ]).then(([dispatchData, maintenanceData]) => {
+      fetch('/api/dispatch').then(r => r.json()).catch(() => []),
+      fetch('/api/maintenance').then(r => r.json()).catch(() => []),
+      fetch(`/api/calendar?technician=${encodeURIComponent(sessionName)}`).then(r => r.json()).catch(() => [])
+    ]).then(([dispatchData, maintenanceData, calendarData]) => {
       const myDispatch = (dispatchData || []).filter((d: any) => 
         d.technicians?.some((t: any) => `${t.firstName} ${t.lastName}` === sessionName)
       ).map((d: any) => ({ ...d, isMaintenance: false }));
@@ -26,9 +30,23 @@ export default function TechnicianCalendar() {
       const myMaintenance = (maintenanceData || []).filter((m: any) => 
         m.technicianName === sessionName
       ).map((m: any) => ({ ...m, type: 'Maintenance: ' + m.serviceType, isMaintenance: true }));
+
+      const myCalendar = (calendarData || []).map((c: any) => ({
+        id: c.id,
+        scheduledDate: c.date,
+        type: `Event: ${c.type.toUpperCase()}`,
+        name: c.technician,
+        item: c.title,
+        status: 'SCHEDULED',
+        isEvent: true
+      }));
       
-      setTasks([...myDispatch, ...myMaintenance]);
+      setTasks([...myDispatch, ...myMaintenance, ...myCalendar]);
     }).catch(console.error);
+  };
+
+  useEffect(() => {
+    loadAllTasks();
   }, []);
 
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
@@ -67,9 +85,18 @@ export default function TechnicianCalendar() {
             <h2 style={{fontSize: '1.75rem', fontWeight: 700, color: 'var(--primary)', fontFamily: 'var(--font-display)'}}>My Schedule</h2>
             <p style={{fontSize: '0.9rem', color: 'var(--text-light)', marginTop: '0.25rem'}}>Manage your upcoming appointments and leave.</p>
           </div>
-          <button className="btn" style={{background: 'var(--primary-grad)', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--shadow-glow)'}}>
-            <FontAwesomeIcon icon={faPlus} /> Request Time Off
-          </button>
+          <div style={{display: 'flex', gap: '0.75rem'}}>
+            <button 
+              onClick={() => setShowEventModal(true)}
+              className="btn" 
+              style={{background: 'var(--primary-grad)', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--shadow-glow)'}}
+            >
+              <FontAwesomeIcon icon={faPlus} /> Add Appointment
+            </button>
+            <button className="btn" style={{background: 'var(--bg-input)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px'}}>
+              <FontAwesomeIcon icon={faPlus} /> Request Time Off
+            </button>
+          </div>
         </div>
 
         <div style={{background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', overflow: 'hidden'}}>
@@ -183,6 +210,87 @@ export default function TechnicianCalendar() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Event Modal */}
+      {showEventModal && (
+        <div className="modal-overlay show" onClick={(e) => { if(e.target === e.currentTarget) setShowEventModal(false); }}>
+          <div className="modal-content" style={{maxWidth: '450px', transform: 'none'}}>
+            <div className="modal-header">
+              <h3 style={{fontSize: '1.25rem', fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--primary)'}}>
+                Add Schedule / Appointment
+              </h3>
+              <button onClick={() => setShowEventModal(false)} className="close-modal">&times;</button>
+            </div>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const sessionName = sessionStorage.getItem('userName') || 'Carlos Rivera';
+              try {
+                const res = await fetch('/api/calendar', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    title: newEvent.title,
+                    date: newEvent.date,
+                    technician: sessionName,
+                    type: newEvent.type
+                  })
+                });
+                if (res.ok) {
+                  setShowEventModal(false);
+                  setNewEvent({ title: '', date: new Date().toISOString().split('T')[0], type: 'job' });
+                  loadAllTasks();
+                } else {
+                  alert('Failed to save appointment to database');
+                }
+              } catch (err) {
+                console.error('Failed to create event:', err);
+              }
+            }} className="modal-body" style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+              <div>
+                <label style={{fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-light)', display: 'block', marginBottom: '0.35rem'}}>Appointment Title</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="e.g. Diagnostic Inspection at Branch B"
+                  value={newEvent.title}
+                  onChange={e => setNewEvent({...newEvent, title: e.target.value})}
+                  style={{width: '100%', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-dark)'}}
+                />
+              </div>
+
+              <div>
+                <label style={{fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-light)', display: 'block', marginBottom: '0.35rem'}}>Date</label>
+                <input 
+                  type="date" 
+                  required
+                  value={newEvent.date}
+                  onChange={e => setNewEvent({...newEvent, date: e.target.value})}
+                  style={{width: '100%', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-dark)'}}
+                />
+              </div>
+
+              <div>
+                <label style={{fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-light)', display: 'block', marginBottom: '0.35rem'}}>Type</label>
+                <select 
+                  value={newEvent.type}
+                  onChange={e => setNewEvent({...newEvent, type: e.target.value})}
+                  style={{width: '100%', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-dark)'}}
+                >
+                  <option value="job">Service Job</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="inspection">Site Inspection</option>
+                  <option value="meeting">Team Briefing</option>
+                </select>
+              </div>
+
+              <div style={{display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem'}}>
+                <button type="button" onClick={() => setShowEventModal(false)} className="btn" style={{background: 'var(--bg-input)', border: '1px solid var(--border-color)'}}>Cancel</button>
+                <button type="submit" className="btn" style={{background: 'var(--primary-grad)'}}>Save to Calendar</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

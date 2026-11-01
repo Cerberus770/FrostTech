@@ -20,12 +20,22 @@ export async function GET(request: NextRequest) {
         techRank: true,
         permissions: true,
         createdAt: true,
+        addresses: {
+          select: {
+            id: true,
+            label: true,
+            fullAddress: true,
+            phone: true,
+            isDefault: true,
+          },
+        },
         _count: {
           select: {
             orders: true,
             registeredACs: true,
             maintenanceJobs: true,
             assignedJobs: true,
+            addresses: true,
           },
         },
       },

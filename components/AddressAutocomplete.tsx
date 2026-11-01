@@ -48,6 +48,26 @@ export default function AddressAutocomplete({
     }
 
     try {
+      // First try internal Google Maps places proxy
+      const mapsRes = await fetch(`/api/maps/places?input=${encodeURIComponent(query)}`);
+      if (mapsRes.ok) {
+        const mapsData = await mapsRes.json();
+        if (mapsData.predictions && mapsData.predictions.length > 0) {
+          const formatted: Suggestion[] = mapsData.predictions.map((p: any) => ({
+            display_name: p.description,
+            lat: '',
+            lon: ''
+          }));
+          setSuggestions(formatted);
+          setShowSuggestions(true);
+          return;
+        }
+      }
+    } catch {
+      // Fallback to OpenStreetMap below
+    }
+
+    try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ph&limit=5&addressdetails=1`,
         { headers: { 'Accept-Language': 'en' } }

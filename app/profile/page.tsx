@@ -112,6 +112,14 @@ export default function ProfilePage() {
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [enrollAcIds, setEnrollAcIds] = useState<string[]>([]);
 
+  // Saved Address Book
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [showAddAddressModal, setShowAddAddressModal] = useState(false);
+  const [newAddrLabel, setNewAddrLabel] = useState('Home');
+  const [newAddrFull, setNewAddrFull] = useState('');
+  const [newAddrPhone, setNewAddrPhone] = useState('');
+  const [newAddrIsDefault, setNewAddrIsDefault] = useState(false);
+
   // Password state
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -162,6 +170,11 @@ export default function ProfilePage() {
         .then((data) => { if (Array.isArray(data)) setMaintenance(data); })
         .catch(console.error);
 
+      fetch(`/api/addresses?userId=${currentUid}`)
+        .then((r) => r.json())
+        .then((data) => { if (Array.isArray(data)) setSavedAddresses(data); })
+        .catch(console.error);
+
       fetch(`/api/users/customers`)
         .then((r) => r.json())
         .then((customers: any[]) => {
@@ -179,13 +192,21 @@ export default function ProfilePage() {
         .catch(console.error);
     }
 
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const q = params.get('q');
-      if (q) {
-        setSearchQuery(q);
+    const handleUrlSearch = () => {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const q = params.get('q');
+        setSearchQuery(q || '');
+        if (q) {
+          setTimeout(() => {
+            document.getElementById('dashboard-products')?.scrollIntoView({ behavior: 'smooth' });
+          }, 300);
+        }
       }
-    }
+    };
+
+    handleUrlSearch();
+    window.addEventListener('popstate', handleUrlSearch);
 
     // Fetch store products for dashboard
     fetch('/api/products')
@@ -293,19 +314,39 @@ export default function ProfilePage() {
     showToast(`${name} added to cart!`);
   };
 
+  const defaultBrands = ['Carrier', 'Chiq', 'iFFALCON', 'Midea', 'Samsung', 'TCL'];
+  const availableBrands = Array.from(
+    new Set([
+      ...defaultBrands,
+      ...storeInventory.map((p) => p.brand).filter(Boolean),
+    ])
+  ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
   const filteredProducts = storeInventory.filter((item) => {
+    const q = searchQuery.toLowerCase().trim();
+    const specsString = (item.specs || []).join(' ').toLowerCase();
+    const descString = (item.description || '').toLowerCase();
+    const brandLower = (item.brand || '').toLowerCase();
+    const nameLower = (item.name || '').toLowerCase();
+    const catLower = (item.category || '').toLowerCase();
+
     const matchesSearch =
-      item.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesBrand = selectedBrands.length === 0 || selectedBrands.includes(item.brand);
+      !q ||
+      brandLower.includes(q) ||
+      nameLower.includes(q) ||
+      catLower.includes(q) ||
+      specsString.includes(q) ||
+      descString.includes(q);
+
+    const matchesBrand = selectedBrands.length === 0 || selectedBrands.some(b => b.toLowerCase() === (item.brand || '').toLowerCase());
+    const isSpareCategory = item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories';
+
     const matchesCategory =
       selectedCategory === 'All'
-        ? !(item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories')
+        ? true
         : item.category.toLowerCase().includes(selectedCategory.toLowerCase()) ||
           (selectedCategory === 'Second Hand Deals' && item.badge === 'Used') ||
-          (selectedCategory === 'Spare Parts' &&
-            (item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories'));
+          (selectedCategory === 'Spare Parts' && isSpareCategory);
 
     const matchesPrice =
       selectedPrices.length === 0 ||
@@ -320,9 +361,8 @@ export default function ProfilePage() {
     const matchesType =
       selectedTypes.length === 0 ||
       selectedTypes.some((type) => {
-        const isPart = item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories';
-        if (type === 'Spare Parts') return isPart;
-        if (type === 'Air Conditioners') return !isPart;
+        if (type === 'Spare Parts') return isSpareCategory;
+        if (type === 'Air Conditioners') return !isSpareCategory;
         return false;
       });
 
@@ -345,9 +385,6 @@ export default function ProfilePage() {
     }
   });
 
-  const sparePartProducts = storeInventory.filter(
-    (item) => item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories'
-  );
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -1026,13 +1063,13 @@ export default function ProfilePage() {
                       <span>Brand</span>
                       <i className="fa-solid fa-chevron-up" style={{ fontSize: '0.8rem' }}></i>
                     </div>
-                    {['Carrier', 'Chiq', 'iFFALCON', 'Midea', 'Samsung', 'TCL'].map((brand) => (
+                    {availableBrands.map((brand) => (
                       <label key={brand} className="filter-option">
                         <input
                           type="checkbox"
                           className="brand-filter"
                           value={brand}
-                          checked={selectedBrands.includes(brand)}
+                          checked={selectedBrands.some((b) => b.toLowerCase() === brand.toLowerCase())}
                           onChange={() => handleBrandChange(brand)}
                         /> {brand}
                       </label>
@@ -1109,11 +1146,77 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
+                  {searchQuery.trim() && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.75rem 1.25rem',
+                        background: '#f0f9ff',
+                        border: '1px solid #bae6fd',
+                        borderRadius: '12px',
+                        marginBottom: '1.25rem',
+                        fontSize: '0.9rem',
+                        color: '#0369a1',
+                        boxShadow: '0 1px 3px rgba(2, 132, 199, 0.08)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <i className="fa-solid fa-magnifying-glass"></i>
+                        <span>
+                          Search results for: <strong>"{searchQuery}"</strong> ({sortedProducts.length} product{sortedProducts.length === 1 ? '' : 's'} found)
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery('');
+                          router.push('/profile');
+                        }}
+                        style={{
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '6px',
+                          padding: '4px 10px',
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                          color: '#475569',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <i className="fa-solid fa-xmark"></i> Clear Search
+                      </button>
+                    </div>
+                  )}
+
                   {/* Product Grid */}
                   <div className={`product-grid ${viewMode === 'list' ? 'list-view' : ''}`} id="dynamic-products">
                     {sortedProducts.length === 0 ? (
                       <div className="empty-cart-msg" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', background: 'var(--bg-card)', borderRadius: '12px' }}>
-                        No products found matching your criteria.
+                        <i className="fa-solid fa-magnifying-glass" style={{ fontSize: '2.5rem', color: '#cbd5e1', display: 'block', marginBottom: '1rem' }}></i>
+                        <h3 style={{ margin: '0 0 0.5rem', color: '#334155', fontSize: '1.2rem' }}>No products found</h3>
+                        <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>
+                          {searchQuery.trim()
+                            ? `We couldn't find any products matching "${searchQuery}". Try different keywords or clear your search.`
+                            : 'No products match your selected filters.'}
+                        </p>
+                        {searchQuery.trim() && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSearchQuery('');
+                              router.push('/profile');
+                            }}
+                            className="btn btn-secondary"
+                            style={{ marginTop: '1.25rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                          >
+                            <i className="fa-solid fa-arrow-rotate-left"></i> Clear Search
+                          </button>
+                        )}
                       </div>
                     ) : (
                       sortedProducts.map((item) => {
@@ -1169,62 +1272,6 @@ export default function ProfilePage() {
                 </div>
               </section>
 
-              {/* Genuine Spare Parts Section */}
-              <section id="spare-parts" className="section-container" style={{ background: 'rgba(15, 31, 56, 0.4)', borderRadius: '16px', padding: '2rem', marginTop: '3rem', scrollMarginTop: '80px' }}>
-                <h2 className="section-title">Genuine Spare Parts</h2>
-                <p style={{ color: 'var(--text-light)', marginBottom: '2rem' }}>Keep your units running efficiently with original replacement parts.</p>
-                <div className="product-grid">
-                  {sparePartProducts.length === 0 ? (
-                    <div className="empty-cart-msg" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem' }}>No spare parts available.</div>
-                  ) : (
-                    sparePartProducts.map((item) => {
-                      const price = item.price;
-                      const imgPlaceholder = item.image || '/hero-bg.png';
-
-                      return (
-                        <div
-                          key={item.id}
-                          className="product-card"
-                          onClick={() => router.push(`/product/${item.slug || item.id}`)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <div className="product-image-wrapper">
-                            <img src={imgPlaceholder} alt={item.name} className="product-image" />
-                            {item.badge && <span className="product-badge">{item.badge}</span>}
-                          </div>
-                          <div className="product-card-body">
-                            <div className="product-brand">{item.brand}</div>
-                            <h3 className="product-title">{item.name}</h3>
-                            <div className="product-price">
-                              ₱ {price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                              {item.originalPrice && item.originalPrice > price && (
-                                <span className="original-price">
-                                  ₱ {item.originalPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                                </span>
-                              )}
-                            </div>
-                            <div className="product-rating">
-                              <span className="stars">
-                                {'★'.repeat(Math.floor(item.rating))}{'☆'.repeat(5 - Math.floor(item.rating))}
-                              </span>
-                              <span>{item.rating}</span>
-                              <span className="sold-count">&bull; {item.sold} sold</span>
-                            </div>
-                            <div className="product-actions" onClick={(e) => e.stopPropagation()}>
-                              <Link href={`/product/${item.slug || item.id}`} className="btn btn-secondary">
-                                <i className="fa-solid fa-eye"></i> Details
-                              </Link>
-                              <button className="btn btn-buy" onClick={(e) => { e.stopPropagation(); addToCart(`${item.brand} ${item.name}`, price, item.brand, imgPlaceholder, item.id); }}>
-                                <i className="fa-solid fa-cart-plus"></i> Add to Cart
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </section>
             </div>
           )}
 
@@ -2187,6 +2234,214 @@ export default function ProfilePage() {
                       <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>CONTACT PHONE</span>
                       <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#0f172a' }}>{userPhone || 'Not set'}</p>
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Section: Saved Address Book */}
+              <div style={{ background: '#ffffff', borderRadius: '16px', padding: '1.75rem', border: '1px solid #e2e8f0', marginBottom: '2rem', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#0f172a', fontWeight: 700 }}>
+                      <i className="fa-solid fa-map-location-dot" style={{ color: '#0284c7', marginRight: '8px' }}></i>
+                      Saved Address Book
+                    </h3>
+                    <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Manage delivery and on-site service locations</span>
+                  </div>
+
+                  <button
+                    onClick={() => setShowAddAddressModal(true)}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      borderRadius: '8px',
+                      background: '#0284c7',
+                      color: 'white',
+                      border: 'none',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <i className="fa-solid fa-plus"></i> Add Address
+                  </button>
+                </div>
+
+                {/* Add Address Form Modal / Inline */}
+                {showAddAddressModal && (
+                  <form 
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!newAddrFull.trim()) return;
+                      try {
+                        const res = await fetch('/api/addresses', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            userId,
+                            label: newAddrLabel,
+                            fullAddress: newAddrFull,
+                            phone: newAddrPhone || userPhone || '09XXXXXXXXX',
+                            isDefault: newAddrIsDefault
+                          })
+                        });
+                        if (res.ok) {
+                          setShowAddAddressModal(false);
+                          setNewAddrFull('');
+                          setNewAddrPhone('');
+                          setNewAddrIsDefault(false);
+                          fetch(`/api/addresses?userId=${userId}`).then(r => r.json()).then(data => { if (Array.isArray(data)) setSavedAddresses(data); });
+                          showToast('Address added to Address Book!');
+                        }
+                      } catch (err) {
+                        console.error('Failed to save address:', err);
+                      }
+                    }}
+                    style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}
+                  >
+                    <h4 style={{ margin: '0 0 1rem', color: '#0284c7', fontSize: '0.95rem', fontWeight: 700 }}>Add New Address</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem', marginBottom: '0.8rem' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>Address Label</label>
+                        <select 
+                          value={newAddrLabel} 
+                          onChange={e => setNewAddrLabel(e.target.value)}
+                          style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                        >
+                          <option value="Home">Home</option>
+                          <option value="Office / Workplace">Office / Workplace</option>
+                          <option value="Branch">Branch / Store</option>
+                          <option value="Warehouse">Warehouse</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>Contact Phone</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. 09171234567" 
+                          value={newAddrPhone} 
+                          onChange={e => setNewAddrPhone(e.target.value)}
+                          style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: '0.8rem' }}>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>Complete Address</label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="House / Unit No., Street, Barangay, City, Province" 
+                        value={newAddrFull} 
+                        onChange={e => setNewAddrFull(e.target.value)}
+                        style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
+                      <input 
+                        type="checkbox" 
+                        id="newAddrDefault"
+                        checked={newAddrIsDefault}
+                        onChange={e => setNewAddrIsDefault(e.target.checked)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <label htmlFor="newAddrDefault" style={{ fontSize: '0.82rem', color: '#475569', cursor: 'pointer' }}>Set as default address</label>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                      <button type="button" onClick={() => setShowAddAddressModal(false)} className="btn btn-secondary">Cancel</button>
+                      <button type="submit" className="btn btn-primary" style={{ background: '#0284c7' }}>Save Address</button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Address Cards Grid */}
+                {savedAddresses.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '2rem 1rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                    <i className="fa-solid fa-map-pin" style={{ fontSize: '2rem', color: '#94a3b8', marginBottom: '0.5rem' }}></i>
+                    <p style={{ margin: 0, fontWeight: 600, color: '#475569', fontSize: '0.9rem' }}>No saved addresses yet</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#94a3b8' }}>Add your home, office, or branch locations for faster checkout and scheduled maintenance.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+                    {savedAddresses.map(addr => (
+                      <div 
+                        key={addr.id}
+                        style={{ 
+                          border: addr.isDefault ? '2px solid #0284c7' : '1px solid #e2e8f0', 
+                          borderRadius: '12px', 
+                          padding: '1.25rem', 
+                          background: addr.isDefault ? '#f0f9ff' : '#ffffff',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                            <span style={{ 
+                              fontSize: '0.75rem', 
+                              fontWeight: 700, 
+                              textTransform: 'uppercase', 
+                              color: addr.isDefault ? '#0284c7' : '#64748b',
+                              background: addr.isDefault ? '#e0f2fe' : '#f1f5f9',
+                              padding: '2px 8px',
+                              borderRadius: '6px'
+                            }}>
+                              {addr.label}
+                            </span>
+                            {addr.isDefault && (
+                              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#0369a1' }}>
+                                <i className="fa-solid fa-star" style={{ color: '#0284c7', marginRight: '4px' }}></i> Default
+                              </span>
+                            )}
+                          </div>
+                          <p style={{ margin: '0 0 0.5rem', fontWeight: 600, color: '#1e293b', fontSize: '0.9rem', lineHeight: 1.4 }}>
+                            {addr.fullAddress}
+                          </p>
+                          <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
+                            <i className="fa-solid fa-phone" style={{ marginRight: '6px', fontSize: '0.75rem' }}></i> {addr.phone}
+                          </p>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', borderTop: '1px solid #f1f5f9', paddingTop: '0.5rem' }}>
+                          <button
+                            onClick={async () => {
+                              const isConfirmed = await confirm({
+                                title: 'Delete Address',
+                                message: `Delete "${addr.label}" from your address book?`,
+                                confirmText: 'Delete',
+                                type: 'warning'
+                              });
+                              if (!isConfirmed) return;
+                              try {
+                                const res = await fetch(`/api/addresses?id=${addr.id}`, { method: 'DELETE' });
+                                if (res.ok) {
+                                  setSavedAddresses(prev => prev.filter(a => a.id !== addr.id));
+                                  showToast('Address deleted');
+                                }
+                              } catch (err) {
+                                console.error('Failed to delete address:', err);
+                              }
+                            }}
+                            style={{ 
+                              background: 'transparent', 
+                              border: 'none', 
+                              color: '#ef4444', 
+                              fontSize: '0.8rem', 
+                              fontWeight: 600, 
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <i className="fa-solid fa-trash-can"></i> Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
