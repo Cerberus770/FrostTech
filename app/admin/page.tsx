@@ -1045,12 +1045,20 @@ export default function AdminDashboard() {
 
   const handleOpenAcceptOrderModal = (order: Order) => {
     setSelectedOrderToSchedule(order);
-    setOrderScheduleTechId(technicians.length > 0 ? technicians[0].id : '');
-    const tomorrow = new Date(Date.now() + 86400000);
-    setOrderScheduleDate(tomorrow.toISOString().split('T')[0]);
-    setOrderScheduleTimeSlot('Morning (08:00 AM - 12:00 PM)');
+    const existingTech = technicians.find(t => `${t.firstName} ${t.lastName}` === order.assignedTech);
+    setOrderScheduleTechId(existingTech ? existingTech.id : (technicians.length > 0 ? technicians[0].id : ''));
+    if (order.scheduledDate) {
+      const parts = order.scheduledDate.split(' ');
+      setOrderScheduleDate(parts[0] || new Date().toISOString().split('T')[0]);
+      const slot = parts.slice(1).join(' ');
+      if (slot) setOrderScheduleTimeSlot(slot);
+    } else {
+      const tomorrow = new Date(Date.now() + 86400000);
+      setOrderScheduleDate(tomorrow.toISOString().split('T')[0]);
+      setOrderScheduleTimeSlot('Morning (08:00 AM - 12:00 PM)');
+    }
     setOrderScheduleNotes('');
-    setOverrideDownpayment(false);
+    setOverrideDownpayment(true);
   };
 
   const handleConfirmScheduleOrder = async (e: React.FormEvent) => {
@@ -1091,7 +1099,7 @@ export default function AdminDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           dispatchNo: 'DIS-' + Math.floor(1000 + Math.random() * 9000),
-          type: 'New Installation',
+          type: 'Store Pick Up',
           customerId: selectedOrderToSchedule.userId,
           name: selectedOrderToSchedule.name,
           location: selectedOrderToSchedule.location,
@@ -1108,7 +1116,7 @@ export default function AdminDashboard() {
       // 2. Update Order status in DB
       const updatePayload: any = {
         id: selectedOrderToSchedule.id,
-        status: 'Approved',
+        status: 'Ready for Pick Up',
         assignedTech: `${assignedTech.firstName} ${assignedTech.lastName}`,
         scheduledDate: scheduledDateStr,
       };
@@ -1146,7 +1154,7 @@ export default function AdminDashboard() {
           o.id === selectedOrderToSchedule.id
             ? {
               ...o,
-              status: 'Approved',
+              status: 'Ready for Pick Up',
               assignedTech: `${assignedTech.firstName} ${assignedTech.lastName}`,
               scheduledDate: scheduledDateStr,
               hasDownpayment: overrideDownpayment ? true : o.hasDownpayment,
@@ -1158,8 +1166,8 @@ export default function AdminDashboard() {
       fetch('/api/dispatch').then((r) => r.json()).then(setDispatch).catch(console.error);
 
       showAlert({
-        title: 'Order Accepted & Scheduled',
-        message: `Order #${selectedOrderToSchedule.orderNo} has been assigned to ${assignedTech.firstName} ${assignedTech.lastName} for ${scheduledDateStr} and sent to Dispatch!`,
+        title: 'Order Ready for Pick Up',
+        message: `Order #${selectedOrderToSchedule.orderNo} is now Ready for Pick Up! Assigned to ${assignedTech.firstName} ${assignedTech.lastName} for ${scheduledDateStr}.`,
         type: 'success',
       });
 
@@ -3315,9 +3323,29 @@ export default function AdminDashboard() {
                                         </span>
                                       </td>
                                       <td style={{ padding: '0.8rem 1rem' }}>
-                                        <span style={{ background: '#f1f5f9', color: '#475569', padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                                          <i className="fa-solid fa-store" style={{ color: '#0284c7' }}></i> Store Pick Up
-                                        </span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                          <span style={{ background: '#f1f5f9', color: '#475569', padding: '2px 7px', borderRadius: '5px', fontSize: '0.72rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px', width: 'fit-content' }}>
+                                            <i className="fa-solid fa-store" style={{ color: '#0284c7' }}></i> Store Pick Up
+                                          </span>
+                                          {o.scheduledDate ? (
+                                            <span style={{ fontSize: '0.78rem', color: '#0284c7', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                              <i className="fa-solid fa-calendar-day" style={{ fontSize: '0.7rem' }}></i> {o.scheduledDate}
+                                            </span>
+                                          ) : (
+                                            <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                              <i className="fa-regular fa-clock" style={{ marginRight: '3px' }}></i> Not scheduled
+                                            </span>
+                                          )}
+                                          {o.assignedTech ? (
+                                            <span style={{ fontSize: '0.74rem', color: '#334155', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                              <i className="fa-solid fa-user-gear" style={{ fontSize: '0.68rem', color: '#64748b' }}></i> {o.assignedTech}
+                                            </span>
+                                          ) : (
+                                            <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                              <i className="fa-regular fa-user" style={{ marginRight: '3px' }}></i> Unassigned
+                                            </span>
+                                          )}
+                                        </div>
                                       </td>
                                       <td style={{ padding: '0.8rem 1rem' }}>
                                         <span
@@ -3369,7 +3397,7 @@ export default function AdminDashboard() {
                                           {/* Mark Ready for Pick Up */}
                                           {o.status !== 'Ready for Pick Up' && o.status !== 'Picked Up' && o.status !== 'Completed' && o.status !== 'Cancelled' && (
                                             <button
-                                              onClick={() => handleMarkOrderReadyForPickup(o)}
+                                              onClick={() => handleOpenAcceptOrderModal(o)}
                                               style={{
                                                 background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
                                                 color: 'white',
@@ -3389,27 +3417,49 @@ export default function AdminDashboard() {
                                             </button>
                                           )}
 
-                                          {/* Mark as Picked Up */}
+                                          {/* Mark as Picked Up & Reschedule */}
                                           {o.status === 'Ready for Pick Up' && (
-                                            <button
-                                              onClick={() => handleMarkOrderPickedUp(o)}
-                                              style={{
-                                                background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '6px',
-                                                padding: '5px 12px',
-                                                fontSize: '0.8rem',
-                                                fontWeight: 700,
-                                                cursor: 'pointer',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '5px',
-                                              }}
-                                            >
-                                              <i className="fa-solid fa-circle-check" style={{ fontSize: '0.75rem' }}></i>
-                                              Mark as Picked Up
-                                            </button>
+                                            <>
+                                              <button
+                                                title="Reschedule Pick Up or Reassign Staff"
+                                                onClick={() => handleOpenAcceptOrderModal(o)}
+                                                style={{
+                                                  background: '#f1f5f9',
+                                                  color: '#0284c7',
+                                                  border: '1px solid #cbd5e1',
+                                                  borderRadius: '6px',
+                                                  padding: '5px 9px',
+                                                  fontSize: '0.78rem',
+                                                  fontWeight: 700,
+                                                  cursor: 'pointer',
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  gap: '4px',
+                                                }}
+                                              >
+                                                <i className="fa-solid fa-calendar-day" style={{ fontSize: '0.72rem' }}></i>
+                                                Reschedule
+                                              </button>
+                                              <button
+                                                onClick={() => handleMarkOrderPickedUp(o)}
+                                                style={{
+                                                  background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
+                                                  color: 'white',
+                                                  border: 'none',
+                                                  borderRadius: '6px',
+                                                  padding: '5px 12px',
+                                                  fontSize: '0.8rem',
+                                                  fontWeight: 700,
+                                                  cursor: 'pointer',
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  gap: '5px',
+                                                }}
+                                              >
+                                                <i className="fa-solid fa-circle-check" style={{ fontSize: '0.75rem' }}></i>
+                                                Mark as Picked Up
+                                              </button>
+                                            </>
                                           )}
 
                                           {(o.status === 'Picked Up' || o.status === 'Completed') && (
@@ -6004,11 +6054,11 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.8rem' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#0f172a', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <i className="fa-solid fa-truck-ramp-box" style={{ color: '#0284c7' }}></i>
-                  Accept & Schedule Order
+                  <i className="fa-solid fa-box-archive" style={{ color: '#0284c7' }}></i>
+                  Schedule Pick Up & Assign Staff
                 </h3>
                 <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                  Verify downpayment, assign a technician, and set delivery date for Order #{selectedOrderToSchedule.orderNo}.
+                  Assign staff/technician and set customer pick-up date for Order #{selectedOrderToSchedule.orderNo}.
                 </p>
               </div>
               <button
@@ -6112,7 +6162,7 @@ export default function AdminDashboard() {
               <div>
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
                   <i className="fa-solid fa-user-gear" style={{ color: '#0284c7', marginRight: '5px' }}></i>
-                  Assign Technician *
+                  Assign Staff / Technician In-Charge *
                 </label>
                 <select
                   value={orderScheduleTechId}
@@ -6146,7 +6196,7 @@ export default function AdminDashboard() {
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
                     <i className="fa-solid fa-calendar-day" style={{ color: '#0284c7', marginRight: '5px' }}></i>
-                    Delivery / Install Date *
+                    Target Pick Up Date *
                   </label>
                   <input
                     type="date"
@@ -6169,7 +6219,7 @@ export default function AdminDashboard() {
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
                     <i className="fa-solid fa-clock" style={{ color: '#0284c7', marginRight: '5px' }}></i>
-                    Preferred Time Slot *
+                    Available Pick Up Window *
                   </label>
                   <select
                     value={orderScheduleTimeSlot}
@@ -6260,7 +6310,7 @@ export default function AdminDashboard() {
                   }}
                 >
                   <i className={`fa-solid ${isSubmittingOrderSchedule ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
-                  {isSubmittingOrderSchedule ? 'Dispatching...' : 'Accept & Dispatch Order'}
+                  {isSubmittingOrderSchedule ? 'Scheduling...' : 'Confirm & Set Ready for Pick Up'}
                 </button>
               </div>
             </form>
