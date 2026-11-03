@@ -105,7 +105,71 @@ export async function GET() {
         "B" TEXT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE,
         CONSTRAINT "_TechnicianDispatch_AB_unique" UNIQUE ("A", "B")
       );`,
-      `CREATE INDEX IF NOT EXISTS "_TechnicianDispatch_B_index" ON "_TechnicianDispatch"("B");`
+      `CREATE INDEX IF NOT EXISTS "_TechnicianDispatch_B_index" ON "_TechnicianDispatch"("B");`,
+      `CREATE TABLE IF NOT EXISTS "products" (
+        "id" TEXT PRIMARY KEY,
+        "slug" TEXT NOT NULL UNIQUE,
+        "name" TEXT NOT NULL,
+        "brand" TEXT NOT NULL,
+        "category" TEXT NOT NULL,
+        "price" DOUBLE PRECISION NOT NULL,
+        "originalPrice" DOUBLE PRECISION,
+        "rating" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "sold" INTEGER NOT NULL DEFAULT 0,
+        "image" TEXT NOT NULL,
+        "images" TEXT[] DEFAULT ARRAY[]::TEXT[],
+        "horsepower" TEXT,
+        "badge" TEXT,
+        "specs" TEXT[] DEFAULT ARRAY[]::TEXT[],
+        "description" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "images" TEXT[] DEFAULT ARRAY[]::TEXT[];`,
+      `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "horsepower" TEXT;`,
+      `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "badge" TEXT;`,
+      `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "specs" TEXT[] DEFAULT ARRAY[]::TEXT[];`,
+      `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "description" TEXT;`,
+      `CREATE TABLE IF NOT EXISTS "product_variants" (
+        "id" TEXT PRIMARY KEY,
+        "productId" TEXT NOT NULL REFERENCES "products"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+        "condition" TEXT NOT NULL,
+        "price" DOUBLE PRECISION NOT NULL,
+        "stock" INTEGER NOT NULL DEFAULT 0,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS "reviews" (
+        "id" TEXT PRIMARY KEY,
+        "productId" TEXT NOT NULL,
+        "userId" TEXT NOT NULL,
+        "userName" TEXT NOT NULL,
+        "rating" INTEGER NOT NULL,
+        "comment" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS "inventory_items" (
+        "id" TEXT PRIMARY KEY,
+        "sku" TEXT NOT NULL UNIQUE,
+        "brand" TEXT NOT NULL,
+        "model" TEXT NOT NULL,
+        "category" TEXT NOT NULL,
+        "horsepower" TEXT,
+        "description" TEXT,
+        "stock" INTEGER NOT NULL DEFAULT 0,
+        "price" DOUBLE PRECISION NOT NULL,
+        "image" TEXT,
+        "images" TEXT[] DEFAULT ARRAY[]::TEXT[],
+        "status" TEXT NOT NULL DEFAULT 'In Stock',
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `ALTER TABLE "inventory_items" ADD COLUMN IF NOT EXISTS "horsepower" TEXT;`,
+      `ALTER TABLE "inventory_items" ADD COLUMN IF NOT EXISTS "description" TEXT;`,
+      `ALTER TABLE "inventory_items" ADD COLUMN IF NOT EXISTS "images" TEXT[] DEFAULT ARRAY[]::TEXT[];`,
+      `ALTER TABLE "inventory_items" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'In Stock';`,
+      `ALTER TABLE "inventory_items" ADD COLUMN IF NOT EXISTS "image" TEXT;`,
     ];
 
     for (const ddl of migrations) {
