@@ -76,7 +76,7 @@ function GeocodedMap({ address }: { address: string }) {
     return (
       <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
         <div style={{ textAlign: 'center', color: '#64748b' }}>
-          <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '2rem', marginBottom: '0.5rem', display: 'block', color: '#0284c7' }}></i>
+          <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '2rem', marginBottom: '0.5rem', display: 'block', color: '#052e80' }}></i>
           <p style={{ fontSize: '0.85rem' }}>Locating customer delivery coordinates...</p>
         </div>
       </div>
@@ -526,7 +526,7 @@ export default function TechnicianDashboard() {
       <header
         className="tech-header"
         style={{
-          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+          background: 'linear-gradient(135deg, #072a6b 0%, #0b3080 100%)',
           color: '#ffffff',
           padding: '0.85rem 2rem',
           display: 'flex',
@@ -581,19 +581,19 @@ export default function TechnicianDashboard() {
                   onClick={() => { setActiveTab('dashboard'); setKebabOpen(false); }}
                   style={{ width: '100%', textAlign: 'left', padding: '0.75rem 1rem', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.85rem', cursor: 'pointer' }}
                 >
-                  <i className="fa-solid fa-gauge" style={{ color: '#0284c7' }}></i> Dashboard
+                  <i className="fa-solid fa-gauge" style={{ color: '#052e80' }}></i> Dashboard
                 </button>
                 <button
                   onClick={() => { setActiveTab('assigned'); setKebabOpen(false); }}
                   style={{ width: '100%', textAlign: 'left', padding: '0.75rem 1rem', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.85rem', cursor: 'pointer' }}
                 >
-                  <i className="fa-solid fa-truck" style={{ color: '#0284c7' }}></i> Assigned Tasks
+                  <i className="fa-solid fa-truck" style={{ color: '#052e80' }}></i> Assigned Tasks
                 </button>
                 <button
                   onClick={() => { setActiveTab('services'); setKebabOpen(false); }}
                   style={{ width: '100%', textAlign: 'left', padding: '0.75rem 1rem', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.85rem', cursor: 'pointer' }}
                 >
-                  <i className="fa-solid fa-screwdriver-wrench" style={{ color: '#0284c7' }}></i> Services
+                  <i className="fa-solid fa-screwdriver-wrench" style={{ color: '#052e80' }}></i> Services
                 </button>
                 <div style={{ height: '1px', background: '#e2e8f0', margin: '0.3rem 0' }}></div>
                 <button
@@ -627,12 +627,12 @@ export default function TechnicianDashboard() {
         >
           {/* Tech Profile Summary */}
           <div style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-            <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#0284c7', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1.1rem' }}>
+            <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#052e80', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1.1rem' }}>
               {techName.charAt(0)}
             </div>
             <div style={{ overflow: 'hidden' }}>
               <strong style={{ fontSize: '0.9rem', color: '#0f172a', display: 'block', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{techName}</strong>
-              <span style={{ fontSize: '0.75rem', color: '#0284c7', fontWeight: 600 }}>Field Specialist</span>
+              <span style={{ fontSize: '0.75rem', color: '#052e80', fontWeight: 600 }}>Field Specialist</span>
             </div>
           </div>
 
@@ -650,20 +650,20 @@ export default function TechnicianDashboard() {
               padding: '0.85rem 1rem',
               borderRadius: '10px',
               border: 'none',
-              background: activeTab === 'dashboard' ? '#e0f2fe' : 'transparent',
-              color: activeTab === 'dashboard' ? '#0284c7' : '#475569',
+              background: activeTab === 'dashboard' ? '#d8e9fd' : 'transparent',
+              color: activeTab === 'dashboard' ? '#052e80' : '#475569',
               fontWeight: activeTab === 'dashboard' ? 700 : 500,
               fontSize: '0.9rem',
               cursor: 'pointer',
               transition: 'all 0.15s',
-              borderLeft: activeTab === 'dashboard' ? '4px solid #0284c7' : '4px solid transparent'
+              borderLeft: activeTab === 'dashboard' ? '4px solid #052e80' : '4px solid transparent'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <i className="fa-solid fa-chart-line" style={{ width: '18px', color: activeTab === 'dashboard' ? '#0284c7' : '#94a3b8' }}></i>
+              <i className="fa-solid fa-chart-line" style={{ width: '18px', color: activeTab === 'dashboard' ? '#052e80' : '#94a3b8' }}></i>
               <span>Dashboard</span>
             </div>
-            <span style={{ fontSize: '0.75rem', background: activeTab === 'dashboard' ? '#0284c7' : '#e2e8f0', color: activeTab === 'dashboard' ? '#ffffff' : '#64748b', padding: '2px 7px', borderRadius: '999px', fontWeight: 700 }}>
+            <span style={{ fontSize: '0.75rem', background: activeTab === 'dashboard' ? '#052e80' : '#e2e8f0', color: activeTab === 'dashboard' ? '#ffffff' : '#64748b', padding: '2px 7px', borderRadius: '999px', fontWeight: 700 }}>
               {totalJobsCount}
             </span>
           </button>
@@ -678,17 +678,17 @@ export default function TechnicianDashboard() {
               padding: '0.85rem 1rem',
               borderRadius: '10px',
               border: 'none',
-              background: activeTab === 'assigned' ? '#e0f2fe' : 'transparent',
-              color: activeTab === 'assigned' ? '#0284c7' : '#475569',
+              background: activeTab === 'assigned' ? '#d8e9fd' : 'transparent',
+              color: activeTab === 'assigned' ? '#052e80' : '#475569',
               fontWeight: activeTab === 'assigned' ? 700 : 500,
               fontSize: '0.9rem',
               cursor: 'pointer',
               transition: 'all 0.15s',
-              borderLeft: activeTab === 'assigned' ? '4px solid #0284c7' : '4px solid transparent'
+              borderLeft: activeTab === 'assigned' ? '4px solid #052e80' : '4px solid transparent'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <i className="fa-solid fa-truck" style={{ width: '18px', color: activeTab === 'assigned' ? '#0284c7' : '#94a3b8' }}></i>
+              <i className="fa-solid fa-truck" style={{ width: '18px', color: activeTab === 'assigned' ? '#052e80' : '#94a3b8' }}></i>
               <span>Assigned Task</span>
             </div>
             <span style={{ fontSize: '0.75rem', background: '#38bdf8', color: '#ffffff', padding: '2px 7px', borderRadius: '999px', fontWeight: 700 }}>
@@ -706,27 +706,27 @@ export default function TechnicianDashboard() {
               padding: '0.85rem 1rem',
               borderRadius: '10px',
               border: 'none',
-              background: activeTab === 'services' ? '#e0f2fe' : 'transparent',
-              color: activeTab === 'services' ? '#0284c7' : '#475569',
+              background: activeTab === 'services' ? '#d8e9fd' : 'transparent',
+              color: activeTab === 'services' ? '#052e80' : '#475569',
               fontWeight: activeTab === 'services' ? 700 : 500,
               fontSize: '0.9rem',
               cursor: 'pointer',
               transition: 'all 0.15s',
-              borderLeft: activeTab === 'services' ? '4px solid #0284c7' : '4px solid transparent'
+              borderLeft: activeTab === 'services' ? '4px solid #052e80' : '4px solid transparent'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <i className="fa-solid fa-screwdriver-wrench" style={{ width: '18px', color: activeTab === 'services' ? '#0284c7' : '#94a3b8' }}></i>
+              <i className="fa-solid fa-screwdriver-wrench" style={{ width: '18px', color: activeTab === 'services' ? '#052e80' : '#94a3b8' }}></i>
               <span>Services</span>
             </div>
-            <span style={{ fontSize: '0.75rem', background: '#0284c7', color: '#ffffff', padding: '2px 7px', borderRadius: '999px', fontWeight: 700 }}>
+            <span style={{ fontSize: '0.75rem', background: '#052e80', color: '#ffffff', padding: '2px 7px', borderRadius: '999px', fontWeight: 700 }}>
               {allServiceJobs.length}
             </span>
           </button>
 
           {/* Bottom Shift Info Card */}
           <div style={{ marginTop: 'auto', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#0284c7', fontWeight: 700, marginBottom: '0.4rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#052e80', fontWeight: 700, marginBottom: '0.4rem' }}>
               <i className="fa-regular fa-clock"></i> Today's Shift
             </div>
             <p style={{ margin: 0, color: '#64748b' }}>08:00 AM - 05:00 PM</p>
@@ -753,10 +753,10 @@ export default function TechnicianDashboard() {
                   </p>
                 </div>
                 <div className="tech-banner-buttons" style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button onClick={() => setActiveTab('assigned')} style={{ background: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd', padding: '0.55rem 1rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
+                  <button onClick={() => setActiveTab('assigned')} style={{ background: '#d8e9fd', color: '#052e80', border: '1px solid #bae6fd', padding: '0.55rem 1rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
                     <i className="fa-solid fa-truck" style={{ marginRight: '6px' }}></i> View Deliveries
                   </button>
-                  <button onClick={() => setActiveTab('services')} style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '0.55rem 1rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
+                  <button onClick={() => setActiveTab('services')} style={{ background: '#052e80', color: '#ffffff', border: 'none', padding: '0.55rem 1rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
                     <i className="fa-solid fa-wrench" style={{ marginRight: '6px' }}></i> View Services
                   </button>
                 </div>
@@ -767,7 +767,7 @@ export default function TechnicianDashboard() {
                 <div className="tech-stat-card" style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Total Jobs</span>
-                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#d8e9fd', color: '#052e80', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <i className="fa-solid fa-clipboard-list"></i>
                     </div>
                   </div>
@@ -789,11 +789,11 @@ export default function TechnicianDashboard() {
                 <div className="tech-stat-card" style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>In Progress</span>
-                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#d8e9fd', color: '#052e80', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <i className="fa-solid fa-person-running"></i>
                     </div>
                   </div>
-                  <div className="stat-num" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0284c7', marginTop: '0.5rem' }}>{inProgressJobsCount}</div>
+                  <div className="stat-num" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#052e80', marginTop: '0.5rem' }}>{inProgressJobsCount}</div>
                   <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Active in field</span>
                 </div>
 
@@ -816,7 +816,7 @@ export default function TechnicianDashboard() {
                 <div className="tech-calendar-card" style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                     <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <i className="fa-regular fa-calendar-days" style={{ color: '#0284c7' }}></i>
+                      <i className="fa-regular fa-calendar-days" style={{ color: '#052e80' }}></i>
                       {monthNames[month]} {year} Schedule
                     </h3>
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
@@ -857,8 +857,8 @@ export default function TechnicianDashboard() {
                           className="tech-calendar-cell"
                           style={{
                             height: '70px',
-                            background: isSelected ? '#e0f2fe' : isToday ? '#f0f9ff' : '#ffffff',
-                            border: isSelected ? '2px solid #0284c7' : isToday ? '1px solid #38bdf8' : '1px solid #e2e8f0',
+                            background: isSelected ? '#d8e9fd' : isToday ? '#f0f9ff' : '#ffffff',
+                            border: isSelected ? '2px solid #052e80' : isToday ? '1px solid #38bdf8' : '1px solid #e2e8f0',
                             borderRadius: '10px',
                             padding: '0.4rem',
                             cursor: 'pointer',
@@ -869,11 +869,11 @@ export default function TechnicianDashboard() {
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span className="day-num" style={{ fontSize: '0.85rem', fontWeight: isToday ? 800 : 600, color: isToday ? '#0284c7' : '#0f172a' }}>
+                            <span className="day-num" style={{ fontSize: '0.85rem', fontWeight: isToday ? 800 : 600, color: isToday ? '#052e80' : '#0f172a' }}>
                               {dNum}
                             </span>
                             {isToday && (
-                              <span style={{ fontSize: '0.6rem', background: '#0284c7', color: '#ffffff', padding: '1px 4px', borderRadius: '4px' }}>TODAY</span>
+                              <span style={{ fontSize: '0.6rem', background: '#052e80', color: '#ffffff', padding: '1px 4px', borderRadius: '4px' }}>TODAY</span>
                             )}
                           </div>
 
@@ -881,7 +881,7 @@ export default function TechnicianDashboard() {
                             <div style={{ marginTop: 'auto' }}>
                               <span style={{
                                 fontSize: '0.65rem',
-                                background: '#0284c7',
+                                background: '#052e80',
                                 color: '#ffffff',
                                 padding: '2px 6px',
                                 borderRadius: '999px',
@@ -901,7 +901,7 @@ export default function TechnicianDashboard() {
                 {/* SELECTED DAY TASKS LIST */}
                 <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', boxShadow: '0 2px 10px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column' }}>
                   <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
-                    <i className="fa-solid fa-list-check" style={{ color: '#0284c7', marginRight: '6px' }}></i>
+                    <i className="fa-solid fa-list-check" style={{ color: '#052e80', marginRight: '6px' }}></i>
                     {selectedDay ? `${monthNames[month]} ${selectedDay}, ${year} Tasks` : 'Select a Day'}
                   </h3>
 
@@ -934,7 +934,7 @@ export default function TechnicianDashboard() {
                               <i className="fa-solid fa-location-dot" style={{ color: '#ef4444', marginRight: '4px' }}></i>
                               {(job.location || job.address || '').split('| COORDS:')[0].trim()}
                             </p>
-                            <div style={{ fontSize: '0.8rem', color: '#0284c7', fontWeight: 600 }}>
+                            <div style={{ fontSize: '0.8rem', color: '#052e80', fontWeight: 600 }}>
                               <i className="fa-solid fa-fan" style={{ marginRight: '4px' }}></i>
                               {job.item}
                             </div>
@@ -948,7 +948,7 @@ export default function TechnicianDashboard() {
                               {!isDelivery(job) && (
                                 <button
                                   onClick={() => openInvoiceModal(job)}
-                                  style={{ background: '#0284c7', border: 'none', color: '#ffffff', padding: '0.35rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
+                                  style={{ background: '#052e80', border: 'none', color: '#ffffff', padding: '0.35rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
                                 >
                                   Invoice
                                 </button>
@@ -972,7 +972,7 @@ export default function TechnicianDashboard() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
                   <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                    <i className="fa-solid fa-truck" style={{ color: '#0284c7', marginRight: '8px' }}></i>
+                    <i className="fa-solid fa-truck" style={{ color: '#052e80', marginRight: '8px' }}></i>
                     Assigned Tasks — AC Delivery & Installation
                   </h2>
                   <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0.2rem 0 0' }}>
@@ -990,7 +990,7 @@ export default function TechnicianDashboard() {
                         padding: '0.45rem 0.9rem',
                         borderRadius: '8px',
                         border: 'none',
-                        background: deliveryFilter === f ? '#0284c7' : 'transparent',
+                        background: deliveryFilter === f ? '#052e80' : 'transparent',
                         color: deliveryFilter === f ? '#ffffff' : '#64748b',
                         fontWeight: deliveryFilter === f ? 700 : 500,
                         fontSize: '0.85rem',
@@ -1031,7 +1031,7 @@ export default function TechnicianDashboard() {
                       >
                         <div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0284c7', background: '#e0f2fe', padding: '3px 8px', borderRadius: '6px' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#052e80', background: '#d8e9fd', padding: '3px 8px', borderRadius: '6px' }}>
                               {job.dispatchNo || 'DSP-DELIVERY'}
                             </span>
                             <span style={{
@@ -1039,7 +1039,7 @@ export default function TechnicianDashboard() {
                               fontWeight: 700,
                               padding: '3px 9px',
                               borderRadius: '999px',
-                              background: isCompleted ? '#dcfce7' : isInProgress ? '#e0f2fe' : '#fef3c7',
+                              background: isCompleted ? '#dcfce7' : isInProgress ? '#d8e9fd' : '#fef3c7',
                               color: isCompleted ? '#166534' : isInProgress ? '#0369a1' : '#92400e'
                             }}>
                               {job.status}
@@ -1056,7 +1056,7 @@ export default function TechnicianDashboard() {
                           </div>
 
                           <div style={{ background: '#f8fafc', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid #e2e8f0', margin: '0.75rem 0' }}>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0284c7' }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#052e80' }}>
                               <i className="fa-solid fa-fan" style={{ marginRight: '6px' }}></i>
                               {job.item}
                             </div>
@@ -1101,7 +1101,7 @@ export default function TechnicianDashboard() {
                           ) : (
                             <button
                               onClick={() => handleUpdateStatus(job.id, 'IN_PROGRESS')}
-                              style={{ flex: 1, background: '#0284c7', color: '#ffffff', border: 'none', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                              style={{ flex: 1, background: '#052e80', color: '#ffffff', border: 'none', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
                             >
                               <i className="fa-solid fa-play" style={{ marginRight: '4px' }}></i> Start Delivery & Setup
                             </button>
@@ -1123,7 +1123,7 @@ export default function TechnicianDashboard() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
                   <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                    <i className="fa-solid fa-screwdriver-wrench" style={{ color: '#0284c7', marginRight: '8px' }}></i>
+                    <i className="fa-solid fa-screwdriver-wrench" style={{ color: '#052e80', marginRight: '8px' }}></i>
                     Field Service Jobs
                   </h2>
                   <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0.2rem 0 0' }}>
@@ -1141,7 +1141,7 @@ export default function TechnicianDashboard() {
                         padding: '0.45rem 1rem',
                         borderRadius: '8px',
                         border: 'none',
-                        background: serviceFilter === f ? '#0284c7' : 'transparent',
+                        background: serviceFilter === f ? '#052e80' : 'transparent',
                         color: serviceFilter === f ? '#ffffff' : '#64748b',
                         fontWeight: serviceFilter === f ? 700 : 500,
                         fontSize: '0.85rem',
@@ -1198,7 +1198,7 @@ export default function TechnicianDashboard() {
                               fontWeight: 700,
                               padding: '3px 9px',
                               borderRadius: '999px',
-                              background: isCompleted ? '#dcfce7' : isInProgress ? '#e0f2fe' : '#fef3c7',
+                              background: isCompleted ? '#dcfce7' : isInProgress ? '#d8e9fd' : '#fef3c7',
                               color: isCompleted ? '#166534' : isInProgress ? '#0369a1' : '#92400e'
                             }}>
                               {job.status}
@@ -1215,7 +1215,7 @@ export default function TechnicianDashboard() {
                           </div>
 
                           <div style={{ background: '#f8fafc', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid #e2e8f0', margin: '0.75rem 0' }}>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0284c7' }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#052e80' }}>
                               <i className="fa-solid fa-fan" style={{ marginRight: '6px' }}></i>
                               {job.item}
                             </div>
@@ -1244,7 +1244,7 @@ export default function TechnicianDashboard() {
                           {/* INVOICE BUTTON: ALLOWS CHANGING SERVICE TYPE */}
                           <button
                             onClick={() => openInvoiceModal(job)}
-                            style={{ flex: 1, background: '#0284c7', color: '#ffffff', border: 'none', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                            style={{ flex: 1, background: '#052e80', color: '#ffffff', border: 'none', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
                           >
                             <i className="fa-solid fa-file-invoice" style={{ marginRight: '4px' }}></i> Invoice / Complete
                           </button>
@@ -1271,7 +1271,7 @@ export default function TechnicianDashboard() {
             <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', borderTopLeftRadius: '18px', borderTopRightRadius: '18px' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <i className="fa-solid fa-file-invoice-dollar" style={{ color: '#0284c7' }}></i>
+                  <i className="fa-solid fa-file-invoice-dollar" style={{ color: '#052e80' }}></i>
                   Service Invoice & Completion
                 </h3>
                 <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
@@ -1297,7 +1297,7 @@ export default function TechnicianDashboard() {
                 <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '4px' }}>
                   Unit: <strong>{invoiceJob.item}</strong> | Location: {(invoiceJob.location || invoiceJob.address || '').split('| COORDS:')[0].trim()}
                 </div>
-                <div style={{ fontSize: '0.8rem', color: '#0284c7', marginTop: '4px', fontWeight: 600 }}>
+                <div style={{ fontSize: '0.8rem', color: '#052e80', marginTop: '4px', fontWeight: 600 }}>
                   Customer Originally Requested: <u>{invoiceJob.type || invoiceJob.serviceType}</u>
                 </div>
               </div>
@@ -1362,7 +1362,7 @@ export default function TechnicianDashboard() {
                 <button
                   disabled={invoiceSending}
                   onClick={() => handleSendInvoice('CUSTOMER')}
-                  style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '0.85rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  style={{ background: '#052e80', color: '#ffffff', border: 'none', padding: '0.85rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                 >
                   <i className="fa-solid fa-receipt"></i>
                   Send Customer Receipt
@@ -1390,7 +1390,7 @@ export default function TechnicianDashboard() {
             
             <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
               <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <i className="fa-solid fa-user-circle" style={{ color: '#0284c7' }}></i>
+                <i className="fa-solid fa-user-circle" style={{ color: '#052e80' }}></i>
                 Client & Location Information
               </h3>
               <button onClick={() => setShowClientModal(false)} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: '#94a3b8', cursor: 'pointer' }}>
@@ -1403,14 +1403,14 @@ export default function TechnicianDashboard() {
                 <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                   <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Customer</div>
                   <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{selectedJob.name}</div>
-                  <div style={{ fontSize: '0.85rem', color: '#0284c7', marginTop: '4px' }}>
+                  <div style={{ fontSize: '0.85rem', color: '#052e80', marginTop: '4px' }}>
                     <i className="fa-solid fa-phone" style={{ marginRight: '6px' }}></i> +63 9XX XXX XXXX
                   </div>
                 </div>
 
                 <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                   <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Assigned Task / AC Unit</div>
-                  <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0284c7', marginTop: '2px' }}>{selectedJob.item}</div>
+                  <div style={{ fontSize: '1rem', fontWeight: 700, color: '#052e80', marginTop: '2px' }}>{selectedJob.item}</div>
                   <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '4px' }}>
                     Type: <strong>{selectedJob.type}</strong>
                   </div>
@@ -1444,7 +1444,7 @@ export default function TechnicianDashboard() {
                   {!isDelivery(selectedJob) && (
                     <button
                       onClick={() => { setShowClientModal(false); openInvoiceModal(selectedJob); }}
-                      style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+                      style={{ background: '#052e80', color: '#ffffff', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
                     >
                       <i className="fa-solid fa-file-invoice" style={{ marginRight: '6px' }}></i> Create Service Invoice
                     </button>
@@ -1493,7 +1493,7 @@ export default function TechnicianDashboard() {
             alignItems: 'center',
             justifyContent: 'center',
             gap: '3px',
-            color: activeTab === 'dashboard' ? '#0284c7' : '#64748b',
+            color: activeTab === 'dashboard' ? '#052e80' : '#64748b',
             cursor: 'pointer',
             position: 'relative',
           }}
@@ -1501,7 +1501,7 @@ export default function TechnicianDashboard() {
           <i className="fa-solid fa-chart-line" style={{ fontSize: '1.15rem' }}></i>
           <span style={{ fontSize: '0.72rem', fontWeight: activeTab === 'dashboard' ? 700 : 500 }}>Dashboard</span>
           {totalJobsCount > 0 && (
-            <span style={{ position: 'absolute', top: '6px', right: '28%', background: '#0284c7', color: '#ffffff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: '999px', fontWeight: 700 }}>
+            <span style={{ position: 'absolute', top: '6px', right: '28%', background: '#052e80', color: '#ffffff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: '999px', fontWeight: 700 }}>
               {totalJobsCount}
             </span>
           )}
@@ -1519,7 +1519,7 @@ export default function TechnicianDashboard() {
             alignItems: 'center',
             justifyContent: 'center',
             gap: '3px',
-            color: activeTab === 'assigned' ? '#0284c7' : '#64748b',
+            color: activeTab === 'assigned' ? '#052e80' : '#64748b',
             cursor: 'pointer',
             position: 'relative',
           }}
@@ -1545,7 +1545,7 @@ export default function TechnicianDashboard() {
             alignItems: 'center',
             justifyContent: 'center',
             gap: '3px',
-            color: activeTab === 'services' ? '#0284c7' : '#64748b',
+            color: activeTab === 'services' ? '#052e80' : '#64748b',
             cursor: 'pointer',
             position: 'relative',
           }}
@@ -1553,7 +1553,7 @@ export default function TechnicianDashboard() {
           <i className="fa-solid fa-screwdriver-wrench" style={{ fontSize: '1.15rem' }}></i>
           <span style={{ fontSize: '0.72rem', fontWeight: activeTab === 'services' ? 700 : 500 }}>Services</span>
           {allServiceJobs.length > 0 && (
-            <span style={{ position: 'absolute', top: '6px', right: '28%', background: '#0284c7', color: '#ffffff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: '999px', fontWeight: 700 }}>
+            <span style={{ position: 'absolute', top: '6px', right: '28%', background: '#052e80', color: '#ffffff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: '999px', fontWeight: 700 }}>
               {allServiceJobs.length}
             </span>
           )}

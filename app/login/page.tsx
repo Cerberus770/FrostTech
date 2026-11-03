@@ -204,7 +204,7 @@ export default function LoginPage() {
       <footer style={{ 
         marginTop: 0, 
         padding: '1rem 5%', 
-        background: 'linear-gradient(135deg, #042f4a 0%, #0c4a6e 100%)',
+        background: 'linear-gradient(135deg, #072a6b 0%, #0b3080 100%)',
         borderTop: '1px solid rgba(56, 189, 248, 0.15)'
       }}>
         <div style={{ 

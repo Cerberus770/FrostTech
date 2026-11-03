@@ -152,7 +152,7 @@ export default function Header({ hideSearch = false }: { hideSearch?: boolean })
 
   return (
     <header style={{
-      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+      background: 'linear-gradient(135deg, #072a6b 0%, #0b3080 100%)',
       backdropFilter: 'blur(16px)',
       borderBottom: '1px solid rgba(255,255,255,0.15)',
       color: '#f0f4f8',
@@ -163,7 +163,7 @@ export default function Header({ hideSearch = false }: { hideSearch?: boolean })
       position: 'sticky',
       top: 0,
       zIndex: 100,
-      boxShadow: '0 4px 15px rgba(2, 100, 160, 0.25)',
+      boxShadow: '0 4px 15px rgba(7, 42, 107, 0.25)',
     }}>
       <Link href="/" className="logo" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <img src="/LOGO.jpg" alt="FrostTech Logo" className="logo-mark" style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'cover' }} />

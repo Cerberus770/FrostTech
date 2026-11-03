@@ -285,8 +285,8 @@ export default function HomePage() {
 
       {/* Customer Shop Navigation Bar */}
       {isCustomerLoggedIn && (
-        <div style={{ background: '#e0f2fe', borderBottom: '1px solid #bae6fd', padding: '0.65rem 5%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem' }}>
-          <span style={{ color: '#0369a1', fontWeight: 600 }}>
+        <div style={{ background: '#d8e9fd', borderBottom: '1px solid #b9d4f6', padding: '0.65rem 5%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem' }}>
+          <span style={{ color: '#06255b', fontWeight: 700 }}>
             <i className="fa-solid fa-store" style={{ marginRight: '6px' }}></i>
             Browsing Air Conditioners & Parts Catalog
           </span>

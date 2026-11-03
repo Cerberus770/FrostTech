@@ -1874,7 +1874,7 @@ export default function AdminDashboard() {
       {/* Standardized FrostTech Header */}
       <header
         style={{
-          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+          background: 'linear-gradient(135deg, #072a6b 0%, #0b3080 100%)',
           backdropFilter: 'blur(16px)',
           borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
           color: '#ffffff',
@@ -2688,7 +2688,7 @@ export default function AdminDashboard() {
                     }}
                     style={{
                       padding: '0.65rem 1.25rem',
-                      background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                      background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
                       border: 'none',
                       borderRadius: '10px',
                       color: 'white',
@@ -3124,7 +3124,7 @@ export default function AdminDashboard() {
                     style={{
                       padding: '0.85rem',
                       borderRadius: '10px',
-                      background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                      background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
                       color: 'white',
                       fontWeight: 700,
                       border: 'none',
@@ -3399,7 +3399,7 @@ export default function AdminDashboard() {
                                             <button
                                               onClick={() => handleOpenAcceptOrderModal(o)}
                                               style={{
-                                                background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                                                background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
                                                 color: 'white',
                                                 border: 'none',
                                                 borderRadius: '6px',
@@ -3800,7 +3800,7 @@ export default function AdminDashboard() {
                                               <button
                                                 onClick={() => openScheduleServiceModal(m)}
                                                 style={{
-                                                  background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                                                  background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
                                                   color: 'white',
                                                   border: 'none',
                                                   borderRadius: '6px',
@@ -3918,7 +3918,7 @@ export default function AdminDashboard() {
                                         style={{
                                           padding: '6px 14px',
                                           borderRadius: '6px',
-                                          background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                                          background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
                                           color: 'white',
                                           border: 'none',
                                           fontWeight: 700,
@@ -4788,7 +4788,7 @@ export default function AdminDashboard() {
                                     style={{
                                       padding: '5px 11px',
                                       borderRadius: '7px',
-                                      background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                                      background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
                                       border: 'none',
                                       color: '#ffffff',
                                       fontWeight: 700,
@@ -4855,7 +4855,7 @@ export default function AdminDashboard() {
                   onClick={() => setShowAddUserModal(true)}
                   style={{
                     padding: '0.65rem 1.25rem',
-                    background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                    background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
                     border: 'none',
                     borderRadius: '10px',
                     color: 'white',
@@ -5845,7 +5845,7 @@ export default function AdminDashboard() {
 
             {/* User Info Card */}
             <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.85rem 1rem', marginBottom: '1.2rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'linear-gradient(135deg, #0284c7, #38bdf8)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '1rem', flexShrink: 0 }}>
+              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'linear-gradient(135deg, #052e80, #0b3080)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '1rem', flexShrink: 0 }}>
                 {editingUser.firstName[0]}{editingUser.lastName[0]}
               </div>
               <div>
@@ -5997,7 +5997,7 @@ export default function AdminDashboard() {
                   padding: '0.7rem',
                   borderRadius: '10px',
                   border: 'none',
-                  background: isSavingEdit ? '#94a3b8' : 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                  background: isSavingEdit ? '#94a3b8' : 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
                   color: 'white',
                   fontWeight: 700,
                   fontSize: '0.88rem',
@@ -6295,7 +6295,7 @@ export default function AdminDashboard() {
                     border: 'none',
                     background: (!selectedOrderToSchedule.hasDownpayment && !overrideDownpayment)
                       ? '#94a3b8'
-                      : 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                      : 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
                     color: '#ffffff',
                     fontSize: '0.88rem',
                     fontWeight: 700,
@@ -6749,7 +6749,7 @@ export default function AdminDashboard() {
                     padding: '0.65rem',
                     borderRadius: '8px',
                     border: 'none',
-                    background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                    background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
                     color: 'white',
                     fontWeight: 700,
                     fontSize: '0.88rem',
@@ -7218,7 +7218,7 @@ export default function AdminDashboard() {
                       padding: '0.7rem',
                       borderRadius: '10px',
                       border: 'none',
-                      background: isSavingMaintenance ? '#94a3b8' : 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+                      background: isSavingMaintenance ? '#94a3b8' : 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
                       color: 'white',
                       fontWeight: 700,
                       fontSize: '0.88rem',
