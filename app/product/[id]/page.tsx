@@ -324,11 +324,27 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
     <>
       <Header />
 
-      {/* Back navigation */}
-      <div style={{ padding: '1.5rem 5% 0' }}>
-        <Link href="/" style={{ color: 'var(--text-light)', textDecoration: 'none', fontWeight: 500, transition: 'color 0.3s' }}>
-          <i className="fa-solid fa-arrow-left" style={{ marginRight: '8px' }}></i> Back to Shop
-        </Link>
+      {/* Breadcrumb Navigation Bar */}
+      <div className="product-breadcrumb-bar">
+        <div className="breadcrumb-inner">
+          <button
+            onClick={() => router.back()}
+            className="breadcrumb-back-btn"
+          >
+            <i className="fa-solid fa-arrow-left"></i>
+            <span>Back</span>
+          </button>
+          <div className="breadcrumb-divider"></div>
+          <nav className="breadcrumb-trail">
+            <Link href="/" className="breadcrumb-link">
+              <i className="fa-solid fa-house"></i> Home
+            </Link>
+            <i className="fa-solid fa-chevron-right breadcrumb-separator"></i>
+            <Link href="/#products" className="breadcrumb-link">Shop</Link>
+            <i className="fa-solid fa-chevron-right breadcrumb-separator"></i>
+            <span className="breadcrumb-current">{product.brand} {product.name}</span>
+          </nav>
+        </div>
       </div>
 
       {/* Product Details Card */}

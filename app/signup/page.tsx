@@ -377,9 +377,36 @@ export default function SignupPage() {
       </section>
 
       {/* Footer */}
-      <footer>
-        <div className="footer-bottom" style={{ borderTop: 'none', paddingTop: 0, marginTop: '-2rem' }}>
-          &copy; 2026 FrostTech Cooling Solutions Co. All rights reserved.
+      <footer style={{ 
+        marginTop: 0, 
+        padding: '1rem 5%', 
+        background: 'linear-gradient(135deg, #042f4a 0%, #0c4a6e 100%)',
+        borderTop: '1px solid rgba(56, 189, 248, 0.15)'
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          flexWrap: 'wrap' as const,
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          maxWidth: '1200px',
+          margin: '0 auto',
+          gap: '0.75rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'rgba(255,255,255,0.7)' }}>
+            <i className="fa-solid fa-snowflake" style={{ color: '#38bdf8', fontSize: '0.9rem' }}></i>
+            <span>&copy; 2026 FrostTech Cooling Solutions Co.</span>
+          </div>
+          <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.8rem' }}>
+            <Link href="/" style={{ color: 'rgba(224,242,254,0.7)', textDecoration: 'none' }}>
+              <i className="fa-solid fa-store" style={{ marginRight: '4px', fontSize: '0.72rem' }}></i>Shop
+            </Link>
+            <a href="https://www.facebook.com/FrostTechCoolingSolutionsCo" target="_blank" rel="noreferrer" style={{ color: 'rgba(224,242,254,0.7)', textDecoration: 'none' }}>
+              <i className="fa-brands fa-facebook" style={{ marginRight: '4px', fontSize: '0.72rem' }}></i>Facebook
+            </a>
+            <Link href="/login" style={{ color: 'rgba(224,242,254,0.7)', textDecoration: 'none' }}>
+              <i className="fa-solid fa-right-to-bracket" style={{ marginRight: '4px', fontSize: '0.72rem' }}></i>Sign In
+            </Link>
+          </div>
         </div>
       </footer>
     </>

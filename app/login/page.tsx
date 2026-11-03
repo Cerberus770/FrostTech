@@ -201,9 +201,36 @@ export default function LoginPage() {
         </div>
       </section>
 
-      <footer>
-        <div className="footer-bottom" style={{ borderTop: 'none', paddingTop: 0, marginTop: '-2rem' }}>
-          &copy; 2026 FrostTech Cooling Solutions Co. All rights reserved.
+      <footer style={{ 
+        marginTop: 0, 
+        padding: '1rem 5%', 
+        background: 'linear-gradient(135deg, #042f4a 0%, #0c4a6e 100%)',
+        borderTop: '1px solid rgba(56, 189, 248, 0.15)'
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          flexWrap: 'wrap',
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          maxWidth: '1200px',
+          margin: '0 auto',
+          gap: '0.75rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'rgba(255,255,255,0.7)' }}>
+            <i className="fa-solid fa-snowflake" style={{ color: '#38bdf8', fontSize: '0.9rem' }}></i>
+            <span>&copy; 2026 FrostTech Cooling Solutions Co.</span>
+          </div>
+          <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.8rem' }}>
+            <Link href="/#products" style={{ color: 'rgba(224,242,254,0.7)', textDecoration: 'none', transition: 'color 0.2s' }}>
+              <i className="fa-solid fa-store" style={{ marginRight: '4px', fontSize: '0.72rem' }}></i>Shop
+            </Link>
+            <a href="https://www.facebook.com/FrostTechCoolingSolutionsCo" target="_blank" rel="noreferrer" style={{ color: 'rgba(224,242,254,0.7)', textDecoration: 'none', transition: 'color 0.2s' }}>
+              <i className="fa-brands fa-facebook" style={{ marginRight: '4px', fontSize: '0.72rem' }}></i>Facebook
+            </a>
+            <Link href="/signup" style={{ color: 'rgba(224,242,254,0.7)', textDecoration: 'none', transition: 'color 0.2s' }}>
+              <i className="fa-solid fa-user-plus" style={{ marginRight: '4px', fontSize: '0.72rem' }}></i>Sign Up
+            </Link>
+          </div>
         </div>
       </footer>
     </>

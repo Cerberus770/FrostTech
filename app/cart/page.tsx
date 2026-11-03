@@ -37,7 +37,31 @@ export default function CartPage() {
   const router = useRouter();
   const { state, setState, saveState } = useAppState();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [selectedItemIds, setSelectedItemIds] = useState<(string | number)[]>([]);
   const [total, setTotal] = useState(0);
+
+  const selectedItems = cartItems.filter(item => selectedItemIds.includes(item.id));
+  const selectedTotal = selectedItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const allSelected = cartItems.length > 0 && selectedItemIds.length === cartItems.length;
+
+  const toggleSelectItem = (id: string | number) => {
+    setSelectedItemIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedItemIds([]);
+    } else {
+      setSelectedItemIds(cartItems.map(item => item.id));
+    }
+  };
+
+  // Keep total synced with selected items
+  useEffect(() => {
+    setTotal(selectedTotal);
+  }, [selectedTotal]);
 
   // Checkout modal state
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
@@ -199,6 +223,7 @@ export default function CartPage() {
           }
 
           setCartItems(merged);
+          setSelectedItemIds(merged.map(i => i.id));
           calculateTotal(merged);
           localStorage.setItem('frostTechCart', JSON.stringify(merged));
           window.dispatchEvent(new Event('storage'));
@@ -207,6 +232,7 @@ export default function CartPage() {
           console.error('Cart fetch error, using local fallback:', err);
           const activeLocal = localCart.filter(i => !isItemExpired(i));
           setCartItems(activeLocal);
+          setSelectedItemIds(activeLocal.map(i => i.id));
           calculateTotal(activeLocal);
         });
 
@@ -256,6 +282,7 @@ export default function CartPage() {
     const userId = sessionStorage.getItem('userId');
     const updated = cartItems.filter((item) => item.id !== id);
     setCartItems(updated);
+    setSelectedItemIds(prev => prev.filter(i => i !== id));
     calculateTotal(updated);
     localStorage.setItem('frostTechCart', JSON.stringify(updated));
     window.dispatchEvent(new Event('storage'));
@@ -302,6 +329,10 @@ export default function CartPage() {
       alert('Your cart is empty. Please add items before checking out.');
       return;
     }
+    if (selectedItems.length === 0) {
+      alert('Please check at least one item using the checkbox to proceed to checkout.');
+      return;
+    }
     const isLoggedIn = sessionStorage.getItem('isLoggedIn');
     if (!isLoggedIn) {
       alert('Please log in or sign up to continue to checkout.');
@@ -316,7 +347,11 @@ export default function CartPage() {
       alert('Please fill in all required fields.');
       return;
     }
-    const isAcInCart = cartItems.some(item => 
+    if (selectedItems.length === 0) {
+      alert('Please select at least one item to proceed.');
+      return;
+    }
+    const isAcInCart = selectedItems.some(item => 
       (item.price && item.price >= 8000) ||
       (item.category && (item.category.toLowerCase().includes('ac') || item.category.toLowerCase().includes('air'))) ||
       (item.name && (
@@ -355,7 +390,7 @@ export default function CartPage() {
             userId: userId || 'guest',
             name: checkoutName,
             location: finalLocation,
-            item: cartItems.map(i => `${i.quantity}x ${i.name}`).join(', '),
+            item: selectedItems.map(i => `${i.quantity}x ${i.name}`).join(', '),
             term: 6, // Default for now
             employer: 'To be provided in-store',
             income: 'To be provided in-store',
@@ -370,7 +405,7 @@ export default function CartPage() {
           userId: userId,
           name: checkoutName,
           location: finalLocation,
-          item: cartItems.map(i => `${i.quantity}x ${i.name}`).join(', '),
+          item: selectedItems.map(i => `${i.quantity}x ${i.name}`).join(', '),
           payment: checkoutPayment,
           date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
           status: 'Processing',
@@ -415,13 +450,19 @@ export default function CartPage() {
         }).catch(e => console.warn('Failed to save to address book:', e));
       }
 
-      // Clear cart
+      // Remove only checked / purchased items from cart
+      const remainingItems = cartItems.filter(item => !selectedItemIds.includes(item.id));
+      setCartItems(remainingItems);
+      setSelectedItemIds(remainingItems.map(i => i.id));
+      localStorage.setItem('frostTechCart', JSON.stringify(remainingItems));
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new Event('cartUpdated'));
+
       if (userId && userId !== 'CUS-NEW') {
-        fetch(`/api/cart?userId=${userId}&clearAll=true`, { method: 'DELETE' }).catch(console.error);
+        selectedItems.forEach(item => {
+          fetch(`/api/cart?id=${item.id}`, { method: 'DELETE' }).catch(console.error);
+        });
       }
-      localStorage.removeItem('frostTechCart');
-      setCartItems([]);
-      setTotal(0);
 
       setIsSubmitting(false);
       setShowCheckoutModal(false);
@@ -470,7 +511,7 @@ Date Issued:    ________________________________________
 -------------------------------------------------------------
                        ORDER DETAILS
 -------------------------------------------------------------
-${cartItems.map(i => `${i.quantity}x ${i.name}  —  ₱${(i.price * i.quantity).toLocaleString()}`).join('\n')}
+${selectedItems.map(i => `${i.quantity}x ${i.name}  —  ₱${(i.price * i.quantity).toLocaleString()}`).join('\n')}
 
 Total Amount:   ₱${total.toLocaleString()}
 Payment Plan:   Installment
@@ -690,19 +731,74 @@ FrostTech Representative: ______________  Date: ___________
           }}>
             {/* Cart Items */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Select All & Selection Header Bar */}
+              <div style={{
+                background: 'var(--bg-card)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '0.85rem 1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxShadow: 'var(--shadow-sm)',
+              }}>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  cursor: 'pointer',
+                  fontSize: '0.92rem',
+                  fontWeight: 700,
+                  color: 'var(--text-dark)',
+                  userSelect: 'none',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      accentColor: '#0284c7',
+                      cursor: 'pointer',
+                    }}
+                  />
+                  <span>Select All ({cartItems.length} {cartItems.length === 1 ? 'item' : 'items'})</span>
+                </label>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-light)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="fa-solid fa-circle-check" style={{ color: selectedItemIds.length > 0 ? '#38bdf8' : 'var(--text-light)' }}></i>
+                  <span><strong>{selectedItemIds.length}</strong> of {cartItems.length} selected</span>
+                </div>
+              </div>
+
               {cartItems.map((item) => {
                 const productUrl = getProductDetailUrl(item);
                 return (
                 <div key={item.id} className="cart-item-card" style={{
                   background: 'var(--bg-card)',
-                  border: '1px solid rgba(255,255,255,0.06)',
+                  border: selectedItemIds.includes(item.id) ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(255,255,255,0.06)',
                   borderRadius: 'var(--radius-lg)',
                   padding: '1.25rem',
                   display: 'flex',
                   gap: '1.25rem',
                   alignItems: 'center',
-                  transition: 'border-color 0.2s, box-shadow 0.2s',
+                  opacity: selectedItemIds.includes(item.id) ? 1 : 0.65,
+                  transition: 'all 0.2s ease',
                 }}>
+                  {/* Item Selection Checkbox */}
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '0.25rem' }} title={selectedItemIds.includes(item.id) ? "Uncheck to exclude from checkout" : "Check to include in checkout"}>
+                    <input
+                      type="checkbox"
+                      checked={selectedItemIds.includes(item.id)}
+                      onChange={() => toggleSelectItem(item.id)}
+                      style={{
+                        width: '20px',
+                        height: '20px',
+                        accentColor: '#0284c7',
+                        cursor: 'pointer',
+                      }}
+                    />
+                  </label>
                   {/* Clickable Product Image */}
                   <Link
                     href={productUrl}
@@ -927,7 +1023,7 @@ FrostTech Representative: ______________  Date: ___________
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-light)' }}>
-                    <span>Subtotal ({cartItems.length} {cartItems.length === 1 ? 'item' : 'items'})</span>
+                    <span>Subtotal ({selectedItems.length} of {cartItems.length} selected)</span>
                     <span style={{ color: 'var(--text-dark)', fontWeight: 600 }}>₱{total.toLocaleString()}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-light)' }}>
@@ -963,11 +1059,12 @@ FrostTech Representative: ______________  Date: ___________
 
                 <button
                   onClick={openCheckoutModal}
+                  disabled={selectedItems.length === 0}
                   className="btn"
                   style={{
                     width: '100%',
                     padding: '0.9rem',
-                    background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                    background: selectedItems.length === 0 ? '#64748b' : 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
                     color: '#ffffff',
                     border: 'none',
                     fontSize: '1rem',
@@ -976,11 +1073,18 @@ FrostTech Representative: ______________  Date: ___________
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '0.5rem',
-                    boxShadow: '0 8px 24px -6px rgba(2, 132, 199, 0.5)',
+                    boxShadow: selectedItems.length === 0 ? 'none' : '0 8px 24px -6px rgba(2, 132, 199, 0.5)',
+                    cursor: selectedItems.length === 0 ? 'not-allowed' : 'pointer',
+                    opacity: selectedItems.length === 0 ? 0.65 : 1,
                   }}
                 >
-                  Proceed to Checkout <i className="fa-solid fa-arrow-right"></i>
+                  Proceed to Checkout {selectedItems.length > 0 ? `(${selectedItems.length})` : ''} <i className="fa-solid fa-arrow-right"></i>
                 </button>
+                {selectedItems.length === 0 && (
+                  <p style={{ fontSize: '0.78rem', color: '#fbbf24', textAlign: 'center', marginTop: '0.6rem', marginBottom: 0 }}>
+                    <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: '4px' }}></i> Check at least 1 item to proceed
+                  </p>
+                )}
 
                 <div style={{
                   marginTop: '1rem',
@@ -1261,7 +1365,7 @@ FrostTech Representative: ______________  Date: ___________
               </div>
 
               {/* Downpayment Proof Upload */}
-              {isNewCustomer && cartItems.some(item => 
+              {isNewCustomer && selectedItems.some(item => 
                 (item.price && item.price >= 8000) ||
                 (item.category && (item.category.toLowerCase().includes('ac') || item.category.toLowerCase().includes('air'))) ||
                 (item.name && (item.name.toLowerCase().includes('inverter') || item.name.toLowerCase().includes('split') || item.name.toLowerCase().includes('conditioner') || item.name.toLowerCase().includes('aircon')))
@@ -1295,7 +1399,7 @@ FrostTech Representative: ______________  Date: ___________
                 border: '1px solid var(--border-color)', marginBottom: '1.25rem',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.85rem', color: 'var(--text-light)' }}>
-                  <span>{cartItems.length} {cartItems.length === 1 ? 'item' : 'items'}</span>
+                  <span>{selectedItems.length} {selectedItems.length === 1 ? 'item' : 'items'} selected</span>
                   <span>₱{total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.85rem', color: 'var(--text-light)' }}>
@@ -1304,7 +1408,7 @@ FrostTech Representative: ______________  Date: ___________
                 </div>
                 
                 {(() => {
-                  const acTotal = cartItems.filter(item => 
+                  const acTotal = selectedItems.filter(item => 
                     (item.price && item.price >= 8000) ||
                     (item.category && (item.category.toLowerCase().includes('ac') || item.category.toLowerCase().includes('air'))) ||
                     (item.name && (item.name.toLowerCase().includes('inverter') || item.name.toLowerCase().includes('split') || item.name.toLowerCase().includes('conditioner') || item.name.toLowerCase().includes('aircon')))

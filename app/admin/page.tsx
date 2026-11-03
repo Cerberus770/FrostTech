@@ -5373,7 +5373,7 @@ export default function AdminDashboard() {
                     name="price"
                     step="0.01"
                     required
-                    placeholder={addItemType === 'AC' ? "25000" : "1500"}
+                    placeholder={addItemType === 'AC' ? "e.g. 25,000" : "e.g. 1,500"}
                     style={{
                       width: '100%',
                       padding: '0.75rem 0.9rem',

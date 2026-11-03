@@ -23,6 +23,8 @@ interface DBProduct {
   badge: string | null;
   specs: string[];
   description: string | null;
+  horsepower?: string | null;
+  variants?: { id: string; condition: string; price: number; stock: number }[];
 }
 
 export default function HomePage() {
@@ -557,6 +559,18 @@ export default function HomePage() {
                     <div className="product-image-wrapper">
                       {item.badge && <span className="product-badge">{item.badge}</span>}
                       <img src={imgPlaceholder} alt={item.name} className="product-image" />
+                      <div className="product-tag-row">
+                        {item.horsepower && (
+                          <span className="product-hp-tag">
+                            <i className="fa-solid fa-bolt"></i> {item.horsepower}
+                          </span>
+                        )}
+                        {item.category && !['Parts', 'Spare Parts', 'Parts & Accessories'].includes(item.category) && (
+                          <span className={`product-type-tag ${item.category.toLowerCase().includes('inverter') ? 'inverter' : ''}`}>
+                            {item.category.toLowerCase().includes('inverter') ? '⚡ Inverter' : item.category}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="product-card-body">
                       <div className="product-brand">{item.brand}</div>
@@ -577,6 +591,12 @@ export default function HomePage() {
                         <span>{item.rating}</span>
                         <span className="sold-count">&bull; {item.sold} sold</span>
                       </div>
+                      {(() => {
+                        const totalStock = item.variants ? item.variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) : 0;
+                        if (totalStock > 5) return <div className="product-stock-status in-stock"><i className="fa-solid fa-circle-check"></i> In Stock</div>;
+                        if (totalStock > 0) return <div className="product-stock-status low-stock"><i className="fa-solid fa-triangle-exclamation"></i> Only {totalStock} left</div>;
+                        return <div className="product-stock-status out-of-stock"><i className="fa-solid fa-circle-xmark"></i> Out of Stock</div>;
+                      })()}
                       <div className="product-actions" onClick={(e) => e.stopPropagation()}>
                         <Link href={`/product/${item.slug || item.id}`} className="btn btn-secondary">
                           <i className="fa-solid fa-eye"></i> Details

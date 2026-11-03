@@ -1319,8 +1319,13 @@ textarea {
 
 input::placeholder,
 textarea::placeholder {
-  color: var(--text-light);
-  opacity: 0.75;
+  color: #64748b;
+  opacity: 1;
+}
+
+.login-card input::placeholder,
+.login-card textarea::placeholder {
+  color: rgba(255, 255, 255, 0.65);
 }
 
 select option {
@@ -3764,4 +3769,243 @@ table,
     padding: 0.6rem 1rem !important;
     font-size: 0.85rem !important;
   }
+}
+
+/* ============================================
+   Product Card Enhancement Styles
+   ============================================ */
+
+/* HP & Type Tag Row — bottom of product image */
+.product-tag-row {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  z-index: 3;
+}
+
+.product-hp-tag {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(6px);
+  color: #38bdf8;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  letter-spacing: 0.02em;
+}
+
+.product-hp-tag i {
+  font-size: 0.65rem;
+}
+
+.product-type-tag {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(6px);
+  color: #e2e8f0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.product-type-tag.inverter {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+/* Stock Status Indicator */
+.product-stock-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 0.6rem;
+  padding: 4px 0;
+}
+
+.product-stock-status.in-stock {
+  color: #34d399;
+}
+
+.product-stock-status.low-stock {
+  color: #fbbf24;
+}
+
+.product-stock-status.out-of-stock {
+  color: #f87171;
+}
+
+.product-stock-status i {
+  font-size: 0.7rem;
+}
+
+/* Product image wrapper needs relative for tag overlay */
+.product-image-wrapper {
+  position: relative;
+}
+
+/* ============================================
+   Product Detail — Breadcrumb Navigation Bar
+   ============================================ */
+
+.product-breadcrumb-bar {
+  background: linear-gradient(135deg, #075985 0%, #0369a1 100%);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+  padding: 0 5%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.breadcrumb-inner {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: 48px;
+}
+
+.breadcrumb-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.breadcrumb-back-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateX(-2px);
+}
+
+.breadcrumb-back-btn i {
+  font-size: 0.8rem;
+  transition: transform 0.2s;
+}
+
+.breadcrumb-back-btn:hover i {
+  transform: translateX(-3px);
+}
+
+.breadcrumb-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 16px;
+  flex-shrink: 0;
+}
+
+.breadcrumb-trail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  overflow: hidden;
+}
+
+.breadcrumb-link {
+  color: rgba(224, 242, 254, 0.85);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.breadcrumb-link:hover {
+  color: #ffffff;
+}
+
+.breadcrumb-link i {
+  font-size: 0.72rem;
+}
+
+.breadcrumb-separator {
+  font-size: 0.55rem;
+  color: rgba(224, 242, 254, 0.4);
+  flex-shrink: 0;
+}
+
+.breadcrumb-current {
+  color: #ffffff;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 350px;
+}
+
+/* Responsive breadcrumb */
+@media (max-width: 640px) {
+  .breadcrumb-trail {
+    display: none;
+  }
+  .breadcrumb-divider {
+    display: none;
+  }
+  .breadcrumb-back-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+  }
+  .product-breadcrumb-bar {
+    padding: 8px 4%;
+  }
+}
+
+
+/* ==========================================================
+   Admin Modal & Input Typography
+   Crisp, readable placeholder text & inputs on white modals
+   ========================================================== */
+.admin-modal input,
+.admin-modal textarea,
+.admin-modal select,
+.admin-input {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+}
+
+.admin-modal input::placeholder,
+.admin-modal textarea::placeholder,
+.admin-input::placeholder,
+input.admin-input::placeholder,
+textarea.admin-input::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+  font-weight: 500 !important;
+}
+
+.admin-modal input:focus,
+.admin-modal textarea:focus,
+.admin-modal select:focus,
+.admin-input:focus {
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.18) !important;
 }
