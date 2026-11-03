@@ -8,6 +8,7 @@ import GoogleMap from '@/components/GoogleMap';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import { useConfirmModal } from '@/components/ConfirmModal';
 import { products as fallbackProducts } from '@/lib/products';
+import { getProductBadgeInfo } from '@/lib/productUtils';
 
 interface DBProduct {
   id: string;
@@ -1222,6 +1223,7 @@ export default function ProfilePage() {
                       sortedProducts.map((item) => {
                         const price = item.price;
                         const imgPlaceholder = item.image;
+                        const badgeInfo = getProductBadgeInfo(item);
 
                         return (
                           <div
@@ -1237,6 +1239,24 @@ export default function ProfilePage() {
                             <div className="product-card-body">
                               <div className="product-brand">{item.brand}</div>
                               <h3 className="product-title">{item.name}</h3>
+                              {/* Spec Chips (HP, Inverter, AC Type) */}
+                              <div className="product-chips-row">
+                                {badgeInfo.hp && (
+                                  <span className="product-chip hp-chip" title="Cooling Capacity">
+                                    <i className="fa-solid fa-bolt" style={{ color: '#fde047' }}></i> {badgeInfo.hp}
+                                  </span>
+                                )}
+                                {badgeInfo.isInverter && (
+                                  <span className="product-chip inverter-chip" title="Inverter Technology">
+                                    <i className="fa-solid fa-leaf" style={{ color: '#6ee7b7' }}></i> Inverter
+                                  </span>
+                                )}
+                                {badgeInfo.typeLabel && (
+                                  <span className="product-chip type-chip">
+                                    {badgeInfo.typeLabel}
+                                  </span>
+                                )}
+                              </div>
                               <div className="product-price">
                                 {(item as any).variants && (item as any).variants.length > 1 && (
                                   <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginRight: '4px' }}>From</span>

@@ -1,6 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import CoolingCalculator from '@/components/CoolingCalculator';
+import VisualCategories from '@/components/VisualCategories';
+import { getProductBadgeInfo } from '@/lib/productUtils';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
@@ -15,6 +18,7 @@ interface DBProduct {
   name: string;
   brand: string;
   category: string;
+  horsepower?: string | null;
   price: number;
   originalPrice: number | null;
   rating: number;
@@ -34,6 +38,7 @@ export default function HomePage() {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedPrices, setSelectedPrices] = useState<string[]>([]);
+  const [selectedHp, setSelectedHp] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState('Featured');
   const [viewMode, setViewMode] = useState('grid');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -110,6 +115,12 @@ export default function HomePage() {
   const handleTypeChange = (type: string) => {
     setSelectedTypes(prev => 
       prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+    );
+  };
+
+  const handleHpChange = (hp: string) => {
+    setSelectedHp(prev => 
+      prev.includes(hp) ? prev.filter(h => h !== hp) : [...prev, hp]
     );
   };
 
@@ -202,6 +213,37 @@ export default function HomePage() {
     showToast('<i class="fa-solid fa-check-circle"></i> ' + name + ' added to cart!');
   };
 
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      All: storeInventory.length,
+      Split: 0,
+      Window: 0,
+      Floor: 0,
+      'Second Hand Deals': 0,
+      'Spare Parts': 0,
+    };
+    storeInventory.forEach(item => {
+      const badge = getProductBadgeInfo(item);
+      const catLower = (item.category || '').toLowerCase();
+      const isSpare = catLower.includes('part') || badge.typeLabel === 'Spare Part';
+
+      if (item.badge === 'Used') counts['Second Hand Deals'] = (counts['Second Hand Deals'] || 0) + 1;
+      if (isSpare) counts['Spare Parts'] = (counts['Spare Parts'] || 0) + 1;
+      if (catLower.includes('split') || badge.typeLabel === 'Split Type') counts['Split'] = (counts['Split'] || 0) + 1;
+      if (catLower.includes('window') || badge.typeLabel === 'Window Type') counts['Window'] = (counts['Window'] || 0) + 1;
+      if (catLower.includes('floor') || badge.typeLabel === 'Floor Standing') counts['Floor'] = (counts['Floor'] || 0) + 1;
+    });
+    return counts;
+  }, [storeInventory]);
+
+  const productCountForHp = (targetHp: string) => {
+    return storeInventory.filter(item => {
+      const badge = getProductBadgeInfo(item);
+      if (!badge.hp) return false;
+      return badge.hp.toLowerCase().replace(/\s/g, '') === targetHp.toLowerCase().replace(/\s/g, '');
+    }).length;
+  };
+
   const defaultBrands = ['Carrier', 'Chiq', 'iFFALCON', 'Midea', 'Samsung', 'TCL'];
   const availableBrands = Array.from(
     new Set([
@@ -245,13 +287,23 @@ export default function HomePage() {
       return false;
     });
     
+    const badgeInfo = getProductBadgeInfo(item);
+    const matchesHp = selectedHp.length === 0 || selectedHp.some(hp => {
+      if (!badgeInfo.hp) return false;
+      if (hp === '2.5 HP+') {
+        const val = parseFloat(badgeInfo.hp);
+        return val >= 2.5;
+      }
+      return badgeInfo.hp.toLowerCase().replace(/\s/g, '') === hp.toLowerCase().replace(/\s/g, '');
+    });
+
     const matchesType = selectedTypes.length === 0 || selectedTypes.some(type => {
       if (type === 'Spare Parts') return isSpareCategory;
       if (type === 'Air Conditioners') return !isSpareCategory;
       return false;
     });
 
-    return matchesSearch && matchesBrand && matchesCategory && matchesPrice && matchesType;
+    return matchesSearch && matchesBrand && matchesCategory && matchesPrice && matchesType && matchesHp;
   });
 
   const sortedProducts = [...filteredProducts].sort((a, b) => {
@@ -364,6 +416,26 @@ export default function HomePage() {
         </div>
       </section>
 
+            {/* Visual Category Navigation Grid */}
+      <VisualCategories
+        selectedCategory={selectedCategory}
+        onSelectCategory={(cat) => {
+          setSelectedCategory(cat);
+        }}
+        categoryCounts={categoryCounts}
+      />
+
+      {/* Room Size & Horsepower Calculator */}
+      <CoolingCalculator
+        onSelectHp={(recHp) => {
+          setSelectedHp([recHp]);
+          if (selectedCategory === 'Spare Parts') {
+            setSelectedCategory('All');
+          }
+        }}
+        productCountForHp={productCountForHp}
+      />
+
       {/* Main Products Section */}
       <section id="products" className="store-layout section-container">
         {/* Sidebar Filters */}
@@ -405,6 +477,24 @@ export default function HomePage() {
                   checked={selectedBrands.some(b => b.toLowerCase() === brand.toLowerCase())}
                   onChange={() => handleBrandChange(brand)}
                 /> {brand}
+              </label>
+            ))}
+          </div>
+
+          {/* Horsepower Filter */}
+          <div className="filter-section">
+            <div className="filter-title">
+              <span>Horsepower (HP)</span>
+              <i className="fa-solid fa-chevron-up" style={{ fontSize: '0.8rem' }}></i>
+            </div>
+            {['0.75 HP', '1.0 HP', '1.5 HP', '2.0 HP', '2.5 HP+'].map(hp => (
+              <label key={hp} className="filter-option">
+                <input 
+                  type="checkbox" 
+                  value={hp}
+                  checked={selectedHp.includes(hp)} 
+                  onChange={() => handleHpChange(hp)} 
+                /> {hp}
               </label>
             ))}
           </div>
@@ -510,6 +600,33 @@ export default function HomePage() {
             </div>
           )}
 
+                    {selectedHp.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '1.25rem', padding: '0.65rem 1rem', background: '#f0f9ff', borderRadius: '10px', border: '1px solid #bae6fd' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0369a1' }}>
+                <i className="fa-solid fa-bolt" style={{ marginRight: '4px' }}></i> Active HP Filter:
+              </span>
+              {selectedHp.map(hp => (
+                <span key={hp} className="active-filter-badge" style={{ margin: 0 }}>
+                  {hp}
+                  <button
+                    type="button"
+                    onClick={() => handleHpChange(hp)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0369a1', marginLeft: '4px', fontSize: '1rem', lineHeight: 1 }}
+                  >
+                    &times;
+                  </button>
+                </span>
+              ))}
+              <button
+                type="button"
+                onClick={() => setSelectedHp([])}
+                style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline', marginLeft: 'auto' }}
+              >
+                Clear HP filter
+              </button>
+            </div>
+          )}
+
           {/* Product Grid */}
           <div className={`product-grid ${viewMode === 'list' ? 'list-view' : ''}`} id="dynamic-products">
             {sortedProducts.length === 0 ? (
@@ -546,6 +663,7 @@ export default function HomePage() {
               sortedProducts.map(item => {
                 const price = item.price;
                 const imgPlaceholder = item.image;
+                const badgeInfo = getProductBadgeInfo(item);
                 
                 return (
                   <div 
@@ -561,6 +679,24 @@ export default function HomePage() {
                     <div className="product-card-body">
                       <div className="product-brand">{item.brand}</div>
                       <h3 className="product-title">{item.name}</h3>
+                      {/* Spec Chips (HP, Inverter, AC Type) */}
+                      <div className="product-chips-row">
+                        {badgeInfo.hp && (
+                          <span className="product-chip hp-chip" title="Cooling Capacity">
+                            <i className="fa-solid fa-bolt" style={{ color: '#fde047' }}></i> {badgeInfo.hp}
+                          </span>
+                        )}
+                        {badgeInfo.isInverter && (
+                          <span className="product-chip inverter-chip" title="Inverter Technology">
+                            <i className="fa-solid fa-leaf" style={{ color: '#6ee7b7' }}></i> Inverter
+                          </span>
+                        )}
+                        {badgeInfo.typeLabel && (
+                          <span className="product-chip type-chip">
+                            {badgeInfo.typeLabel}
+                          </span>
+                        )}
+                      </div>
                       <div className="product-price">
                         {(item as any).variants && (item as any).variants.length > 1 && (
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginRight: '4px' }}>From</span>

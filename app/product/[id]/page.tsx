@@ -9,6 +9,7 @@ import Header from '@/components/Header';
 import AuthModal from '@/components/AuthModal';
 import { products } from '@/lib/products';
 import { Product, CartItem } from '@/lib/types';
+import { getProductBadgeInfo } from '@/lib/productUtils';
 
 export default function ProductDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -456,9 +457,69 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
             <span style={{ color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
               {product.brand}
             </span>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '1rem', lineHeight: 1.3, fontFamily: 'var(--font-display)' }}>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.75rem', lineHeight: 1.3, fontFamily: 'var(--font-display)' }}>
               {product.name}
             </h1>
+
+            {/* Spec Badges (HP, Inverter, AC Type, BTU) */}
+            {(() => {
+              const badgeInfo = getProductBadgeInfo(product);
+              return (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                  {badgeInfo.hp && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      background: 'rgba(255, 255, 255, 0.15)',
+                      color: '#ffffff',
+                      border: '1px solid rgba(255, 255, 255, 0.3)',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                    }}>
+                      <i className="fa-solid fa-bolt" style={{ color: '#fde047' }}></i> {badgeInfo.hp}
+                      {badgeInfo.coolingCapacityBTU && (
+                        <span style={{ opacity: 0.85, fontWeight: 500, fontSize: '0.78rem' }}>({badgeInfo.coolingCapacityBTU})</span>
+                      )}
+                    </span>
+                  )}
+                  {badgeInfo.isInverter && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      background: 'rgba(16, 185, 129, 0.2)',
+                      color: '#ecfdf5',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                    }}>
+                      <i className="fa-solid fa-leaf" style={{ color: '#6ee7b7' }}></i> Inverter Technology
+                    </span>
+                  )}
+                  {badgeInfo.typeLabel && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      color: '#e0f2fe',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                    }}>
+                      {badgeInfo.typeLabel}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Ratings */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
