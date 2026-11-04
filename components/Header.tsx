@@ -261,7 +261,33 @@ export default function Header({ hideSearch = false }: { hideSearch?: boolean })
         </form>
       )}
 
-      <div className="header-icons" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+      <div className="header-icons" style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+        {/* Customer Feedback Button */}
+        <Link
+          href="/feedback"
+          id="header-feedback-btn"
+          title="Customer Feedback & Technician Proofs"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            color: '#ffffff',
+            textDecoration: 'none',
+            fontSize: '0.82rem',
+            fontWeight: 700,
+            background: 'rgba(255,255,255,0.18)',
+            border: '1px solid rgba(255,255,255,0.3)',
+            borderRadius: '999px',
+            padding: '0.45rem 0.85rem',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.3)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.18)'; }}
+        >
+          <i className="fa-solid fa-certificate" style={{ color: '#93c5fd', fontSize: '0.85rem' }}></i>
+          <span>Feedback</span>
+        </Link>
+
         {/* Cart Icon */}
         <Link
           href="/cart"

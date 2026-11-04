@@ -571,7 +571,26 @@ export default function HomePage() {
           <li className={selectedCategory === 'Floor' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Floor'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Floor Standing</a></li>
           
           <li className={selectedCategory === 'Spare Parts' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Spare Parts'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Spare Parts</a></li>
-          <li className={selectedCategory === 'Customer Feedback' ? 'active' : ''}><Link href="/feedback"><i className="fa-solid fa-shield-check" style={{ marginRight: '6px', fontSize: '0.82rem' }}></i>Customer Feedback</Link></li>
+          <li>
+            <Link
+              href="/feedback"
+              style={{
+                color: '#052e80',
+                fontWeight: 700,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#e0effe',
+                padding: '0.25rem 0.75rem',
+                borderRadius: '8px',
+                border: '1px solid #bae0fd',
+              }}
+            >
+              <i className="fa-solid fa-certificate" style={{ color: '#0284c7' }}></i>
+              Customer Feedback
+            </Link>
+          </li>
         </ul>
       </nav>
 

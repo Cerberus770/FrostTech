@@ -996,8 +996,22 @@ export default function ProfilePage() {
                     </a>
                   </li>
                   <li>
-                    <Link href="/feedback" style={{ color: '#06255b', fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                      <i className="fa-solid fa-shield-check" style={{ color: '#052e80' }}></i> Customer Feedback
+                    <Link
+                      href="/feedback"
+                      style={{
+                        color: '#052e80',
+                        fontWeight: 700,
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: '#e0effe',
+                        padding: '0.25rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid #bae0fd',
+                      }}
+                    >
+                      <i className="fa-solid fa-certificate" style={{ color: '#0284c7' }}></i> Customer Feedback
                     </Link>
                   </li>
                 </ul>
