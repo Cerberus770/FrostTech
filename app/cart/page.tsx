@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
+import ReceiptModal, { ReceiptData } from '@/components/ReceiptModal';
 import { useAppState } from '@/context/AppStateContext';
 import { CartItem } from '@/lib/types';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
@@ -72,6 +73,8 @@ export default function CartPage() {
   const [checkoutCity, setCheckoutCity] = useState('');
   const [checkoutPayment, setCheckoutPayment] = useState('Cash on Delivery');
   const [checkoutNotes, setCheckoutNotes] = useState('');
+  const [checkoutReceipt, setCheckoutReceipt] = useState<ReceiptData | null>(null);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [downpaymentProof, setDownpaymentProof] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isNewCustomer, setIsNewCustomer] = useState(false);
@@ -466,8 +469,38 @@ export default function CartPage() {
 
       setIsSubmitting(false);
       setShowCheckoutModal(false);
-      alert('Order placed successfully! Thank you for your purchase.');
-      router.push('/profile');
+
+      // Generate official customer receipt
+      const receiptItems = selectedItems.map((item) => {
+        const isSpare = /refrigerant|capacitor|copper|bracket|part|filter|freon/i.test(item.name);
+        return {
+          name: item.name,
+          category: isSpare ? 'Spare Part' : 'AC Unit',
+          quantity: item.quantity || 1,
+          price: item.price,
+        };
+      });
+
+      const orderReceipt: ReceiptData = {
+        receiptNo: `FT-REC-${(savedOrder.orderNo || '').replace(/[^0-9]/g, '') || Math.floor(1000 + Math.random() * 9000)}`,
+        orderNo: savedOrder.orderNo || 'ORD-NEW',
+        date: savedOrder.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        customerName: checkoutName || 'Valued Customer',
+        customerPhone: checkoutPhone,
+        customerEmail: checkoutEmail || undefined,
+        location: finalLocation,
+        paymentMethod: checkoutPayment,
+        status: isInstallment ? 'Pending Downpayment CI' : 'Processing Order',
+        items: receiptItems.length > 0 ? receiptItems : [{ name: savedOrder.item || 'AC Unit', category: 'AC Unit', quantity: 1, price: selectedTotal }],
+        subtotal: selectedTotal,
+        deliveryFee: 0,
+        installationFee: 0,
+        totalAmount: selectedTotal,
+        notes: checkoutNotes || 'FrostTech Official Purchase Order Receipt.',
+      };
+
+      setCheckoutReceipt(orderReceipt);
+      setShowReceiptModal(true);
     } catch (err) {
       console.error(err);
       alert('There was an error processing your order. Please try again.');
@@ -1449,6 +1482,14 @@ FrostTech Representative: ______________  Date: ___________
         </div>
       )}
 
+      <ReceiptModal
+        isOpen={showReceiptModal}
+        onClose={() => {
+          setShowReceiptModal(false);
+          router.push('/profile#tab-orders');
+        }}
+        receipt={checkoutReceipt}
+      />
     </>
   );
 }

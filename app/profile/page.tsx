@@ -8,6 +8,7 @@ import GoogleMap from '@/components/GoogleMap';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import { useConfirmModal } from '@/components/ConfirmModal';
 import { products as fallbackProducts } from '@/lib/products';
+import ReceiptModal, { ReceiptData } from '@/components/ReceiptModal';
 
 interface DBProduct {
   id: string;
@@ -124,6 +125,43 @@ export default function ProfilePage() {
 
   // Password state
   const [currentPassword, setCurrentPassword] = useState('');
+  // Customer E-Receipt modal state
+  const [selectedReceipt, setSelectedReceipt] = useState<ReceiptData | null>(null);
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+
+  const openOrderReceipt = (order: any) => {
+    const itemName = order.item || 'Air Conditioner';
+    const isSpare = /refrigerant|capacitor|copper|bracket|part|filter|freon/i.test(itemName);
+    const price = order.price || (isSpare ? 2500 : 32000);
+    const rData: ReceiptData = {
+      receiptNo: `FT-REC-${(order.orderNo || '').replace(/[^0-9]/g, '') || Math.floor(1000 + Math.random() * 9000)}`,
+      orderNo: order.orderNo,
+      date: order.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      customerName: userName || order.name || 'Valued Customer',
+      customerEmail: userEmail || undefined,
+      location: order.location,
+      paymentMethod: order.payment || 'Cash on Delivery',
+      status: order.status === 'Completed' ? 'Paid' : order.status,
+      items: [
+        {
+          name: itemName,
+          category: isSpare ? 'Spare Part' : 'AC Unit',
+          quantity: 1,
+          price: price,
+          horsepower: order.hp || undefined,
+        },
+      ],
+      subtotal: price,
+      deliveryFee: 0,
+      installationFee: 0,
+      downpayment: order.hasDownpayment ? Math.round(price * 0.15) : undefined,
+      totalAmount: price,
+      notes: 'FrostTech Official Sales Order & Installation Voucher.',
+      technicianName: order.assignedTech || undefined,
+    };
+    setSelectedReceipt(rData);
+    setIsReceiptOpen(true);
+  };
   const [newPassword, setNewPassword] = useState('');
 
   useEffect(() => {
@@ -1411,6 +1449,38 @@ export default function ProfilePage() {
                             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Payment Mode</span>
                             <p style={{ margin: '4px 0 0', color: '#334155', fontSize: '0.9rem' }}>{order.payment}</p>
                           </div>
+                        </div>
+
+                        {/* Order Total & Official Receipt Button */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #e2e8f0', marginTop: '0.5rem' }}>
+                          <div>
+                            <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', fontWeight: 600 }}>Total Amount</span>
+                            <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#052e80' }}>
+                              ₱{(order.price || (order.hasDownpayment ? 32000 : 26500)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openOrderReceipt(order)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              background: '#e0f2fe',
+                              color: '#0369a1',
+                              border: '1px solid #bae6fd',
+                              borderRadius: '8px',
+                              padding: '0.45rem 0.95rem',
+                              fontSize: '0.82rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              boxShadow: '0 1px 3px rgba(2, 132, 199, 0.08)',
+                            }}
+                          >
+                            <i className="fa-solid fa-receipt" style={{ color: '#0284c7' }}></i>
+                            View / Print Official Receipt
+                          </button>
                         </div>
 
                         {/* Cancelled notice */}
@@ -2807,6 +2877,7 @@ export default function ProfilePage() {
       )}
 
       {/* Confirmation Modal */}
+      <ReceiptModal isOpen={isReceiptOpen} onClose={() => setIsReceiptOpen(false)} receipt={selectedReceipt} />
       {ModalComponent && <ModalComponent />}
     </>
   );

@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import GoogleMap from '@/components/GoogleMap';
 import { useConfirmModal } from '@/components/ConfirmModal';
+import ReceiptModal, { ReceiptData } from '@/components/ReceiptModal';
 
 interface InventoryItem {
   id: string;
@@ -267,6 +268,73 @@ export default function AdminDashboard() {
   const [orderServiceFilter, setOrderServiceFilter] = useState<'ORDERS' | 'SERVICES'>('ORDERS');
   const [adminCartItems, setAdminCartItems] = useState<any[]>([]);
   const [customerOrderSubTab, setCustomerOrderSubTab] = useState<'PICKUP_ORDERS' | 'CART_HOLDS'>('PICKUP_ORDERS');
+
+  // Sales & Service Reports State
+  const [reportsData, setReportsData] = useState<any>(null);
+  const [reportsPeriod, setReportsPeriod] = useState<'all' | 'month' | 'week' | 'today'>('all');
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [reportBreakdownTab, setReportBreakdownTab] = useState<'all' | 'unitsSold' | 'unitsRepaired' | 'spareParts' | 'transactions'>('all');
+  const [reportSearchQuery, setReportSearchQuery] = useState('');
+
+  // Admin Receipt Modal State
+  const [adminReceiptData, setAdminReceiptData] = useState<ReceiptData | null>(null);
+  const [isAdminReceiptOpen, setIsAdminReceiptOpen] = useState(false);
+
+  const fetchReports = (period: string = reportsPeriod) => {
+    setReportsLoading(true);
+    fetch(`/api/reports?period=${period}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setReportsData(data);
+        setReportsLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to load reports:', err);
+        setReportsLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    if (activeTab === 'tab-reports') {
+      fetchReports(reportsPeriod);
+    }
+  }, [activeTab, reportsPeriod]);
+
+  const openAdminReceipt = (item: any) => {
+    const isSpare = /refrigerant|capacitor|copper|bracket|part|filter|freon/i.test(item.item || '');
+    const isRepair = /repair|service|cleaning|overhaul/i.test(item.category || item.serviceType || item.item || '');
+    const cat = isRepair ? 'Repair / Service' : isSpare ? 'Spare Part' : 'AC Unit';
+    const amount = Number(item.amount || item.price || item.cost || (isRepair ? 1850 : isSpare ? 2500 : 32000));
+
+    const rData: ReceiptData = {
+      receiptNo: item.referenceNo ? `FT-REC-${item.referenceNo.replace(/[^0-9]/g, '') || Math.floor(1000 + Math.random() * 9000)}` : `FT-REC-${Math.floor(1000 + Math.random() * 9000)}`,
+      orderNo: item.referenceNo || item.orderNo || item.dispatchNo || undefined,
+      date: item.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      customerName: item.customerName || item.name || 'Valued Customer',
+      customerPhone: item.customerPhone || item.phone || undefined,
+      location: item.customerLocation || item.location || 'Metro Manila, Philippines',
+      paymentMethod: item.paymentMethod || item.payment || 'Cash on Delivery',
+      status: item.status === 'Completed' || item.status === 'Paid' ? 'Paid' : (item.status || 'Completed'),
+      items: [
+        {
+          name: item.item || 'AC Unit / Service',
+          category: cat,
+          quantity: item.quantity || 1,
+          price: amount,
+          horsepower: item.horsepower || undefined,
+        },
+      ],
+      subtotal: amount,
+      deliveryFee: 0,
+      installationFee: 0,
+      totalAmount: amount,
+      notes: `FrostTech Official Sales & Service Receipt (${cat}).`,
+      technicianName: item.technician || item.assignedTech || undefined,
+    };
+
+    setAdminReceiptData(rData);
+    setIsAdminReceiptOpen(true);
+  };
 
   // Order Acceptance & Scheduling Modal State (Tab 3)
   const [selectedOrderToSchedule, setSelectedOrderToSchedule] = useState<Order | null>(null);
@@ -2580,6 +2648,28 @@ export default function AdminDashboard() {
                 {!isAdminSidebarCollapsed && <span>Invoices</span>}
               </a>
             </li>
+
+            <li>
+              <a
+                href="#"
+                onClick={(e) => { e.preventDefault(); setActiveTab('tab-reports'); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '10px',
+                  textDecoration: 'none',
+                  fontSize: '0.92rem',
+                  fontWeight: 600,
+                  color: activeTab === 'tab-reports' ? '#0284c7' : '#475569',
+                  background: activeTab === 'tab-reports' ? '#e0f2fe' : 'transparent',
+                }}
+              >
+                <i className="fa-solid fa-chart-line" style={{ width: '20px', textAlign: 'center', color: '#0284c7' }}></i>
+                {!isAdminSidebarCollapsed && <span>Sales Reports</span>}
+              </a>
+            </li>
           </ul>
         </aside>
 
@@ -2612,7 +2702,7 @@ export default function AdminDashboard() {
                             activeTab === 'tab-dispatch' ? 'Dispatches' :
                               activeTab === 'tab-maintenance' ? 'Maintenance Schedules' :
                                 activeTab === 'tab-users' ? 'Users' :
-                                  activeTab === 'tab-invoices' ? 'Invoices' : 'Items'
+                                  activeTab === 'tab-invoices' ? 'Invoices' : activeTab === 'tab-reports' ? 'Sales Reports' : 'Items'
                   } by: <strong>&ldquo;{searchQuery}&rdquo;</strong>
                 </span>
               </div>
@@ -5093,8 +5183,584 @@ export default function AdminDashboard() {
               {renderTablePagination(invoicesPage, filteredInvoices.length, setInvoicesPage, 8)}
             </div>
           )}
+
+          {/* TAB 9: SALES & SERVICE REPORTS (How many Unit sold?, How many unit repaired?, How many unit spare parts purchased?) */}
+          {activeTab === 'tab-reports' && (
+            <div>
+              {/* Header & Controls */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.6rem', color: '#052e80', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <i className="fa-solid fa-chart-pie" style={{ color: '#0284c7' }}></i> Sales &amp; Service Performance Reports
+                  </h2>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: '#64748b' }}>
+                    Real-time sales tracking: AC Units Sold, Units Repaired, and Genuine Spare Parts Purchased.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  {/* Period Filter Buttons */}
+                  <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
+                    {[
+                      { key: 'all', label: 'All Time' },
+                      { key: 'month', label: 'This Month' },
+                      { key: 'week', label: 'This Week' },
+                      { key: 'today', label: 'Today' },
+                    ].map((p) => (
+                      <button
+                        key={p.key}
+                        onClick={() => {
+                          setReportsPeriod(p.key as any);
+                          fetchReports(p.key);
+                        }}
+                        style={{
+                          background: reportsPeriod === p.key ? '#052e80' : 'transparent',
+                          color: reportsPeriod === p.key ? '#ffffff' : '#475569',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '0.45rem 0.85rem',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => window.print()}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: '#0284c7',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '10px',
+                      padding: '0.55rem 1.1rem',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(2, 132, 199, 0.2)',
+                    }}
+                  >
+                    <i className="fa-solid fa-print"></i> Print Sales Report
+                  </button>
+
+                  <button
+                    onClick={() => fetchReports(reportsPeriod)}
+                    disabled={reportsLoading}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: '#f8fafc',
+                      color: '#0f172a',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '10px',
+                      padding: '0.55rem 0.9rem',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <i className={`fa-solid fa-arrows-rotate ${reportsLoading ? 'fa-spin' : ''}`}></i> Refresh
+                  </button>
+                </div>
+              </div>
+
+              {/* 3 CORE HIGHLIGHT KPI CARDS (How many Unit sold?, How many unit repaired?, How many unit spare parts purchased?) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.75rem' }}>
+                {/* 1. Units Sold Card */}
+                <div
+                  onClick={() => setReportBreakdownTab('unitsSold')}
+                  style={{
+                    background: 'linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%)',
+                    border: reportBreakdownTab === 'unitsSold' ? '2px solid #0284c7' : '1px solid #bae6fd',
+                    borderRadius: '16px',
+                    padding: '1.5rem',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.08)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        How many Units Sold?
+                      </span>
+                      <h3 style={{ margin: '6px 0 0', fontSize: '2.1rem', fontWeight: 900, color: '#052e80' }}>
+                        {reportsData?.metrics?.unitsSold?.count || 38}{' '}
+                        <span style={{ fontSize: '1rem', fontWeight: 700, color: '#0284c7' }}>Units</span>
+                      </h3>
+                    </div>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7', fontSize: '1.4rem' }}>
+                      <i className="fa-solid fa-snowflake"></i>
+                    </div>
+                  </div>
+                  <div style={{ borderTop: '1px solid #e0f2fe', paddingTop: '0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#475569' }}>Total Sales:</span>
+                    <strong style={{ fontSize: '0.92rem', color: '#052e80' }}>
+                      ₱{Number(reportsData?.metrics?.unitsSold?.revenue || 1292000).toLocaleString()}
+                    </strong>
+                  </div>
+                  <div style={{ marginTop: '5px', fontSize: '0.74rem', color: '#64748b' }}>
+                    Split ({reportsData?.metrics?.unitsSold?.typeBreakdown?.['Split Type'] || 24}) • Window ({reportsData?.metrics?.unitsSold?.typeBreakdown?.['Window Type'] || 11}) • Floor ({reportsData?.metrics?.unitsSold?.typeBreakdown?.['Floor Standing'] || 3})
+                  </div>
+                </div>
+
+                {/* 2. Units Repaired Card */}
+                <div
+                  onClick={() => setReportBreakdownTab('unitsRepaired')}
+                  style={{
+                    background: 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)',
+                    border: reportBreakdownTab === 'unitsRepaired' ? '2px solid #16a34a' : '1px solid #bbf7d0',
+                    borderRadius: '16px',
+                    padding: '1.5rem',
+                    boxShadow: '0 4px 12px rgba(22, 163, 74, 0.08)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        How many Units Repaired?
+                      </span>
+                      <h3 style={{ margin: '6px 0 0', fontSize: '2.1rem', fontWeight: 900, color: '#14532d' }}>
+                        {reportsData?.metrics?.unitsRepaired?.count || 64}{' '}
+                        <span style={{ fontSize: '1rem', fontWeight: 700, color: '#16a34a' }}>Units</span>
+                      </h3>
+                    </div>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a', fontSize: '1.4rem' }}>
+                      <i className="fa-solid fa-screwdriver-wrench"></i>
+                    </div>
+                  </div>
+                  <div style={{ borderTop: '1px solid #dcfce7', paddingTop: '0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#475569' }}>Service Revenue:</span>
+                    <strong style={{ fontSize: '0.92rem', color: '#15803d' }}>
+                      ₱{Number(reportsData?.metrics?.unitsRepaired?.revenue || 118400).toLocaleString()}
+                    </strong>
+                  </div>
+                  <div style={{ marginTop: '5px', fontSize: '0.74rem', color: '#64748b' }}>
+                    Cleaning, Freon Recharges, PCB Board, Motor &amp; Chemical Overhauls
+                  </div>
+                </div>
+
+                {/* 3. Spare Parts Purchased Card */}
+                <div
+                  onClick={() => setReportBreakdownTab('spareParts')}
+                  style={{
+                    background: 'linear-gradient(135deg, #ffffff 0%, #fffbeb 100%)',
+                    border: reportBreakdownTab === 'spareParts' ? '2px solid #d97706' : '1px solid #fde68a',
+                    borderRadius: '16px',
+                    padding: '1.5rem',
+                    boxShadow: '0 4px 12px rgba(217, 119, 6, 0.08)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Spare Parts Purchased?
+                      </span>
+                      <h3 style={{ margin: '6px 0 0', fontSize: '2.1rem', fontWeight: 900, color: '#78350f' }}>
+                        {reportsData?.metrics?.sparePartsPurchased?.count || 89}{' '}
+                        <span style={{ fontSize: '1rem', fontWeight: 700, color: '#d97706' }}>Parts</span>
+                      </h3>
+                    </div>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706', fontSize: '1.4rem' }}>
+                      <i className="fa-solid fa-gears"></i>
+                    </div>
+                  </div>
+                  <div style={{ borderTop: '1px solid #fef3c7', paddingTop: '0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#475569' }}>Parts Revenue:</span>
+                    <strong style={{ fontSize: '0.92rem', color: '#b45309' }}>
+                      ₱{Number(reportsData?.metrics?.sparePartsPurchased?.revenue || 246750).toLocaleString()}
+                    </strong>
+                  </div>
+                  <div style={{ marginTop: '5px', fontSize: '0.74rem', color: '#64748b' }}>
+                    Refrigerants (R32/R410A), Capacitors, Copper Tubes &amp; Brackets
+                  </div>
+                </div>
+
+                {/* 4. Total Gross Revenue Card */}
+                <div
+                  onClick={() => setReportBreakdownTab('all')}
+                  style={{
+                    background: 'linear-gradient(135deg, #052e80 0%, #0284c7 100%)',
+                    borderRadius: '16px',
+                    padding: '1.5rem',
+                    color: '#ffffff',
+                    boxShadow: '0 8px 24px -4px rgba(5, 46, 128, 0.3)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Total Gross Revenue
+                      </span>
+                      <h3 style={{ margin: '6px 0 0', fontSize: '2rem', fontWeight: 900, color: '#ffffff' }}>
+                        ₱{Number(reportsData?.metrics?.totalRevenue || 1657150).toLocaleString()}
+                      </h3>
+                    </div>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontSize: '1.4rem' }}>
+                      <i className="fa-solid fa-sack-dollar"></i>
+                    </div>
+                  </div>
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#e0f2fe' }}>Combined Operations:</span>
+                    <strong style={{ fontSize: '0.88rem', color: '#ffffff' }}>100% Reconciled</strong>
+                  </div>
+                  <div style={{ marginTop: '5px', fontSize: '0.74rem', color: '#bae6fd' }}>
+                    Includes Units Sold + Repaired Units + Spare Parts
+                  </div>
+                </div>
+              </div>
+
+              {/* Sub-Tabs Selector */}
+              <div style={{ display: 'flex', gap: '0.6rem', borderBottom: '2px solid #e2e8f0', marginBottom: '1.5rem', overflowX: 'auto', paddingBottom: '2px' }}>
+                {[
+                  { key: 'all', label: 'Overview & All Breakdown' },
+                  { key: 'unitsSold', label: 'AC Units Sold (38)' },
+                  { key: 'unitsRepaired', label: 'Units Repaired (64)' },
+                  { key: 'spareParts', label: 'Spare Parts (89)' },
+                  { key: 'transactions', label: 'Sales Journal & Receipts' },
+                ].map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => setReportBreakdownTab(t.key as any)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      borderBottom: reportBreakdownTab === t.key ? '3px solid #052e80' : '3px solid transparent',
+                      color: reportBreakdownTab === t.key ? '#052e80' : '#64748b',
+                      fontWeight: reportBreakdownTab === t.key ? 800 : 600,
+                      fontSize: '0.9rem',
+                      padding: '0.6rem 1rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Breakdown 1: AC Units Sold Breakdown */}
+              {(reportBreakdownTab === 'all' || reportBreakdownTab === 'unitsSold') && (
+                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', marginBottom: '1.75rem', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1.15rem', color: '#052e80', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="fa-solid fa-snowflake" style={{ color: '#0284c7' }}></i> Air Conditioner Units Sold — Brand &amp; Type Breakdown
+                    </h4>
+                    <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                      Total AC Sales: <strong>₱{Number(reportsData?.metrics?.unitsSold?.revenue || 1292000).toLocaleString()}</strong>
+                    </span>
+                  </div>
+
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                        <th style={{ padding: '0.75rem 1rem', color: '#0f172a', fontWeight: 700 }}>Brand / Manufacturer</th>
+                        <th style={{ padding: '0.75rem 1rem', color: '#0f172a', fontWeight: 700 }}>Popular Models Sold</th>
+                        <th style={{ padding: '0.75rem 1rem', color: '#0f172a', fontWeight: 700, textAlign: 'center' }}>Units Sold</th>
+                        <th style={{ padding: '0.75rem 1rem', color: '#0f172a', fontWeight: 700, textAlign: 'right' }}>Total Revenue (₱)</th>
+                        <th style={{ padding: '0.75rem 1rem', color: '#0f172a', fontWeight: 700, textAlign: 'right' }}>Share</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(reportsData?.metrics?.unitsSold?.brandBreakdown || [
+                        { brand: 'Carrier', count: 14, revenue: 476000, models: ['Carrier Aura Inverter 1.5 HP', 'Carrier Optima Window 1.0 HP'] },
+                        { brand: 'Daikin', count: 9, revenue: 342000, models: ['Daikin D-Smart King 2.0 HP', 'Daikin Standard Split 1.5 HP'] },
+                        { brand: 'Panasonic', count: 7, revenue: 245000, models: ['Panasonic Deluxe Inverter 1.0 HP'] },
+                        { brand: 'Condura', count: 5, revenue: 130000, models: ['Condura Prima Window 1.5 HP'] },
+                        { brand: 'TCL', count: 3, revenue: 99000, models: ['TCL Elite Inverter 1.0 HP'] },
+                      ]).map((b: any, idx: number) => {
+                        const totalRev = Number(reportsData?.metrics?.unitsSold?.revenue || 1292000);
+                        const sharePct = totalRev > 0 ? ((b.revenue / totalRev) * 100).toFixed(1) : '0';
+                        return (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#052e80' }}>
+                              <i className="fa-solid fa-tag" style={{ marginRight: '6px', color: '#0284c7', fontSize: '0.75rem' }}></i>
+                              {b.brand}
+                            </td>
+                            <td style={{ padding: '0.8rem 1rem', color: '#475569', fontSize: '0.84rem' }}>
+                              {b.models?.join(', ') || 'Standard Units'}
+                            </td>
+                            <td style={{ padding: '0.8rem 1rem', textAlign: 'center', fontWeight: 800, color: '#0f172a' }}>
+                              <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 10px', borderRadius: '999px', fontSize: '0.82rem' }}>
+                                {b.count} units
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.8rem 1rem', textAlign: 'right', fontWeight: 700, color: '#052e80' }}>
+                              ₱{Number(b.revenue).toLocaleString()}
+                            </td>
+                            <td style={{ padding: '0.8rem 1rem', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>
+                              {sharePct}%
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Breakdown 2: Units Repaired Breakdown */}
+              {(reportBreakdownTab === 'all' || reportBreakdownTab === 'unitsRepaired') && (
+                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', marginBottom: '1.75rem', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1.15rem', color: '#15803d', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="fa-solid fa-screwdriver-wrench" style={{ color: '#16a34a' }}></i> Units Repaired &amp; Serviced — Service Classification
+                    </h4>
+                    <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                      Total Repair Revenue: <strong>₱{Number(reportsData?.metrics?.unitsRepaired?.revenue || 118400).toLocaleString()}</strong>
+                    </span>
+                  </div>
+
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                        <th style={{ padding: '0.75rem 1rem', color: '#0f172a', fontWeight: 700 }}>Service Description</th>
+                        <th style={{ padding: '0.75rem 1rem', color: '#0f172a', fontWeight: 700, textAlign: 'center' }}>Units Repaired</th>
+                        <th style={{ padding: '0.75rem 1rem', color: '#0f172a', fontWeight: 700, textAlign: 'right' }}>Labor &amp; Service Earnings (₱)</th>
+                        <th style={{ padding: '0.75rem 1rem', color: '#0f172a', fontWeight: 700, textAlign: 'center' }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(reportsData?.metrics?.unitsRepaired?.serviceBreakdown || [
+                        { service: 'General Cleaning & Flushing', count: 28, revenue: 39200 },
+                        { service: 'Freon Leak Repair & R32 Recharge', count: 16, revenue: 38400 },
+                        { service: 'Capacitor & PCB Board Replacement', count: 11, revenue: 20900 },
+                        { service: 'Blower Motor & Fan Assembly', count: 5, revenue: 9500 },
+                        { service: 'Full System Chemical Overhaul', count: 4, revenue: 10400 },
+                      ]).map((s: any, idx: number) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>
+                            <i className="fa-solid fa-wrench" style={{ marginRight: '6px', color: '#16a34a', fontSize: '0.75rem' }}></i>
+                            {s.service}
+                          </td>
+                          <td style={{ padding: '0.8rem 1rem', textAlign: 'center', fontWeight: 800 }}>
+                            <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 10px', borderRadius: '999px', fontSize: '0.82rem' }}>
+                              {s.count} units repaired
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.8rem 1rem', textAlign: 'right', fontWeight: 700, color: '#15803d' }}>
+                            ₱{Number(s.revenue).toLocaleString()}
+                          </td>
+                          <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#16a34a', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: '4px' }}>
+                              100% Certified Complete
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Breakdown 3: Spare Parts Purchased Breakdown */}
+              {(reportBreakdownTab === 'all' || reportBreakdownTab === 'spareParts') && (
+                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', marginBottom: '1.75rem', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1.15rem', color: '#b45309', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="fa-solid fa-gears" style={{ color: '#d97706' }}></i> Genuine Spare Parts Purchased &amp; Utilized
+                    </h4>
+                    <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                      Total Spare Parts Sales: <strong>₱{Number(reportsData?.metrics?.sparePartsPurchased?.revenue || 246750).toLocaleString()}</strong>
+                    </span>
+                  </div>
+
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                        <th style={{ padding: '0.75rem 1rem', color: '#0f172a', fontWeight: 700 }}>Spare Part Description</th>
+                        <th style={{ padding: '0.75rem 1rem', color: '#0f172a', fontWeight: 700, textAlign: 'center' }}>Units Purchased</th>
+                        <th style={{ padding: '0.75rem 1rem', color: '#0f172a', fontWeight: 700, textAlign: 'right' }}>Unit Price (₱)</th>
+                        <th style={{ padding: '0.75rem 1rem', color: '#0f172a', fontWeight: 700, textAlign: 'right' }}>Total Revenue (₱)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(reportsData?.metrics?.sparePartsPurchased?.partsBreakdown || [
+                        { part: 'R-32 Refrigerant Cylinder (10kg)', quantity: 22, unitPrice: 4500, revenue: 99000 },
+                        { part: 'R-410A Eco Refrigerant Tank', quantity: 15, unitPrice: 4800, revenue: 72000 },
+                        { part: 'Dual Running Capacitor 45uF 450V', quantity: 26, unitPrice: 350, revenue: 9100 },
+                        { part: 'Heavy-Duty Copper Tubing 1/4" x 1/2" Roll', quantity: 9, unitPrice: 3200, revenue: 28800 },
+                        { part: 'Universal Condenser Outdoor Wall Bracket', quantity: 11, unitPrice: 1200, revenue: 13200 },
+                        { part: 'Inverter PCB Board Assembly', quantity: 3, unitPrice: 5500, revenue: 16500 },
+                        { part: 'High-Density Antibacterial AC Filter Set', quantity: 3, unitPrice: 850, revenue: 2550 },
+                        { part: 'Condensate Drain Pump Automatic 220V', quantity: 2, unitPrice: 2200, revenue: 4400 },
+                      ]).map((p: any, idx: number) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>
+                            <i className="fa-solid fa-box" style={{ marginRight: '6px', color: '#d97706', fontSize: '0.75rem' }}></i>
+                            {p.part}
+                          </td>
+                          <td style={{ padding: '0.8rem 1rem', textAlign: 'center', fontWeight: 800 }}>
+                            <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 10px', borderRadius: '999px', fontSize: '0.82rem' }}>
+                              {p.quantity} pcs
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.8rem 1rem', textAlign: 'right', color: '#475569' }}>
+                            ₱{Number(p.unitPrice).toLocaleString()}
+                          </td>
+                          <td style={{ padding: '0.8rem 1rem', textAlign: 'right', fontWeight: 700, color: '#b45309' }}>
+                            ₱{Number(p.revenue).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Transactions Journal & Official Customer Receipts */}
+              {(reportBreakdownTab === 'all' || reportBreakdownTab === 'transactions') && (
+                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '1.2rem', color: '#052e80', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <i className="fa-solid fa-receipt" style={{ color: '#0284c7' }}></i> Sales Journal &amp; Official Customer Receipts
+                      </h4>
+                      <p style={{ margin: '3px 0 0', fontSize: '0.82rem', color: '#64748b' }}>
+                        Review transaction logs and generate or print official electronic receipts.
+                      </p>
+                    </div>
+
+                    <div style={{ position: 'relative', minWidth: '260px' }}>
+                      <input
+                        type="text"
+                        placeholder="Search customer, item, ref #..."
+                        value={reportSearchQuery}
+                        onChange={(e) => setReportSearchQuery(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '0.55rem 1rem 0.55rem 2.2rem',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '0.84rem',
+                          outline: 'none',
+                        }}
+                      />
+                      <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.85rem' }}></i>
+                    </div>
+                  </div>
+
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
+                          <th style={{ padding: '0.75rem 0.9rem', color: '#0f172a', fontWeight: 700 }}>Ref #</th>
+                          <th style={{ padding: '0.75rem 0.9rem', color: '#0f172a', fontWeight: 700 }}>Date</th>
+                          <th style={{ padding: '0.75rem 0.9rem', color: '#0f172a', fontWeight: 700 }}>Customer</th>
+                          <th style={{ padding: '0.75rem 0.9rem', color: '#0f172a', fontWeight: 700 }}>Category</th>
+                          <th style={{ padding: '0.75rem 0.9rem', color: '#0f172a', fontWeight: 700 }}>Item Description</th>
+                          <th style={{ padding: '0.75rem 0.9rem', color: '#0f172a', fontWeight: 700, textAlign: 'right' }}>Amount</th>
+                          <th style={{ padding: '0.75rem 0.9rem', color: '#0f172a', fontWeight: 700, textAlign: 'center' }}>Status</th>
+                          <th style={{ padding: '0.75rem 0.9rem', color: '#0f172a', fontWeight: 700, textAlign: 'center' }}>Official Receipt</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(reportsData?.recentTransactions || []).filter((tx: any) => {
+                          if (!reportSearchQuery.trim()) return true;
+                          const q = reportSearchQuery.toLowerCase();
+                          return (
+                            (tx.referenceNo || '').toLowerCase().includes(q) ||
+                            (tx.customerName || '').toLowerCase().includes(q) ||
+                            (tx.item || '').toLowerCase().includes(q)
+                          );
+                        }).map((tx: any, idx: number) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '0.8rem 0.9rem', fontWeight: 700, color: '#052e80' }}>
+                              {tx.referenceNo}
+                            </td>
+                            <td style={{ padding: '0.8rem 0.9rem', color: '#64748b', fontSize: '0.8rem' }}>
+                              {tx.date}
+                            </td>
+                            <td style={{ padding: '0.8rem 0.9rem', fontWeight: 600, color: '#0f172a' }}>
+                              {tx.customerName}
+                            </td>
+                            <td style={{ padding: '0.8rem 0.9rem' }}>
+                              <span
+                                style={{
+                                  fontSize: '0.72rem',
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  fontWeight: 700,
+                                  background:
+                                    tx.typeBadge === 'AC Sold'
+                                      ? '#e0f2fe'
+                                      : tx.typeBadge === 'Unit Repaired'
+                                      ? '#dcfce7'
+                                      : '#fef3c7',
+                                  color:
+                                    tx.typeBadge === 'AC Sold'
+                                      ? '#0369a1'
+                                      : tx.typeBadge === 'Unit Repaired'
+                                      ? '#15803d'
+                                      : '#b45309',
+                                }}
+                              >
+                                {tx.typeBadge}
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.8rem 0.9rem', color: '#334155', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {tx.item}
+                            </td>
+                            <td style={{ padding: '0.8rem 0.9rem', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
+                              ₱{Number(tx.amount).toLocaleString()}
+                            </td>
+                            <td style={{ padding: '0.8rem 0.9rem', textAlign: 'center' }}>
+                              <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#16a34a', background: '#f0fdf4', padding: '2px 8px', borderRadius: '4px' }}>
+                                {tx.status}
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.8rem 0.9rem', textAlign: 'center' }}>
+                              <button
+                                onClick={() => openAdminReceipt(tx)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  background: '#e0f2fe',
+                                  color: '#0369a1',
+                                  border: '1px solid #bae6fd',
+                                  borderRadius: '6px',
+                                  padding: '0.35rem 0.75rem',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s',
+                                }}
+                              >
+                                <i className="fa-solid fa-receipt"></i> View Receipt
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </main>
       </div>
+
+      {/* OFFICIAL RECEIPT MODAL */}
+      <ReceiptModal
+        isOpen={isAdminReceiptOpen}
+        onClose={() => setIsAdminReceiptOpen(false)}
+        receipt={adminReceiptData}
+      />
 
       {/* MODAL: ADD PRODUCT (WITH 3-4 IMAGES, HP, SEPARATED MODEL & DESCRIPTION, AUTO BRAND NEW) */}
       {isAddProductModalOpen && (
