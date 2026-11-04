@@ -47,11 +47,12 @@ model RegisteredAC {
   id                String   @id @default(cuid())
   userId            String
   user              User     @relation(fields: [userId], references: [id])
-  location          String   // "Living Room", "Master Bedroom"
+  location          String?  // Optional location
   brandModel        String   // "Carrier Inverter"
   acType            String   // "Window Type", "Split Type", "Floor Standing"
   horsepower        String   // "1.0 HP", "1.5 HP", etc.
-  paymentType       String   // "Cash" or "Installment"
+  yearAcquired      String?  // e.g. "2024", "2025"
+  paymentType       String?  @default("Manual Add") // "Cash", "Installment", or "Manual Add"
   totalPrice        Float?   // Total price of the AC
   months            Int?     // Number of installment months (null if Cash)
   pricePerMonth     Float?   // Monthly payment (null if Cash)

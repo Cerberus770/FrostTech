@@ -488,8 +488,7 @@ export default function HomePage() {
       ? true
       : (
           catLower.includes(selectedCategory.toLowerCase()) ||
-          (selectedCategory === 'Second Hand Deals' && item.badge === 'Used') ||
-          (selectedCategory === 'Spare Parts' && isSpareCategory)
+                    (selectedCategory === 'Spare Parts' && isSpareCategory)
         );
     
     const matchesPrice = selectedPrices.length === 0 || selectedPrices.some(range => {

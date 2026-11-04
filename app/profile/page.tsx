@@ -102,7 +102,9 @@ export default function ProfilePage() {
 
   // Register New AC in Settings
   const [showRegisterForm, setShowRegisterForm] = useState(false);
-  const [regLocation, setRegLocation] = useState('');
+    const [regYearAcquired, setRegYearAcquired] = useState('2025');
+  const [regLat, setRegLat] = useState<number | null>(14.6091);
+  const [regLng, setRegLng] = useState<number | null>(121.0223);
   const [regBrandModel, setRegBrandModel] = useState('');
   const [regAcType, setRegAcType] = useState('Window Type');
   const [regHorsepower, setRegHorsepower] = useState('1.0 HP');
@@ -345,8 +347,7 @@ export default function ProfilePage() {
       selectedCategory === 'All'
         ? true
         : item.category.toLowerCase().includes(selectedCategory.toLowerCase()) ||
-          (selectedCategory === 'Second Hand Deals' && item.badge === 'Used') ||
-          (selectedCategory === 'Spare Parts' && isSpareCategory);
+                    (selectedCategory === 'Spare Parts' && isSpareCategory);
 
     const matchesPrice =
       selectedPrices.length === 0 ||
@@ -640,22 +641,26 @@ export default function ProfilePage() {
 
   // Register New AC in Settings
   const handleRegisterNewAc = async () => {
-    if (!regLocation || !regBrandModel) {
-      showAlert({ title: 'Validation Error', message: 'Please provide Location and Brand/Model.', type: 'warning' });
+    if (!regBrandModel) {
+      showAlert({ title: 'Validation Error', message: 'Please provide the Brand & Model of your AC unit.', type: 'warning' });
       return;
     }
+
+    const currentUid = userId || (typeof window !== 'undefined' ? sessionStorage.getItem('userId') : null) || 'guest-customer';
 
     try {
       const res = await fetch('/api/registered-acs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId,
-          location: regLocation,
+          userId: currentUid,
           brandModel: regBrandModel,
           acType: regAcType,
           horsepower: regHorsepower,
-          fullAddress: regAddress,
+          yearAcquired: regYearAcquired,
+          lat: regLat,
+          lng: regLng,
+          fullAddress: regAddress || 'Customer Registered Location',
           paymentType: 'Manual Add',
           purchasedFromStore: false,
         }),
@@ -663,16 +668,28 @@ export default function ProfilePage() {
 
       if (res.ok) {
         const saved = await res.json();
-        setRegisteredACs([saved, ...registeredACs]);
-        setRegLocation('');
+        setRegisteredACs((prev) => [saved, ...prev]);
         setRegBrandModel('');
         setRegAddress('');
+        setRegYearAcquired('2025');
         setShowRegisterForm(false);
         showToast('New AC successfully registered!');
+
+        if (currentUid && currentUid !== 'guest-customer') {
+          fetch('/api/registered-acs?userId=' + currentUid)
+            .then((r) => r.json())
+            .then((data) => {
+              if (Array.isArray(data)) setRegisteredACs(data);
+            })
+            .catch(console.error);
+        }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showAlert({ title: 'Registration Failed', message: errData.error || 'Could not register AC unit.', type: 'error' });
       }
     } catch (err) {
       console.error(err);
-      showAlert({ title: 'Error', message: 'Failed to register AC.', type: 'error' });
+      showAlert({ title: 'Error', message: 'Failed to register AC. Please check network connection.', type: 'error' });
     }
   };
 
@@ -2495,54 +2512,150 @@ export default function ProfilePage() {
 
                 {/* Form to Register New AC */}
                 {showRegisterForm && (
-                  <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>
-                    <h4 style={{ margin: '0 0 1rem', color: '#0284c7' }}>Register AC Unit</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem', marginBottom: '0.8rem' }}>
-                      <input
-                        type="text"
-                        placeholder="Location (e.g. Living Room, Master Bedroom)"
-                        value={regLocation}
-                        onChange={(e) => setRegLocation(e.target.value)}
-                        style={{ padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                      />
-                      <input
-                        type="text"
-                        placeholder="Brand & Model (e.g. Carrier 1.5 HP Inverter)"
-                        value={regBrandModel}
-                        onChange={(e) => setRegBrandModel(e.target.value)}
-                        style={{ padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                      />
+                  <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '16px', border: '1px solid #d4e5fa', marginBottom: '1.75rem', boxShadow: '0 4px 16px rgba(6,37,91,0.06)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
+                      <div>
+                        <h4 style={{ margin: 0, color: '#052e80', fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <i className="fa-solid fa-plus-circle" style={{ color: '#0284c7' }}></i> Register AC Unit
+                        </h4>
+                        <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                          Add your AC specifications and pinpoint installation location on the interactive map.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowRegisterForm(false)}
+                        style={{ background: 'none', border: 'none', fontSize: '1.2rem', color: '#94a3b8', cursor: 'pointer' }}
+                        title="Close"
+                      >
+                        <i className="fa-solid fa-xmark"></i>
+                      </button>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem', marginBottom: '0.8rem' }}>
-                      <select value={regAcType} onChange={(e) => setRegAcType(e.target.value)} style={{ padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                        <option>Window Type</option>
-                        <option>Split Type</option>
-                        <option>Floor Standing</option>
-                      </select>
-                      <select value={regHorsepower} onChange={(e) => setRegHorsepower(e.target.value)} style={{ padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                        <option>0.75 HP</option>
-                        <option>1.0 HP</option>
-                        <option>1.5 HP</option>
-                        <option>2.0 HP</option>
-                        <option>2.5 HP</option>
-                      </select>
+
+                    {/* Row 1: Brand & Model and Year Acquired (No Location text input) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#06255b', marginBottom: '6px' }}>
+                          Brand & Model <span style={{ color: '#ef4444' }}>*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Carrier Aura Inverter 1.5 HP, Panasonic Deluxe"
+                          value={regBrandModel}
+                          onChange={(e) => setRegBrandModel(e.target.value)}
+                          style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', background: '#ffffff', color: '#06255b', outline: 'none' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#06255b', marginBottom: '6px' }}>
+                          <i className="fa-solid fa-calendar-days" style={{ marginRight: '5px', color: '#0284c7' }}></i> Year Acquired
+                        </label>
+                        <select
+                          value={regYearAcquired}
+                          onChange={(e) => setRegYearAcquired(e.target.value)}
+                          style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', background: '#ffffff', color: '#06255b', fontWeight: 600, outline: 'none' }}
+                        >
+                          {['2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019', '2018', '2017 or earlier'].map((yr) => (
+                            <option key={yr} value={yr}>{yr}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    <div style={{ marginBottom: '1rem' }}>
+
+                    {/* Row 2: AC Type and Horsepower */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#06255b', marginBottom: '6px' }}>
+                          AC Type
+                        </label>
+                        <select
+                          value={regAcType}
+                          onChange={(e) => setRegAcType(e.target.value)}
+                          style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', background: '#ffffff', color: '#06255b', fontWeight: 600, outline: 'none' }}
+                        >
+                          <option>Window Type</option>
+                          <option>Split Type</option>
+                          <option>Floor Standing</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#06255b', marginBottom: '6px' }}>
+                          Horsepower (HP)
+                        </label>
+                        <select
+                          value={regHorsepower}
+                          onChange={(e) => setRegHorsepower(e.target.value)}
+                          style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', background: '#ffffff', color: '#06255b', fontWeight: 600, outline: 'none' }}
+                        >
+                          <option>0.75 HP</option>
+                          <option>1.0 HP</option>
+                          <option>1.5 HP</option>
+                          <option>2.0 HP</option>
+                          <option>2.5 HP</option>
+                          <option>3.0 HP</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Interactive Pin Point Map */}
+                    <div style={{ marginBottom: '1.25rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#06255b', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <i className="fa-solid fa-location-dot" style={{ color: '#0284c7' }}></i> Pin Point AC Location on Map
+                        </label>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                          Coordinates: {regLat ? regLat.toFixed(5) : '14.6091'}, {regLng ? regLng.toFixed(5) : '121.0223'}
+                        </span>
+                      </div>
+                      <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                        <GoogleMap
+                          height="220px"
+                          center={regLat && regLng ? { lat: regLat, lng: regLng } : { lat: 14.6091, lng: 121.0223 }}
+                          markerPosition={regLat && regLng ? { lat: regLat, lng: regLng } : { lat: 14.6091, lng: 121.0223 }}
+                          pinnable={true}
+                          onLocationSelect={(coords) => {
+                            setRegLat(coords.lat);
+                            setRegLng(coords.lng);
+                          }}
+                        />
+                      </div>
+                      <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: '#64748b' }}>
+                        <i className="fa-solid fa-circle-info" style={{ marginRight: '4px', color: '#0284c7' }}></i> Click anywhere on the map above to accurately pin your AC unit location.
+                      </p>
+                    </div>
+
+                    {/* Installation Landmark Address */}
+                    <div style={{ marginBottom: '1.25rem' }}>
+                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#06255b', marginBottom: '6px' }}>
+                        Address / Building Landmark (Optional)
+                      </label>
                       <input
                         type="text"
-                        placeholder="Installation Address / Landmark"
+                        placeholder="e.g. Unit 402 Tower B, Emerald Condos, San Juan"
                         value={regAddress}
                         onChange={(e) => setRegAddress(e.target.value)}
-                        style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                        style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', background: '#ffffff', color: '#06255b', outline: 'none' }}
                       />
                     </div>
-                    <div style={{ display: 'flex', gap: '0.8rem' }}>
-                      <button onClick={() => setShowRegisterForm(false)} className="btn btn-secondary">Cancel</button>
-                      <button onClick={handleRegisterNewAc} className="btn">Save & Register Unit</button>
+
+                    <div style={{ display: 'flex', gap: '0.8rem', justifyContent: 'flex-end', paddingTop: '0.5rem', borderTop: '1px solid #e2e8f0' }}>
+                      <button
+                        onClick={() => setShowRegisterForm(false)}
+                        className="btn btn-secondary"
+                        style={{ padding: '0.65rem 1.4rem', fontSize: '0.9rem' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleRegisterNewAc}
+                        className="btn"
+                        style={{ padding: '0.65rem 1.6rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        <i className="fa-solid fa-check"></i> Save & Register Unit
+                      </button>
                     </div>
                   </div>
                 )}
-
                 {/* Registered AC List table/rows */}
                 {registeredACs.length === 0 ? (
                   <p style={{ color: '#64748b', fontStyle: 'italic', margin: 0 }}>No registered AC units yet.</p>
@@ -2564,7 +2677,7 @@ export default function ProfilePage() {
                         <div>
                           <span style={{ fontWeight: 700, color: '#0f172a' }}>{ac.brandModel}</span>
                           <span style={{ fontSize: '0.8rem', color: '#64748b', marginLeft: '10px' }}>
-                            ({ac.horsepower} • {ac.acType}) — <strong>{ac.location}</strong>
+                            ({ac.horsepower} • {ac.acType})
                             {ac.createdAt && (
                               <span style={{ marginLeft: '8px', color: '#0284c7', fontWeight: 600 }}>
                                 • Added: {new Date(ac.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
