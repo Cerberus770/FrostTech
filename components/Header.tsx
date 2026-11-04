@@ -498,6 +498,23 @@ export default function Header({ hideSearch = false }: { hideSearch?: boolean })
               <i className="fa-solid fa-cart-shopping" style={{ color: '#0284c7', width: '18px' }}></i> My Cart ({cartCount})
             </Link>
             <Link
+              href="/feedback"
+              onClick={() => setMenuOpen(false)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '0.85rem 1.2rem',
+                color: '#0f172a',
+                textDecoration: 'none',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                borderBottom: '1px solid #f1f5f9',
+              }}
+            >
+              <i className="fa-solid fa-certificate" style={{ color: '#052e80', width: '18px' }}></i> Customer Feedback & Proof
+            </Link>
+            <Link
               href="/profile#tab-settings"
               onClick={() => setMenuOpen(false)}
               style={{

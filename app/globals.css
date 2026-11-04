@@ -4017,3 +4017,32 @@ textarea.admin-input::placeholder {
   border-color: #0284c7 !important;
   box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.18) !important;
 }
+
+/* ============================================
+   Customer Feedback & Proof of Installation
+   ============================================ */
+.proof-card {
+  transition: transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease;
+}
+
+.proof-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 36px rgba(6, 37, 91, 0.12) !important;
+  border-color: #0b3080 !important;
+}
+
+.proof-card:hover img {
+  transform: scale(1.05);
+}
+
+.view-proof-btn:hover {
+  background: #083ba0 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(5, 46, 128, 0.35) !important;
+}
+
+.brand-tile-btn:hover {
+  border-color: #052e80 !important;
+  transform: translateY(-4px) !important;
+  box-shadow: 0 12px 28px rgba(5, 46, 128, 0.14) !important;
+}

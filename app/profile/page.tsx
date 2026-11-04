@@ -950,7 +950,7 @@ export default function ProfilePage() {
           {activeTab === 'tab-dashboard' && (
             <div>
               {/* Category Navigation Bar */}
-              <nav className="category-nav" style={{ borderRadius: '12px', marginBottom: '1.5rem', background: '#0284c7', padding: '0.85rem 1.5rem' }}>
+              <nav className="category-nav" style={{ borderRadius: '12px', marginBottom: '1.5rem', background: '#c8e0fc', border: '1px solid #b9d4f6', padding: '0.85rem 1.5rem' }}>
                 <ul className="nav-links" style={{ display: 'flex', flexWrap: 'wrap', gap: '1.8rem', listStyle: 'none', margin: 0, padding: 0 }}>
                   <li className={selectedCategory === 'All' ? 'active' : ''}>
                     <a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('All'); document.getElementById('dashboard-products')?.scrollIntoView({ behavior: 'smooth' }); }}>
@@ -972,15 +972,16 @@ export default function ProfilePage() {
                       Floor Standing
                     </a>
                   </li>
-                  <li className={selectedCategory === 'Second Hand Deals' ? 'active' : ''}>
-                    <a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Second Hand Deals'); document.getElementById('dashboard-products')?.scrollIntoView({ behavior: 'smooth' }); }}>
-                      Second Hand Deals
-                    </a>
-                  </li>
+                  
                   <li className={selectedCategory === 'Spare Parts' ? 'active' : ''}>
                     <a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Spare Parts'); document.getElementById('dashboard-products')?.scrollIntoView({ behavior: 'smooth' }); }}>
                       Spare Parts
                     </a>
+                  </li>
+                  <li>
+                    <Link href="/feedback" style={{ color: '#06255b', fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <i className="fa-solid fa-shield-check" style={{ color: '#052e80' }}></i> Customer Feedback
+                    </Link>
                   </li>
                 </ul>
               </nav>

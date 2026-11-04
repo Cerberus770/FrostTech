@@ -27,6 +27,167 @@ interface DBProduct {
   variants?: { id: string; condition: string; price: number; stock: number }[];
 }
 
+
+interface InstallationProof {
+  id: string;
+  customerName: string;
+  customerLocation: string;
+  customerAvatar: string;
+  unitModel: string;
+  unitType: 'Split' | 'Window' | 'Floor';
+  horsepower: string;
+  technicianName: string;
+  technicianRole: string;
+  jobOrderNo: string;
+  installDate: string;
+  installType: string;
+  rating: number;
+  review: string;
+  photoUrl: string;
+  checklist: string[];
+}
+
+const installationProofs: InstallationProof[] = [
+  {
+    id: 'proof-1',
+    customerName: 'Engr. Roberto Martinez',
+    customerLocation: 'Quezon City, Metro Manila',
+    customerAvatar: 'RM',
+    unitModel: 'Carrier Aura Inverter 1.5 HP Split Type',
+    unitType: 'Split',
+    horsepower: '1.5 HP',
+    technicianName: 'Carlos Rivera',
+    technicianRole: 'Senior HVAC Field Specialist',
+    jobOrderNo: 'JO-2026-4891',
+    installDate: 'November 2, 2026',
+    installType: 'Standard Back-to-Back Installation',
+    rating: 5,
+    review: 'Outstanding installation! Technician Carlos arrived right on schedule with complete PPE and a calibrated vacuum pump. Piping was cleanly wrapped with UV insulation tape and sealed. Cooling reached 20°C in less than 4 minutes!',
+    photoUrl: '/hero-bg.png',
+    checklist: [
+      'Vacuum Pressure Tested (-30 inHg / 500 microns)',
+      'Flare Nuts Torqued to Carrier Specs',
+      'Condensate Gravity Drain Flow Verified',
+      'Dedicated 20A Circuit Breaker Installed',
+    ],
+  },
+  {
+    id: 'proof-2',
+    customerName: 'Dr. Maria Carmela Santos',
+    customerLocation: 'BGC, Taguig City',
+    customerAvatar: 'MS',
+    unitModel: 'Daikin D-Smart King Inverter 2.0 HP',
+    unitType: 'Split',
+    horsepower: '2.0 HP',
+    technicianName: 'Mark Anthony Bautista',
+    technicianRole: 'Certified AC Technician #884',
+    jobOrderNo: 'JO-2026-4762',
+    installDate: 'October 29, 2026',
+    installType: 'High-Rise Condominium Balcony Mounting',
+    rating: 5,
+    review: 'Very neat and polite technician! Our condo admin has strict permits and vibration guidelines. The FrostTech team followed all safety rules, used heavy-duty anti-vibration rubber pads, and left the room spotless.',
+    photoUrl: '/service-bg.png',
+    checklist: [
+      'Condo Admin Safety & Permit Compliant',
+      'Heavy-Duty Vibration Dampener Pads',
+      'R32 Refrigerant Operating Pressure Normal',
+      'Condensate Leak & P-Trap Tested',
+    ],
+  },
+  {
+    id: 'proof-3',
+    customerName: 'Arch. Kenneth Ramos',
+    customerLocation: 'Ortigas, Pasig City',
+    customerAvatar: 'KR',
+    unitModel: 'Panasonic Premium Inverter 1.0 HP Split Type',
+    unitType: 'Split',
+    horsepower: '1.0 HP',
+    technicianName: 'Carlos Rivera',
+    technicianRole: 'Senior HVAC Field Specialist',
+    jobOrderNo: 'JO-2026-4630',
+    installDate: 'October 25, 2026',
+    installType: 'Living Room Concealed Trunking Setup',
+    rating: 5,
+    review: 'As an architect, aesthetics matter a lot to me. The FrostTech technicians routed the copper tubings and drainage seamlessly along the molding with clean white trunking. Unit looks sleek and whisper quiet!',
+    photoUrl: '/Inverter.jpg',
+    checklist: [
+      'Precision Tube Bending Without Kinks',
+      'Aesthetic Wall Trunking Installed',
+      'Electrical Grounding & Amperage Normal',
+      'Full Remote Handover & Function Briefing',
+    ],
+  },
+  {
+    id: 'proof-4',
+    customerName: 'Lourdes & Antonio Dela Cruz',
+    customerLocation: 'Marikina Heights, Marikina',
+    customerAvatar: 'DC',
+    unitModel: 'Condura Prima Standard Window Type 1.5 HP',
+    unitType: 'Window',
+    horsepower: '1.5 HP',
+    technicianName: 'Arnel Salcedo',
+    technicianRole: 'Window AC Mounting Specialist',
+    jobOrderNo: 'JO-2026-4518',
+    installDate: 'October 20, 2026',
+    installType: 'Window Frame Custom Steel Bracket Mount',
+    rating: 5,
+    review: 'Fast and seamless window AC setup. They fabricated a heavy-duty steel bracket outside for extra safety and sealed all window gaps with high-grade weather foam so no cool air escapes. Highly recommended!',
+    photoUrl: '/Window.jpg',
+    checklist: [
+      'Heavy-Duty Exterior Steel Bracket Anchored',
+      'Weatherproof Polyurethane Sealant Applied',
+      'Proper 1/4 inch Drainage Tilt Angle Set',
+      'Operating Wattage & Temperature Verified',
+    ],
+  },
+  {
+    id: 'proof-5',
+    customerName: 'Atty. Ferdinand Morales',
+    customerLocation: 'Ayala Alabang, Muntinlupa',
+    customerAvatar: 'FM',
+    unitModel: 'Samsung WindFree Elite Inverter 2.5 HP',
+    unitType: 'Split',
+    horsepower: '2.5 HP',
+    technicianName: 'Mark Anthony Bautista',
+    technicianRole: 'Certified AC Technician #884',
+    jobOrderNo: 'JO-2026-4402',
+    installDate: 'October 16, 2026',
+    installType: 'Master Suite Split Inverter Installation',
+    rating: 5,
+    review: 'The WindFree technology is amazing and technician Mark took extra time to demonstrate how to configure the SmartThings Wi-Fi connectivity on my phone. Very knowledgeable and thorough technician!',
+    photoUrl: '/service-bg.png',
+    checklist: [
+      'SmartThings Wi-Fi Module Paired',
+      'Nitrogen Pressure Leak Check Passed',
+      'Ultra-Silent Compressor Vibration Verified',
+      'Official FrostTech Warranty Card Signed',
+    ],
+  },
+  {
+    id: 'proof-6',
+    customerName: 'Katrina Joy Lim',
+    customerLocation: 'Greenhills, San Juan City',
+    customerAvatar: 'KL',
+    unitModel: 'TCL FreshIN Inverter 1.5 HP Split Type',
+    unitType: 'Split',
+    horsepower: '1.5 HP',
+    technicianName: 'Carlos Rivera & Team',
+    technicianRole: 'FrostTech Field Service Team',
+    jobOrderNo: 'JO-2026-4310',
+    installDate: 'October 12, 2026',
+    installType: 'Fresh Air Intake & Inverter AC Setup',
+    rating: 5,
+    review: 'Technicians arrived on time in complete uniform and service van. Used dust collection vacuum while core-drilling, so zero wall dust on my furniture. Unit cooling is ice-cold and fresh air system works great!',
+    photoUrl: '/hero-bg.png',
+    checklist: [
+      'Clean Core Drilling With Dust Collector',
+      'Fresh Air Ducting Sealed & Tested',
+      'Condensate Pump Connected & Inspected',
+      'Official Work Order & Receipt Provided',
+    ],
+  },
+];
+
 export default function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -38,6 +199,8 @@ export default function HomePage() {
   const [selectedPrices, setSelectedPrices] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState('Featured');
   const [viewMode, setViewMode] = useState('grid');
+  const [selectedProofModal, setSelectedProofModal] = useState<InstallationProof | null>(null);
+  const [feedbackFilter, setFeedbackFilter] = useState<'All' | 'Split' | 'Window'>('All');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
@@ -67,7 +230,97 @@ export default function HomePage() {
 
     checkAuth();
     window.addEventListener('storage', checkAuth);
-    return () => window.removeEventListener('storage', checkAuth);
+    
+  const topBrandLogos = [
+    {
+      name: 'Carrier',
+      logo: (
+        <svg viewBox="0 0 160 52" width="125" height="40" xmlns="http://www.w3.org/2000/svg">
+          <ellipse cx="80" cy="26" rx="76" ry="24" fill="#003da5" />
+          <ellipse cx="80" cy="26" rx="72" ry="20" fill="none" stroke="#ffffff" strokeWidth="1.5" />
+          <text x="80" y="34" fontFamily="'Brush Script MT', 'Segoe Script', cursive, sans-serif" fontSize="30" fontWeight="bold" fontStyle="italic" fill="#ffffff" textAnchor="middle">Carrier</text>
+        </svg>
+      ),
+    },
+    {
+      name: 'Daikin',
+      logo: (
+        <svg viewBox="0 0 160 46" width="130" height="36" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="14,35 34,9 34,35" fill="#0097e6" />
+          <polygon points="26,35 34,22 34,35" fill="#005ea6" />
+          <text x="96" y="32" fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif" fontSize="24" fontWeight="900" letterSpacing="1px" fill="#0097e6" textAnchor="middle">DAIKIN</text>
+        </svg>
+      ),
+    },
+    {
+      name: 'Panasonic',
+      logo: (
+        <svg viewBox="0 0 160 42" width="135" height="34" xmlns="http://www.w3.org/2000/svg">
+          <text x="80" y="29" fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif" fontSize="22" fontWeight="900" letterSpacing="1px" fill="#004098" textAnchor="middle">Panasonic</text>
+        </svg>
+      ),
+    },
+    {
+      name: 'Samsung',
+      logo: (
+        <svg viewBox="0 0 160 42" width="135" height="34" xmlns="http://www.w3.org/2000/svg">
+          <text x="80" y="29" fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif" fontSize="24" fontWeight="900" letterSpacing="2px" fill="#1428a0" textAnchor="middle">SAMSUNG</text>
+        </svg>
+      ),
+    },
+    {
+      name: 'Midea',
+      logo: (
+        <svg viewBox="0 0 150 44" width="125" height="36" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="22" cy="22" r="14" fill="#00b0b9" />
+          <path d="M14 22 Q22 10 30 22" stroke="#ffffff" strokeWidth="3" fill="none" strokeLinecap="round" />
+          <text x="88" y="30" fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif" fontSize="24" fontWeight="800" fill="#002d72" textAnchor="middle">Midea</text>
+        </svg>
+      ),
+    },
+    {
+      name: 'TCL',
+      logo: (
+        <svg viewBox="0 0 140 44" width="115" height="36" xmlns="http://www.w3.org/2000/svg">
+          <rect x="8" y="5" width="124" height="34" rx="8" fill="#e60012" />
+          <text x="70" y="30" fontFamily="'Inter', 'Arial Black', sans-serif" fontSize="24" fontWeight="900" letterSpacing="2px" fill="#ffffff" textAnchor="middle">TCL</text>
+        </svg>
+      ),
+    },
+    {
+      name: 'Condura',
+      logo: (
+        <svg viewBox="0 0 160 46" width="130" height="38" xmlns="http://www.w3.org/2000/svg">
+          <text x="80" y="27" fontFamily="'Inter', 'Arial Black', sans-serif" fontSize="21" fontWeight="900" fill="#0f2b5c" textAnchor="middle">CONDURA</text>
+          <path d="M38 34 Q80 44 122 34" stroke="#e60012" strokeWidth="3.5" fill="none" strokeLinecap="round" />
+        </svg>
+      ),
+    },
+    {
+      name: 'Kolin',
+      logo: (
+        <svg viewBox="0 0 150 42" width="125" height="34" xmlns="http://www.w3.org/2000/svg">
+          <text x="76" y="29" fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif" fontSize="25" fontWeight="900" letterSpacing="1px" fill="#0284c7" textAnchor="middle">kolin</text>
+          <circle cx="118" cy="15" r="3.5" fill="#10b981" />
+        </svg>
+      ),
+    },
+  ];
+
+  const handleBrandTileClick = (brandName: string) => {
+    if (selectedBrands.some(b => b.toLowerCase() === brandName.toLowerCase())) {
+      setSelectedBrands([]);
+    } else {
+      setSelectedBrands([brandName]);
+    }
+    setSelectedCategory('All');
+    const productsEl = document.getElementById('products');
+    if (productsEl) {
+      productsEl.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  return () => window.removeEventListener('storage', checkAuth);
   }, []);
 
   useEffect(() => {
@@ -317,8 +570,9 @@ export default function HomePage() {
           <li className={selectedCategory === 'Window' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Window'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Window Type</a></li>
           <li className={selectedCategory === 'Split' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Split'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Split Type Inverter</a></li>
           <li className={selectedCategory === 'Floor' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Floor'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Floor Standing</a></li>
-          <li className={selectedCategory === 'Second Hand Deals' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Second Hand Deals'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Second Hand Deals</a></li>
+          
           <li className={selectedCategory === 'Spare Parts' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Spare Parts'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Spare Parts</a></li>
+          <li className={selectedCategory === 'Customer Feedback' ? 'active' : ''}><Link href="/feedback"><i className="fa-solid fa-shield-check" style={{ marginRight: '6px', fontSize: '0.82rem' }}></i>Customer Feedback</Link></li>
         </ul>
       </nav>
 
