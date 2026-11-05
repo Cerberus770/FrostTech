@@ -102,7 +102,7 @@ export default function TechnicianDashboard() {
 
   // Filters
   const [serviceFilter, setServiceFilter] = useState<'All' | 'Maintenance' | 'Cleaning' | 'Repair'>('All');
-  const [deliveryFilter, setDeliveryFilter] = useState<'All' | 'Pending' | 'In Progress' | 'Completed'>('All');
+  const [deliveryFilter, setDeliveryFilter] = useState<'All' | 'Pick Up' | 'Delivery' | 'Pending' | 'In Progress' | 'Completed'>('All');
 
   // Modals
   const [showClientModal, setShowClientModal] = useState(false);
@@ -233,12 +233,12 @@ export default function TechnicianDashboard() {
     }
   };
 
-  // Open Invoice Modal - Only for Services (not for Delivery & Installation)
+  // Open Invoice Modal - Only for Services (not for Pick Up items or Delivery & Installation)
   const openInvoiceModal = (job: any) => {
-    if (isDelivery(job)) {
+    if (isAssignedTask(job)) {
       showAlert({
         title: 'No Invoice Required',
-        message: 'Invoices are only generated for on-site services (Cleaning, Repair, Maintenance). Delivery & Installation tasks do not require service invoices.',
+        message: 'Invoices are only generated for technical services (Cleaning, Repair, Maintenance). Assigned tasks (Store Pick Up and Delivery) do not require service invoices.',
         type: 'info'
       });
       return;
@@ -316,31 +316,56 @@ export default function TechnicianDashboard() {
     }
   };
 
-  // Helper to distinguish Delivery Tasks vs Service Jobs
-  const isDelivery = (job: any) => {
+  // Helper to identify Store Pick Up items
+  const isPickupTask = (job: any) => {
     const t = (job.type || '').toLowerCase();
+    const notes = (job.notes || '').toLowerCase();
+    const loc = (job.location || job.address || '').toLowerCase();
+    return (
+      t.includes('pick up') ||
+      t.includes('pickup') ||
+      t.includes('pick-up') ||
+      notes.includes('store pick up') ||
+      notes.includes('store pickup') ||
+      notes.includes('ready for pick up') ||
+      loc.includes('store pick up') ||
+      loc.includes('store pickup')
+    );
+  };
+
+  // Helper to distinguish Assigned Tasks (Pick Up items & Deliveries) vs Technical Services (Cleaning, Repair, Maintenance)
+  const isAssignedTask = (job: any) => {
+    if (isPickupTask(job)) return true;
+    const t = (job.type || '').toLowerCase();
+    const notes = (job.notes || '').toLowerCase();
     return (
       t.includes('delivery') ||
       t.includes('deliver') ||
       t.includes('installation') ||
       t.includes('install') ||
       t.includes('new installation') ||
-      t === 'order delivery'
+      t === 'order delivery' ||
+      notes.includes('delivery & installation for order') ||
+      notes.includes('order delivery')
     );
   };
 
-  // Assigned Tasks = Deliveries of ACs
-  const deliveryTasks = tasks.filter(t => isDelivery(t));
+  const isDelivery = isAssignedTask;
+
+  // Assigned Tasks = Store Pick Up Items + AC Deliveries & Installations
+  const deliveryTasks = tasks.filter(t => isAssignedTask(t));
   const filteredDeliveries = deliveryTasks.filter(t => {
     if (deliveryFilter === 'All') return true;
-    if (deliveryFilter === 'Pending') return t.status === 'PENDING' || t.status === 'Assigned';
+    if (deliveryFilter === 'Pick Up') return isPickupTask(t);
+    if (deliveryFilter === 'Delivery') return !isPickupTask(t);
+    if (deliveryFilter === 'Pending') return t.status === 'PENDING' || t.status === 'Assigned' || t.status === 'Ready for Pick Up';
     if (deliveryFilter === 'In Progress') return t.status === 'ASSIGNED' || t.status === 'IN_PROGRESS' || t.status === 'Out for Delivery';
     if (deliveryFilter === 'Completed') return t.status === 'COMPLETED' || t.status === 'Delivered';
     return true;
   });
 
-  // Services = Maintenance, Cleaning, Repair
-  const serviceDispatch = tasks.filter(t => !isDelivery(t));
+  // Services = Technical Services (Cleaning, Repair, Maintenance)
+  const serviceDispatch = tasks.filter(t => !isAssignedTask(t));
   const normalizedMaintenance: DispatchItem[] = maintenanceTasks.map(m => ({
     id: m.id,
     dispatchNo: m.scheduleNo,
@@ -913,7 +938,8 @@ export default function TechnicianDashboard() {
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', maxHeight: '420px' }}>
                       {selectedDayJobsList.map((job: any) => {
-                        const isDeliv = isDelivery(job);
+                        const isDeliv = isAssignedTask(job);
+                        const isPick = isPickupTask(job);
                         return (
                           <div key={job.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.85rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
@@ -922,10 +948,10 @@ export default function TechnicianDashboard() {
                                 fontWeight: 700,
                                 padding: '2px 8px',
                                 borderRadius: '999px',
-                                background: isDeliv ? '#dbeafe' : '#fef3c7',
-                                color: isDeliv ? '#1d4ed8' : '#b45309'
+                                background: isPick ? '#fef3c7' : isDeliv ? '#dbeafe' : '#e0e7ff',
+                                color: isPick ? '#92400e' : isDeliv ? '#1d4ed8' : '#3730a3'
                               }}>
-                                {isDeliv ? 'AC Delivery' : job.type}
+                                {isPick ? 'Store Pick Up' : isDeliv ? 'AC Delivery' : job.type}
                               </span>
                               <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>{job.status}</span>
                             </div>
@@ -973,16 +999,16 @@ export default function TechnicianDashboard() {
                 <div>
                   <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
                     <i className="fa-solid fa-truck" style={{ color: '#052e80', marginRight: '8px' }}></i>
-                    Assigned Tasks — AC Delivery & Installation
+                    Assigned Tasks — Pick Up Items & Deliveries
                   </h2>
                   <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0.2rem 0 0' }}>
-                    Air conditioner units scheduled for delivery and on-site setup to customers.
+                    Store pick up orders, unit releases, and scheduled AC deliveries.
                   </p>
                 </div>
 
                 {/* Filter buttons */}
-                <div className="tech-filters-bar" style={{ display: 'flex', gap: '0.4rem', background: '#ffffff', padding: '4px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                  {(['All', 'Pending', 'In Progress', 'Completed'] as const).map(f => (
+                <div className="tech-filters-bar" style={{ display: 'flex', gap: '0.4rem', background: '#ffffff', padding: '4px', borderRadius: '10px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+                  {(['All', 'Pick Up', 'Delivery', 'Pending', 'In Progress', 'Completed'] as const).map(f => (
                     <button
                       key={f}
                       onClick={() => setDeliveryFilter(f)}
@@ -1006,12 +1032,13 @@ export default function TechnicianDashboard() {
               {filteredDeliveries.length === 0 ? (
                 <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '4rem 2rem', textAlign: 'center', color: '#94a3b8' }}>
                   <i className="fa-solid fa-box-open" style={{ fontSize: '3rem', color: '#cbd5e1', marginBottom: '1rem' }}></i>
-                  <h4 style={{ color: '#334155', margin: 0 }}>No delivery tasks found</h4>
-                  <p style={{ fontSize: '0.85rem' }}>No assigned AC deliveries match the current filter.</p>
+                  <h4 style={{ color: '#334155', margin: 0 }}>No assigned tasks found</h4>
+                  <p style={{ fontSize: '0.85rem' }}>No pick up orders or AC deliveries match the current filter: <strong>{deliveryFilter}</strong></p>
                 </div>
               ) : (
                 <div className="tech-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.25rem' }}>
                   {filteredDeliveries.map(job => {
+                    const isPickup = isPickupTask(job);
                     const isCompleted = job.status === 'COMPLETED' || job.status === 'Delivered';
                     const isInProgress = job.status === 'ASSIGNED' || job.status === 'IN_PROGRESS' || job.status === 'Out for Delivery';
 
@@ -1031,9 +1058,20 @@ export default function TechnicianDashboard() {
                       >
                         <div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#052e80', background: '#d8e9fd', padding: '3px 8px', borderRadius: '6px' }}>
-                              {job.dispatchNo || 'DSP-DELIVERY'}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#052e80', background: '#d8e9fd', padding: '3px 8px', borderRadius: '6px' }}>
+                                {job.dispatchNo || (isPickup ? 'DSP-PICKUP' : 'DSP-DELIVERY')}
+                              </span>
+                              {isPickup ? (
+                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#92400e', background: '#fef3c7', padding: '2px 8px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <i className="fa-solid fa-store" style={{ fontSize: '0.7rem' }}></i> Store Pick Up
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0369a1', background: '#e0f2fe', padding: '2px 8px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <i className="fa-solid fa-truck" style={{ fontSize: '0.7rem' }}></i> Delivery & Install
+                                </span>
+                              )}
+                            </div>
                             <span style={{
                               fontSize: '0.75rem',
                               fontWeight: 700,
@@ -1089,21 +1127,21 @@ export default function TechnicianDashboard() {
 
                           {isCompleted ? (
                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: '#dcfce7', color: '#166534', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700 }}>
-                              <i className="fa-solid fa-circle-check"></i> Delivered & Installed
+                              <i className="fa-solid fa-circle-check"></i> {isPickup ? 'Picked Up by Customer' : 'Delivered & Installed'}
                             </div>
                           ) : isInProgress ? (
                             <button
                               onClick={() => handleUpdateStatus(job.id, 'COMPLETED')}
                               style={{ flex: 1, background: '#16a34a', color: '#ffffff', border: 'none', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
                             >
-                              <i className="fa-solid fa-check" style={{ marginRight: '4px' }}></i> Mark Delivered & Installed
+                              <i className="fa-solid fa-check" style={{ marginRight: '4px' }}></i> {isPickup ? 'Confirm Unit Picked Up' : 'Mark Delivered & Installed'}
                             </button>
                           ) : (
                             <button
                               onClick={() => handleUpdateStatus(job.id, 'IN_PROGRESS')}
                               style={{ flex: 1, background: '#052e80', color: '#ffffff', border: 'none', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
                             >
-                              <i className="fa-solid fa-play" style={{ marginRight: '4px' }}></i> Start Delivery & Setup
+                              <i className={`fa-solid ${isPickup ? 'fa-box-open' : 'fa-play'}`} style={{ marginRight: '4px' }}></i> {isPickup ? 'Prepare Unit for Pick Up' : 'Start Delivery & Setup'}
                             </button>
                           )}
                         </div>
@@ -1127,7 +1165,7 @@ export default function TechnicianDashboard() {
                     Field Service Jobs
                   </h2>
                   <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0.2rem 0 0' }}>
-                    Assigned on-site service orders. Change service types during invoice if condition requires deeper servicing.
+                    Assigned technical services (Cleaning, Repair, and Maintenance). Invoices are generated for on-site service orders.
                   </p>
                 </div>
 
