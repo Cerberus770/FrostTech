@@ -818,15 +818,16 @@ header {
 
 .brand-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 1.25rem;
 }
 
 .brand-tile {
   background: #ffffff;
-  border: 1px solid #d4e5fa;
+  border: 1.5px solid #d4e5fa;
   border-radius: var(--radius-md);
   height: 96px;
+  padding: 0.75rem 1.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -835,14 +836,38 @@ header {
   font-size: 1.1rem;
   letter-spacing: 0.04em;
   color: #3b5a82;
-  transition: all 0.25s ease;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 6px rgba(6, 37, 91, 0.04);
 }
 
 .brand-tile:hover {
   color: #052e80;
-  border-color: #052e80;
+  border-color: #0284c7;
   transform: translateY(-3px);
-  box-shadow: 0 8px 18px rgba(6, 37, 91, 0.08);
+  box-shadow: 0 10px 24px rgba(6, 37, 91, 0.12);
+}
+
+.brand-tile.active {
+  border-color: #0284c7;
+  background: #f0f9ff;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.35), 0 8px 20px rgba(2, 132, 199, 0.14);
+  transform: translateY(-2px);
+}
+
+.brand-tile-img {
+  max-width: 100%;
+  max-height: 56px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  transition: transform 0.25s ease;
+  user-select: none;
+}
+
+.brand-tile:hover .brand-tile-img {
+  transform: scale(1.06);
 }
 
 /* ============================================

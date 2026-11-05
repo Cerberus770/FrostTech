@@ -231,80 +231,16 @@ export default function HomePage() {
     checkAuth();
     window.addEventListener('storage', checkAuth);
     
-  const topBrandLogos = [
-    {
-      name: 'Carrier',
-      logo: (
-        <svg viewBox="0 0 160 52" width="125" height="40" xmlns="http://www.w3.org/2000/svg">
-          <ellipse cx="80" cy="26" rx="76" ry="24" fill="#003da5" />
-          <ellipse cx="80" cy="26" rx="72" ry="20" fill="none" stroke="#ffffff" strokeWidth="1.5" />
-          <text x="80" y="34" fontFamily="'Brush Script MT', 'Segoe Script', cursive, sans-serif" fontSize="30" fontWeight="bold" fontStyle="italic" fill="#ffffff" textAnchor="middle">Carrier</text>
-        </svg>
-      ),
-    },
-    {
-      name: 'Daikin',
-      logo: (
-        <svg viewBox="0 0 160 46" width="130" height="36" xmlns="http://www.w3.org/2000/svg">
-          <polygon points="14,35 34,9 34,35" fill="#0097e6" />
-          <polygon points="26,35 34,22 34,35" fill="#005ea6" />
-          <text x="96" y="32" fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif" fontSize="24" fontWeight="900" letterSpacing="1px" fill="#0097e6" textAnchor="middle">DAIKIN</text>
-        </svg>
-      ),
-    },
-    {
-      name: 'Panasonic',
-      logo: (
-        <svg viewBox="0 0 160 42" width="135" height="34" xmlns="http://www.w3.org/2000/svg">
-          <text x="80" y="29" fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif" fontSize="22" fontWeight="900" letterSpacing="1px" fill="#004098" textAnchor="middle">Panasonic</text>
-        </svg>
-      ),
-    },
-    {
-      name: 'Samsung',
-      logo: (
-        <svg viewBox="0 0 160 42" width="135" height="34" xmlns="http://www.w3.org/2000/svg">
-          <text x="80" y="29" fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif" fontSize="24" fontWeight="900" letterSpacing="2px" fill="#1428a0" textAnchor="middle">SAMSUNG</text>
-        </svg>
-      ),
-    },
-    {
-      name: 'Midea',
-      logo: (
-        <svg viewBox="0 0 150 44" width="125" height="36" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="22" cy="22" r="14" fill="#00b0b9" />
-          <path d="M14 22 Q22 10 30 22" stroke="#ffffff" strokeWidth="3" fill="none" strokeLinecap="round" />
-          <text x="88" y="30" fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif" fontSize="24" fontWeight="800" fill="#002d72" textAnchor="middle">Midea</text>
-        </svg>
-      ),
-    },
-    {
-      name: 'TCL',
-      logo: (
-        <svg viewBox="0 0 140 44" width="115" height="36" xmlns="http://www.w3.org/2000/svg">
-          <rect x="8" y="5" width="124" height="34" rx="8" fill="#e60012" />
-          <text x="70" y="30" fontFamily="'Inter', 'Arial Black', sans-serif" fontSize="24" fontWeight="900" letterSpacing="2px" fill="#ffffff" textAnchor="middle">TCL</text>
-        </svg>
-      ),
-    },
-    {
-      name: 'Condura',
-      logo: (
-        <svg viewBox="0 0 160 46" width="130" height="38" xmlns="http://www.w3.org/2000/svg">
-          <text x="80" y="27" fontFamily="'Inter', 'Arial Black', sans-serif" fontSize="21" fontWeight="900" fill="#0f2b5c" textAnchor="middle">CONDURA</text>
-          <path d="M38 34 Q80 44 122 34" stroke="#e60012" strokeWidth="3.5" fill="none" strokeLinecap="round" />
-        </svg>
-      ),
-    },
-    {
-      name: 'Kolin',
-      logo: (
-        <svg viewBox="0 0 150 42" width="125" height="34" xmlns="http://www.w3.org/2000/svg">
-          <text x="76" y="29" fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif" fontSize="25" fontWeight="900" letterSpacing="1px" fill="#0284c7" textAnchor="middle">kolin</text>
-          <circle cx="118" cy="15" r="3.5" fill="#10b981" />
-        </svg>
-      ),
-    },
+    return () => window.removeEventListener('storage', checkAuth);
+  }, []);
+
+  const topBrands = [
+    { name: 'Carrier', displayName: 'Carrier', logo: '/brands/Carrier.jpg', alt: 'Carrier' },
+    { name: 'Chiq', displayName: 'CHiQ', logo: '/brands/CHiQ.svg', alt: 'CHiQ' },
+    { name: 'iFFALCON', displayName: 'iFFALCON', logo: '/brands/Iffalcon.png', alt: 'iFFALCON' },
+    { name: 'Midea', displayName: 'Midea', logo: '/brands/midea.jpg', alt: 'Midea' },
+    { name: 'Samsung', displayName: 'Samsung', logo: '/brands/Samsung.jpg', alt: 'Samsung' },
+    { name: 'TCL', displayName: 'TCL', logo: '/brands/TCL.jpg', alt: 'TCL' },
   ];
 
   const handleBrandTileClick = (brandName: string) => {
@@ -319,9 +255,6 @@ export default function HomePage() {
       productsEl.scrollIntoView({ behavior: 'smooth' });
     }
   };
-
-  return () => window.removeEventListener('storage', checkAuth);
-  }, []);
 
   useEffect(() => {
     const q = searchParams.get('q');
@@ -890,12 +823,27 @@ export default function HomePage() {
       <section className="section-container">
         <h2 className="section-title">Shop by Top Brands</h2>
         <div className="brand-grid">
-          <div className="brand-tile">CARRIER</div>
-          <div className="brand-tile">CHIQ</div>
-          <div className="brand-tile">iFFALCON</div>
-          <div className="brand-tile">MIDEA</div>
-          <div className="brand-tile">SAMSUNG</div>
-          <div className="brand-tile">TCL</div>
+          {topBrands.map((brand) => {
+            const isSelected = selectedBrands.some(
+              (b) => b.toLowerCase() === brand.name.toLowerCase()
+            );
+            return (
+              <button
+                key={brand.name}
+                type="button"
+                className={`brand-tile brand-tile-btn ${isSelected ? 'active' : ''}`}
+                onClick={() => handleBrandTileClick(brand.name)}
+                title={`Filter products by ${brand.displayName}`}
+                aria-label={`Filter products by ${brand.displayName}`}
+              >
+                <img
+                  src={brand.logo}
+                  alt={brand.alt}
+                  className="brand-tile-img"
+                />
+              </button>
+            );
+          })}
         </div>
       </section>
 
