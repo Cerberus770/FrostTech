@@ -1049,7 +1049,7 @@ export default function ProfilePage() {
                         border: '1px solid #bae0fd',
                       }}
                     >
-                      <i className="fa-solid fa-certificate" style={{ color: '#0284c7' }}></i> Customer Feedback
+                      <i className="fa-solid fa-comments" style={{ color: '#0284c7' }}></i> Customer Feedback
                     </Link>
                   </li>
                 </ul>

@@ -234,7 +234,7 @@ export default function CustomerFeedbackPage() {
       <section style={{ background: 'linear-gradient(135deg, #d8e9fd 0%, #c5defb 50%, #b0d4fa 100%)', padding: '3rem 5%', borderBottom: '1px solid #c2dbf8' }}>
         <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#0b3080', color: '#ffffff', padding: '6px 14px', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 700, marginBottom: '1rem' }}>
-            <i className="fa-solid fa-certificate"></i> Verified Customer Feedback • Certified Technician Proofs
+            <i className="fa-solid fa-comments"></i> Verified Customer Feedback • Certified Technician Proofs
           </div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', fontWeight: 800, color: '#06255b', margin: '0 0 0.8rem', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
             Real Installation Proofs & Customer Reviews

@@ -186,7 +186,7 @@ export default function SignupPage() {
         </form>
 
         <div className="header-icons">
-          <Link href="/feedback"><i className="fa-solid fa-certificate"></i> Feedback</Link>
+          <Link href="/feedback"><i className="fa-solid fa-comments"></i> Feedback</Link>
           <Link href="/login"><i className="fa-solid fa-user"></i> Account</Link>
           <Link href="/cart"><i className="fa-solid fa-cart-shopping"></i> Cart (0)</Link>
         </div>

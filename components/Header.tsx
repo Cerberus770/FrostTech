@@ -284,7 +284,7 @@ export default function Header({ hideSearch = false }: { hideSearch?: boolean })
           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.3)'; }}
           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.18)'; }}
         >
-          <i className="fa-solid fa-certificate" style={{ color: '#93c5fd', fontSize: '0.85rem' }}></i>
+          <i className="fa-solid fa-comments" style={{ color: '#93c5fd', fontSize: '0.85rem' }}></i>
           <span>Feedback</span>
         </Link>
 
@@ -538,7 +538,7 @@ export default function Header({ hideSearch = false }: { hideSearch?: boolean })
                 borderBottom: '1px solid #f1f5f9',
               }}
             >
-              <i className="fa-solid fa-certificate" style={{ color: '#052e80', width: '18px' }}></i> Customer Feedback & Proof
+              <i className="fa-solid fa-comments" style={{ color: '#052e80', width: '18px' }}></i> Customer Feedback & Proof
             </Link>
             <Link
               href="/profile#tab-settings"

@@ -150,7 +150,7 @@ export default function LoginPage() {
         </form>
 
         <div className="header-icons">
-          <Link href="/feedback"><i className="fa-solid fa-certificate"></i> Feedback</Link>
+          <Link href="/feedback"><i className="fa-solid fa-comments"></i> Feedback</Link>
           <Link href="/login"><i className="fa-solid fa-user"></i> Account</Link>
           <Link href="/cart"><i className="fa-solid fa-cart-shopping"></i> Cart (0)</Link>
         </div>
@@ -248,7 +248,7 @@ export default function LoginPage() {
           </div>
           <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.8rem' }}>
             <Link href="/feedback" style={{ color: 'rgba(224,242,254,0.7)', textDecoration: 'none', transition: 'color 0.2s' }}>
-              <i className="fa-solid fa-certificate" style={{ marginRight: '4px', fontSize: '0.72rem' }}></i>Customer Feedback
+              <i className="fa-solid fa-comments" style={{ marginRight: '4px', fontSize: '0.72rem' }}></i>Customer Feedback
             </Link>
             <Link href="/#products" style={{ color: 'rgba(224,242,254,0.7)', textDecoration: 'none', transition: 'color 0.2s' }}>
               <i className="fa-solid fa-store" style={{ marginRight: '4px', fontSize: '0.72rem' }}></i>Shop
