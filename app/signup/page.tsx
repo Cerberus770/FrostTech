@@ -146,13 +146,14 @@ export default function SignupPage() {
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '0.8rem 1rem',
-    borderRadius: 'var(--radius-pill)',
-    border: '1px solid var(--border-color)',
-    background: 'var(--bg-input)',
-    color: 'white',
+    padding: '0.85rem 1.1rem',
+    borderRadius: '8px',
+    border: '1.5px solid #cbd5e1',
+    background: '#ffffff',
+    color: '#0f172a',
     outline: 'none',
-    fontSize: '0.95rem',
+    fontSize: '1rem',
+    fontWeight: 500,
     transition: 'border-color 0.2s, box-shadow 0.2s',
   };
 

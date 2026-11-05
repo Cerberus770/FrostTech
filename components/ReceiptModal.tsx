@@ -646,3 +646,4 @@ export default function ReceiptModal({ isOpen, onClose, receipt }: ReceiptModalP
     </div>
   );
 }
+

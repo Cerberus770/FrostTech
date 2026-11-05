@@ -8,6 +8,7 @@ import Link from 'next/link';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
@@ -173,14 +174,38 @@ export default function LoginPage() {
             </div>
             <div className="form-group">
               <label htmlFor="password">Password</label>
-              <input 
-                type="password" 
-                id="password" 
-                placeholder="Enter your password" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required 
-              />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input 
+                  type={showPassword ? 'text' : 'password'} 
+                  id="password" 
+                  placeholder="Enter your password" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{ paddingRight: '2.8rem' }}
+                  required 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    background: 'none',
+                    border: 'none',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                    fontSize: '1rem',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                </button>
+              </div>
               <a href="#" className="forgot-password">Forgot Password?</a>
             </div>
             <button type="submit" className="btn login-btn" disabled={loading}>{loading ? 'Signing in...' : 'Sign In'}</button>
