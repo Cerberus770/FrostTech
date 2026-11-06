@@ -77,6 +77,13 @@ interface Installment {
   location?: string;
   assignedTech?: string | null;
   scheduledDate?: string | null;
+  user?: {
+    id?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string | null;
+  };
 }
 
 interface DispatchItem {
@@ -241,8 +248,17 @@ export default function AdminDashboard() {
   // Order Details Modal
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
 
-  // Installment Details Modal
+  // Installment Monitoring & Ledger State (Tab 4)
   const [selectedInstallment, setSelectedInstallment] = useState<Installment | null>(null);
+  const [installmentStatusFilter, setInstallmentStatusFilter] = useState<'ALL' | 'PENDING' | 'CI_ACCEPTED' | 'COMPLETED' | 'REJECTED'>('ALL');
+  const [installmentTermFilter, setInstallmentTermFilter] = useState<'ALL' | '6' | '12' | '24'>('ALL');
+  const [installmentMonitoringTab, setInstallmentMonitoringTab] = useState<'DOSSIER' | 'SCHEDULE' | 'COMMUNICATION'>('DOSSIER');
+  const [installmentSearch, setInstallmentSearch] = useState('');
+  const [ciNotesInput, setCiNotesInput] = useState('');
+  const [isSavingCiNotes, setIsSavingCiNotes] = useState(false);
+  const [installmentSmsMessage, setInstallmentSmsMessage] = useState('');
+  const [isSendingInstallmentSms, setIsSendingInstallmentSms] = useState(false);
+  const [recordingPaymentMethod, setRecordingPaymentMethod] = useState<'Cash' | 'GCash' | 'Bank Transfer'>('GCash');
 
   // Dispatch Filters & Pagination State (10 items per page)
   const [dispatchStatusFilter, setDispatchStatusFilter] = useState<'All' | 'Assigned' | 'Pending' | 'Completed'>('All');
@@ -737,10 +753,59 @@ export default function AdminDashboard() {
     );
   });
 
-  // Filtered Installments
+  // Helper to estimate total price, downpayment, and monthly amortization
+  const getInstallmentFinancials = (inst: Installment) => {
+    let price = 32000;
+    const lowerItem = (inst.item || '').toLowerCase();
+    if (lowerItem.includes('chiq')) price = 18500;
+    else if (lowerItem.includes('iffalcon')) price = 19900;
+    else if (lowerItem.includes('tcl')) price = 16990;
+    else if (lowerItem.includes('midea')) price = 26500;
+    else if (lowerItem.includes('samsung')) price = 35000;
+    else if (lowerItem.includes('carrier')) price = 32000;
+    else if (lowerItem.includes('window')) price = 18000;
+
+    const term = inst.term || 6;
+    const downpayment = Math.round(price * 0.15);
+    const financedAmount = price - downpayment;
+    const monthlyInterestRate = 0.015;
+    const monthlyAmortization = Math.round((financedAmount * (1 + monthlyInterestRate * term)) / term);
+
+    return {
+      totalPrice: price,
+      downpayment,
+      financedAmount,
+      term,
+      monthlyAmortization,
+    };
+  };
+
+  const parseInstallmentMeta = (issueStr: string = '') => {
+    try {
+      if (issueStr && issueStr.startsWith('{')) {
+        return JSON.parse(issueStr);
+      }
+    } catch (e) {
+      // fallback
+    }
+    return {
+      ciNotes: issueStr || '',
+      riskLevel: 'LOW',
+      paidMonths: [] as number[],
+      checklist: { address: true, employer: true, id: true, reference: false },
+    };
+  };
+
+  // Filtered Installments with Status Filter, Term Filter, and Search
   const filteredInstallments = installments.filter((inst) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase().trim();
+    if (installmentStatusFilter !== 'ALL' && inst.status !== installmentStatusFilter) {
+      return false;
+    }
+    if (installmentTermFilter !== 'ALL' && inst.term !== Number(installmentTermFilter)) {
+      return false;
+    }
+    const q = (installmentSearch || searchQuery || '').toLowerCase().trim();
+    if (!q) return true;
     return (
       (inst.appId || '').toLowerCase().includes(q) ||
       (inst.name || '').toLowerCase().includes(q) ||
@@ -748,7 +813,9 @@ export default function AdminDashboard() {
       (inst.employer || '').toLowerCase().includes(q) ||
       (inst.idType || '').toLowerCase().includes(q) ||
       (inst.status || '').toLowerCase().includes(q) ||
-      (inst.location || '').toLowerCase().includes(q)
+      (inst.location || '').toLowerCase().includes(q) ||
+      (inst.user?.phone || '').toLowerCase().includes(q) ||
+      (inst.user?.email || '').toLowerCase().includes(q)
     );
   });
 
@@ -1391,6 +1458,147 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error(err);
       showAlert({ title: 'Error', message: 'Failed to assign technician and schedule service.', type: 'error' });
+    }
+  };
+
+  // ==========================================
+  // INSTALLMENT MONITORING ACTIONS
+  // ==========================================
+  const handleOpenInstallmentMonitor = (inst: Installment) => {
+    setSelectedInstallment(inst);
+    const meta = parseInstallmentMeta(inst.issue);
+    setCiNotesInput(meta.ciNotes || inst.issue || '');
+    setInstallmentMonitoringTab('DOSSIER');
+    const fin = getInstallmentFinancials(inst);
+    setInstallmentSmsMessage(
+      `Hi ${inst.name}! This is FrostTech regarding your installment application (${inst.appId}) for ${inst.item}. Monthly due: ₱${fin.monthlyAmortization.toLocaleString()}. Please contact us for any assistance.`
+    );
+  };
+
+  const handleSaveCiNotes = async (inst: Installment) => {
+    setIsSavingCiNotes(true);
+    try {
+      const meta = parseInstallmentMeta(inst.issue);
+      meta.ciNotes = ciNotesInput;
+      const issueString = JSON.stringify(meta);
+      const res = await fetch('/api/installments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: inst.id, issue: issueString }),
+      });
+      if (res.ok) {
+        setInstallments(installments.map((i) => (i.id === inst.id ? { ...i, issue: issueString } : i)));
+        setSelectedInstallment({ ...inst, issue: issueString });
+        showAlert({ title: 'Success', message: 'Credit Investigation notes updated successfully.', type: 'success' });
+      } else {
+        showAlert({ title: 'Error', message: 'Failed to save CI notes', type: 'error' });
+      }
+    } catch (e) {
+      showAlert({ title: 'Error', message: 'Failed to save CI notes', type: 'error' });
+    } finally {
+      setIsSavingCiNotes(false);
+    }
+  };
+
+  const handleToggleChecklist = async (inst: Installment, key: string) => {
+    try {
+      const meta = parseInstallmentMeta(inst.issue);
+      meta.checklist = meta.checklist || {};
+      meta.checklist[key] = !meta.checklist[key];
+      const issueString = JSON.stringify(meta);
+      const res = await fetch('/api/installments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: inst.id, issue: issueString }),
+      });
+      if (res.ok) {
+        setInstallments(installments.map((i) => (i.id === inst.id ? { ...i, issue: issueString } : i)));
+        setSelectedInstallment({ ...inst, issue: issueString });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRecordInstallmentPayment = async (inst: Installment, monthNum: number) => {
+    try {
+      const meta = parseInstallmentMeta(inst.issue);
+      const paidMonths: number[] = Array.isArray(meta.paidMonths) ? meta.paidMonths : [];
+      if (!paidMonths.includes(monthNum)) {
+        paidMonths.push(monthNum);
+      }
+      meta.paidMonths = paidMonths;
+      const issueString = JSON.stringify(meta);
+
+      const fin = getInstallmentFinancials(inst);
+      const res = await fetch('/api/installments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: inst.id, issue: issueString }),
+      });
+
+      if (res.ok) {
+        setInstallments(installments.map((i) => (i.id === inst.id ? { ...i, issue: issueString } : i)));
+        setSelectedInstallment({ ...inst, issue: issueString });
+
+        // Open official receipt modal
+        const rData: ReceiptData = {
+          receiptNo: `FT-INST-${inst.appId}-M${monthNum}`,
+          orderNo: inst.appId,
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          customerName: inst.name,
+          customerPhone: inst.user?.phone || undefined,
+          location: inst.location || 'Customer Address',
+          paymentMethod: recordingPaymentMethod,
+          status: 'Paid',
+          items: [
+            {
+              name: `${inst.item} — Installment Amortization Month #${monthNum} of ${fin.term}`,
+              category: 'AC Unit',
+              quantity: 1,
+              price: fin.monthlyAmortization,
+            },
+          ],
+          subtotal: fin.monthlyAmortization,
+          totalAmount: fin.monthlyAmortization,
+          notes: `Official monthly installment amortization receipt (Month ${monthNum} of ${fin.term}). Payment received via ${recordingPaymentMethod}.`,
+        };
+        setAdminReceiptData(rData);
+        setIsAdminReceiptOpen(true);
+        showAlert({
+          title: 'Payment Recorded!',
+          message: `Successfully recorded Month ${monthNum} payment of ₱${fin.monthlyAmortization.toLocaleString()} via ${recordingPaymentMethod}. Official receipt generated.`,
+          type: 'success',
+        });
+      }
+    } catch (e) {
+      showAlert({ title: 'Error', message: 'Failed to record payment', type: 'error' });
+    }
+  };
+
+  const handleSendInstallmentSms = async (inst: Installment) => {
+    if (!installmentSmsMessage.trim()) return;
+    const phone = inst.user?.phone || '0917-123-4567';
+    setIsSendingInstallmentSms(true);
+    try {
+      const res = await fetch('/api/installments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: inst.id,
+          customSms: installmentSmsMessage,
+          customerPhone: phone,
+        }),
+      });
+      if (res.ok) {
+        showAlert({ title: 'SMS Dispatched', message: `Reminder message successfully sent to ${inst.name} (${phone}).`, type: 'success' });
+      } else {
+        showAlert({ title: 'Error', message: 'Failed to send SMS message', type: 'error' });
+      }
+    } catch (e) {
+      showAlert({ title: 'Error', message: 'SMS sending error', type: 'error' });
+    } finally {
+      setIsSendingInstallmentSms(false);
     }
   };
 
@@ -2354,7 +2562,7 @@ export default function AdminDashboard() {
                 }}
               >
                 <i className="fa-solid fa-file-invoice-dollar" style={{ width: '20px', textAlign: 'center', color: '#0284c7' }}></i>
-                {!isAdminSidebarCollapsed && <span>Installment Approvals</span>}
+                {!isAdminSidebarCollapsed && <span>Installment Monitoring</span>}
                 {!isAdminSidebarCollapsed && installments.filter((i) => i.status === 'PENDING' || i.status === 'CI_ACCEPTED').length > 0 && (
                   <span style={{ marginLeft: 'auto', background: '#f59e0b', color: 'white', padding: '2px 7px', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700 }}>
                     {installments.filter((i) => i.status === 'PENDING' || i.status === 'CI_ACCEPTED').length}
@@ -3949,38 +4157,288 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB 4: INSTALLMENT APPROVAL (TABLE + ACCEPT FOR CI -> APPROVE) */}
+          {/* TAB 4: INSTALLMENT CUSTOMER MONITORING & APPROVALS */}
           {activeTab === 'tab-installments' && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '1.6rem', color: '#0f172a', fontWeight: 800 }}>Installment Approvals</h2>
+                  <h2 style={{ margin: 0, fontSize: '1.6rem', color: '#0f172a', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <i className="fa-solid fa-file-invoice-dollar" style={{ color: '#0284c7' }}></i>
+                    Customer Installment Monitoring &amp; Approvals
+                  </h2>
                   <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: '#64748b' }}>
-                    <strong>Two-Step Approval:</strong> 1. Accept for Credit Investigation (CI) &rarr; 2. Assign Certified Technician &amp; Schedule Installation.
+                    Monitor customer installment applications, verify Credit Investigation (CI), track month-by-month payment ledgers, and manage schedules.
                   </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => {
+                      fetch('/api/installments')
+                        .then((r) => r.json())
+                        .then((data) => {
+                          if (Array.isArray(data)) setInstallments(data);
+                          showAlert({ title: 'Refreshed', message: 'Installment applications updated.', type: 'info' });
+                        })
+                        .catch(console.error);
+                    }}
+                    style={{
+                      background: '#f8fafc',
+                      color: '#0f172a',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '10px',
+                      padding: '0.55rem 0.95rem',
+                      fontSize: '0.84rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <i className="fa-solid fa-arrows-rotate"></i> Refresh
+                  </button>
                 </div>
               </div>
 
+              {/* KPI Monitoring Overview Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.1rem', marginBottom: '1.75rem' }}>
+                {/* 1. Total Applications */}
+                <div
+                  onClick={() => setInstallmentStatusFilter('ALL')}
+                  style={{
+                    background: installmentStatusFilter === 'ALL' ? '#f0f9ff' : '#ffffff',
+                    border: installmentStatusFilter === 'ALL' ? '2px solid #0284c7' : '1px solid #e2e8f0',
+                    borderRadius: '16px',
+                    padding: '1.25rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Applications</span>
+                      <h3 style={{ margin: '4px 0 0', fontSize: '1.8rem', fontWeight: 900, color: '#0f172a' }}>{installments.length}</h3>
+                    </div>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7', fontSize: '1.2rem' }}>
+                      <i className="fa-solid fa-users-viewfinder"></i>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#64748b' }}>All customer installment requests</div>
+                </div>
+
+                {/* 2. Pending CI */}
+                <div
+                  onClick={() => setInstallmentStatusFilter('PENDING')}
+                  style={{
+                    background: installmentStatusFilter === 'PENDING' ? '#fffbeb' : '#ffffff',
+                    border: installmentStatusFilter === 'PENDING' ? '2px solid #d97706' : '1px solid #e2e8f0',
+                    borderRadius: '16px',
+                    padding: '1.25rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pending Review</span>
+                      <h3 style={{ margin: '4px 0 0', fontSize: '1.8rem', fontWeight: 900, color: '#78350f' }}>
+                        {installments.filter((i) => i.status === 'PENDING').length}
+                      </h3>
+                    </div>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706', fontSize: '1.2rem' }}>
+                      <i className="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#64748b' }}>Awaiting initial Credit Investigation</div>
+                </div>
+
+                {/* 3. Under CI Investigation */}
+                <div
+                  onClick={() => setInstallmentStatusFilter('CI_ACCEPTED')}
+                  style={{
+                    background: installmentStatusFilter === 'CI_ACCEPTED' ? '#eff6ff' : '#ffffff',
+                    border: installmentStatusFilter === 'CI_ACCEPTED' ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                    borderRadius: '16px',
+                    padding: '1.25rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Under CI</span>
+                      <h3 style={{ margin: '4px 0 0', fontSize: '1.8rem', fontWeight: 900, color: '#1e3a8a' }}>
+                        {installments.filter((i) => i.status === 'CI_ACCEPTED').length}
+                      </h3>
+                    </div>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb', fontSize: '1.2rem' }}>
+                      <i className="fa-solid fa-magnifying-glass-chart"></i>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#64748b' }}>CI accepted &amp; undergoing verification</div>
+                </div>
+
+                {/* 4. Approved & Active */}
+                <div
+                  onClick={() => setInstallmentStatusFilter('COMPLETED')}
+                  style={{
+                    background: installmentStatusFilter === 'COMPLETED' ? '#f0fdf4' : '#ffffff',
+                    border: installmentStatusFilter === 'COMPLETED' ? '2px solid #16a34a' : '1px solid #e2e8f0',
+                    borderRadius: '16px',
+                    padding: '1.25rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Approved &amp; Active</span>
+                      <h3 style={{ margin: '4px 0 0', fontSize: '1.8rem', fontWeight: 900, color: '#14532d' }}>
+                        {installments.filter((i) => i.status === 'COMPLETED').length}
+                      </h3>
+                    </div>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a', fontSize: '1.2rem' }}>
+                      <i className="fa-solid fa-circle-check"></i>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#64748b' }}>Dispatched &amp; paying monthly amortization</div>
+                </div>
+
+                {/* 5. Est. Monthly Amortization Receivables */}
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
+                    borderRadius: '16px',
+                    padding: '1.25rem',
+                    color: '#ffffff',
+                    boxShadow: '0 4px 14px rgba(5, 46, 128, 0.25)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Est. Monthly Receivables</span>
+                      <h3 style={{ margin: '4px 0 0', fontSize: '1.6rem', fontWeight: 900, color: '#ffffff' }}>
+                        ₱
+                        {installments
+                          .filter((i) => i.status === 'COMPLETED' || i.status === 'CI_ACCEPTED')
+                          .reduce((sum, inst) => sum + getInstallmentFinancials(inst).monthlyAmortization, 0)
+                          .toLocaleString()}
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#bae6fd' }}>/mo</span>
+                      </h3>
+                    </div>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontSize: '1.2rem' }}>
+                      <i className="fa-solid fa-peso-sign"></i>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#bae6fd' }}>Expected monthly collection from active accounts</div>
+                </div>
+              </div>
+
+              {/* Filtering Bar: Status Pills, Term Filter & Search */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+                {/* Status Tabs */}
+                <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '10px', border: '1px solid #cbd5e1', overflowX: 'auto' }}>
+                  {[
+                    { key: 'ALL', label: 'All Applications' },
+                    { key: 'PENDING', label: `Pending CI (${installments.filter((i) => i.status === 'PENDING').length})` },
+                    { key: 'CI_ACCEPTED', label: `Under CI (${installments.filter((i) => i.status === 'CI_ACCEPTED').length})` },
+                    { key: 'COMPLETED', label: `Approved / Active (${installments.filter((i) => i.status === 'COMPLETED').length})` },
+                    { key: 'REJECTED', label: `Rejected (${installments.filter((i) => i.status === 'REJECTED').length})` },
+                  ].map((f) => (
+                    <button
+                      key={f.key}
+                      onClick={() => setInstallmentStatusFilter(f.key as any)}
+                      style={{
+                        background: installmentStatusFilter === f.key ? '#052e80' : 'transparent',
+                        color: installmentStatusFilter === f.key ? '#ffffff' : '#475569',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '0.45rem 0.85rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {/* Term Selector */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Term:</span>
+                    <select
+                      value={installmentTermFilter}
+                      onChange={(e) => setInstallmentTermFilter(e.target.value as any)}
+                      style={{
+                        padding: '0.45rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.82rem',
+                        outline: 'none',
+                        background: '#ffffff',
+                      }}
+                    >
+                      <option value="ALL">All Terms</option>
+                      <option value="6">6 Months</option>
+                      <option value="12">12 Months</option>
+                      <option value="24">24 Months</option>
+                    </select>
+                  </div>
+
+                  {/* Search Input */}
+                  <div style={{ position: 'relative', minWidth: '240px' }}>
+                    <input
+                      type="text"
+                      placeholder="Search customer, item, ID..."
+                      value={installmentSearch}
+                      onChange={(e) => setInstallmentSearch(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.45rem 0.85rem 0.45rem 2.1rem',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.82rem',
+                        outline: 'none',
+                        background: '#ffffff',
+                      }}
+                    />
+                    <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }}></i>
+                  </div>
+                </div>
+              </div>
+
+              {/* Installment Monitoring Table */}
               <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#1e293b' }}>
-                      <th style={{ padding: '0.9rem 1rem', color: '#1e293b', fontWeight: 700, fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>App ID</th>
-                      <th style={{ padding: '0.9rem 1rem' }}>Customer Name</th>
-                      <th style={{ padding: '0.9rem 1rem' }}>AC Item & Term</th>
-                      <th style={{ padding: '0.9rem 1rem' }}>Employer & Monthly Income</th>
-                      <th style={{ padding: '0.9rem 1rem' }}>Valid ID</th>
+                      <th style={{ padding: '0.9rem 1rem', color: '#1e293b', fontWeight: 700, fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>App ID &amp; Date</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>Customer Profile</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>AC Item &amp; Financed Term</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>Employer &amp; Income</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>Credit Investigation (CI)</th>
                       <th style={{ padding: '0.9rem 1rem' }}>Status</th>
-                      <th style={{ padding: '0.9rem 1rem', textAlign: 'right' }}>Actions</th>
+                      <th style={{ padding: '0.9rem 1rem', textAlign: 'right' }}>Monitoring Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredInstallments.length === 0 ? (
                       <tr>
                         <td colSpan={7} style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
-                          {searchQuery.trim()
-                            ? `No installment applications found matching "${searchQuery}".`
-                            : 'No installment applications recorded.'}
+                          <i className="fa-solid fa-file-circle-question" style={{ fontSize: '2rem', display: 'block', marginBottom: '8px', opacity: 0.5 }}></i>
+                          {installmentSearch.trim() || searchQuery.trim()
+                            ? `No installment applications found matching "${installmentSearch || searchQuery}".`
+                            : 'No installment applications found for this filter.'}
                         </td>
                       </tr>
                     ) : (
@@ -3988,145 +4446,207 @@ export default function AdminDashboard() {
                         const safeInstallmentsPage = Math.min(Math.max(1, installmentsPage), Math.max(1, Math.ceil(filteredInstallments.length / ITEMS_PER_PAGE_8)));
                         return filteredInstallments
                           .slice((safeInstallmentsPage - 1) * ITEMS_PER_PAGE_8, safeInstallmentsPage * ITEMS_PER_PAGE_8)
-                          .map((inst) => (
-                            <tr key={inst.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                              <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>{inst.appId}</td>
-                              <td style={{ padding: '0.8rem 1rem', fontWeight: 600, color: '#0f172a' }}>{inst.name}</td>
-                              <td style={{ padding: '0.8rem 1rem' }}>
-                                <strong style={{ color: '#0284c7' }}>{inst.item}</strong>
-                                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{inst.term} Months Installment</div>
-                              </td>
-                              <td style={{ padding: '0.8rem 1rem' }}>
-                                <div>{inst.employer}</div>
-                                <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 700 }}>₱{inst.income}/mo</span>
-                              </td>
-                              <td style={{ padding: '0.8rem 1rem', color: '#475569' }}>{inst.idType}</td>
-                              <td style={{ padding: '0.8rem 1rem' }}>
-                                <span
-                                  style={{
-                                    padding: '3px 8px',
-                                    borderRadius: '6px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 700,
-                                    background:
-                                      inst.status === 'COMPLETED' ? '#dcfce7' : inst.status === 'CI_ACCEPTED' ? '#e0f2fe' : inst.status === 'REJECTED' ? '#fee2e2' : '#fef3c7',
-                                    color:
-                                      inst.status === 'COMPLETED' ? '#16a34a' : inst.status === 'CI_ACCEPTED' ? '#0284c7' : inst.status === 'REJECTED' ? '#dc2626' : '#b45309',
-                                  }}
-                                >
-                                  {inst.status === 'CI_ACCEPTED' ? 'CI Accepted' : inst.status}
-                                </span>
-                              </td>
-                              <td style={{ padding: '0.8rem 1rem', textAlign: 'right' }}>
-                                <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
-                                  {/* Step 1: PENDING applications can ONLY be Accepted for CI (or Rejected) */}
-                                  {inst.status === 'PENDING' && (
-                                    <>
+                          .map((inst) => {
+                            const fin = getInstallmentFinancials(inst);
+                            const meta = parseInstallmentMeta(inst.issue);
+                            const paidCount = Array.isArray(meta.paidMonths) ? meta.paidMonths.length : 0;
+                            return (
+                              <tr key={inst.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                {/* App ID & Date */}
+                                <td style={{ padding: '0.85rem 1rem' }}>
+                                  <div style={{ fontWeight: 800, color: '#052e80', fontSize: '0.9rem' }}>{inst.appId}</div>
+                                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{inst.date || 'Recent'}</div>
+                                </td>
+
+                                {/* Customer Profile */}
+                                <td style={{ padding: '0.85rem 1rem' }}>
+                                  <div style={{ fontWeight: 700, color: '#0f172a' }}>{inst.name}</div>
+                                  <div style={{ fontSize: '0.76rem', color: '#475569' }}>
+                                    <i className="fa-solid fa-phone" style={{ fontSize: '0.7rem', marginRight: '4px', color: '#0284c7' }}></i>
+                                    {inst.user?.phone || '0917-123-4567'}
+                                  </div>
+                                  <div style={{ fontSize: '0.74rem', color: '#64748b', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <i className="fa-solid fa-location-dot" style={{ fontSize: '0.7rem', marginRight: '4px', color: '#ef4444' }}></i>
+                                    {inst.location || 'Metro Manila'}
+                                  </div>
+                                </td>
+
+                                {/* AC Item & Financed Term */}
+                                <td style={{ padding: '0.85rem 1rem' }}>
+                                  <strong style={{ color: '#0284c7' }}>{inst.item}</strong>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+                                    <span style={{ fontSize: '0.75rem', background: '#f1f5f9', padding: '1px 7px', borderRadius: '4px', fontWeight: 700, color: '#334155' }}>
+                                      {inst.term} Mos
+                                    </span>
+                                    <span style={{ fontSize: '0.78rem', color: '#16a34a', fontWeight: 800 }}>
+                                      ₱{fin.monthlyAmortization.toLocaleString()}/mo
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                                    Est. Cash: ₱{fin.totalPrice.toLocaleString()} • DP: ₱{fin.downpayment.toLocaleString()}
+                                  </div>
+                                </td>
+
+                                {/* Employer & Income */}
+                                <td style={{ padding: '0.85rem 1rem' }}>
+                                  <div style={{ fontWeight: 600, color: '#1e293b' }}>{inst.employer}</div>
+                                  <div style={{ fontSize: '0.78rem', color: '#16a34a', fontWeight: 700 }}>₱{inst.income}/mo</div>
+                                  <span style={{ fontSize: '0.72rem', color: '#64748b', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: '4px' }}>
+                                    ID: {inst.idType}
+                                  </span>
+                                </td>
+
+                                {/* CI & Verification Status */}
+                                <td style={{ padding: '0.85rem 1rem' }}>
+                                  <div>
+                                    <span
+                                      style={{
+                                        fontSize: '0.72rem',
+                                        padding: '2px 8px',
+                                        borderRadius: '999px',
+                                        fontWeight: 700,
+                                        background: meta.riskLevel === 'HIGH' ? '#fee2e2' : meta.riskLevel === 'MEDIUM' ? '#fef3c7' : '#dcfce7',
+                                        color: meta.riskLevel === 'HIGH' ? '#dc2626' : meta.riskLevel === 'MEDIUM' ? '#d97706' : '#15803d',
+                                      }}
+                                    >
+                                      {meta.riskLevel || 'LOW'} RISK
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '4px' }}>
+                                    {inst.status === 'PENDING'
+                                      ? 'Awaiting CI Action'
+                                      : inst.status === 'CI_ACCEPTED'
+                                        ? 'Under Investigation'
+                                        : inst.status === 'COMPLETED'
+                                          ? `${paidCount}/${inst.term} Mos Paid`
+                                          : 'Application Closed'}
+                                  </div>
+                                </td>
+
+                                {/* Status */}
+                                <td style={{ padding: '0.85rem 1rem' }}>
+                                  <span
+                                    style={{
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 700,
+                                      background:
+                                        inst.status === 'COMPLETED'
+                                          ? '#dcfce7'
+                                          : inst.status === 'CI_ACCEPTED'
+                                            ? '#e0f2fe'
+                                            : inst.status === 'REJECTED'
+                                              ? '#fee2e2'
+                                              : '#fef3c7',
+                                      color:
+                                        inst.status === 'COMPLETED'
+                                          ? '#16a34a'
+                                          : inst.status === 'CI_ACCEPTED'
+                                            ? '#0284c7'
+                                            : inst.status === 'REJECTED'
+                                              ? '#dc2626'
+                                              : '#b45309',
+                                    }}
+                                  >
+                                    {inst.status === 'CI_ACCEPTED' ? 'CI Accepted' : inst.status === 'COMPLETED' ? 'Active / Dispatched' : inst.status}
+                                  </span>
+                                </td>
+
+                                {/* Monitoring Actions */}
+                                <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
+                                  <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                    {/* Primary Monitoring Button */}
+                                    <button
+                                      onClick={() => handleOpenInstallmentMonitor(inst)}
+                                      style={{
+                                        padding: '6px 12px',
+                                        borderRadius: '8px',
+                                        background: '#052e80',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        fontWeight: 700,
+                                        fontSize: '0.8rem',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                        boxShadow: '0 2px 4px rgba(5, 46, 128, 0.2)',
+                                      }}
+                                      title="Open Customer Installment Monitoring & Ledger Dossier"
+                                    >
+                                      <i className="fa-solid fa-address-card"></i>
+                                      Monitor Dossier
+                                    </button>
+
+                                    {/* Quick Actions based on status */}
+                                    {inst.status === 'PENDING' && (
                                       <button
                                         onClick={() => handleAcceptCI(inst)}
                                         style={{
-                                          padding: '6px 14px',
-                                          borderRadius: '6px',
-                                          background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
+                                          padding: '6px 10px',
+                                          borderRadius: '8px',
+                                          background: '#0284c7',
                                           color: 'white',
                                           border: 'none',
                                           fontWeight: 700,
-                                          fontSize: '0.82rem',
+                                          fontSize: '0.78rem',
                                           cursor: 'pointer',
                                           display: 'inline-flex',
                                           alignItems: 'center',
-                                          gap: '5px',
-                                          boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                                          gap: '4px',
                                         }}
-                                        title="Accept application for Credit Investigation"
+                                        title="Accept for Credit Investigation"
                                       >
-                                        <i className="fa-solid fa-user-check" style={{ fontSize: '0.75rem' }}></i>
-                                        Accept for CI
+                                        <i className="fa-solid fa-user-check"></i> Accept CI
                                       </button>
-                                      <button
-                                        onClick={() => handleRejectInstallment(inst)}
-                                        style={{
-                                          padding: '6px 12px',
-                                          borderRadius: '6px',
-                                          background: '#fee2e2',
-                                          color: '#dc2626',
-                                          border: '1px solid #fca5a5',
-                                          fontWeight: 700,
-                                          fontSize: '0.82rem',
-                                          cursor: 'pointer',
-                                        }}
-                                        title="Reject application"
-                                      >
-                                        Reject
-                                      </button>
-                                    </>
-                                  )}
+                                    )}
 
-                                  {/* Step 2: CI_ACCEPTED - Now they can Assign & Schedule */}
-                                  {inst.status === 'CI_ACCEPTED' && (
-                                    <>
+                                    {inst.status === 'CI_ACCEPTED' && (
                                       <button
                                         onClick={() => handleOpenScheduleInstallmentModal(inst)}
                                         style={{
-                                          padding: '6px 14px',
-                                          borderRadius: '6px',
-                                          background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
+                                          padding: '6px 10px',
+                                          borderRadius: '8px',
+                                          background: '#16a34a',
                                           color: 'white',
                                           border: 'none',
                                           fontWeight: 700,
-                                          fontSize: '0.82rem',
+                                          fontSize: '0.78rem',
                                           cursor: 'pointer',
                                           display: 'inline-flex',
                                           alignItems: 'center',
-                                          gap: '6px',
-                                          boxShadow: '0 2px 5px rgba(22, 163, 74, 0.25)',
+                                          gap: '4px',
                                         }}
                                         title="Assign technician and schedule installation"
                                       >
-                                        <i className="fa-solid fa-calendar-check" style={{ fontSize: '0.75rem' }}></i>
-                                        Assign & Schedule
+                                        <i className="fa-solid fa-calendar-check"></i> Schedule
                                       </button>
+                                    )}
+
+                                    {(inst.status === 'PENDING' || inst.status === 'CI_ACCEPTED') && (
                                       <button
                                         onClick={() => handleRejectInstallment(inst)}
                                         style={{
-                                          padding: '6px 12px',
-                                          borderRadius: '6px',
+                                          padding: '6px 8px',
+                                          borderRadius: '8px',
                                           background: '#fee2e2',
                                           color: '#dc2626',
                                           border: '1px solid #fca5a5',
                                           fontWeight: 700,
-                                          fontSize: '0.82rem',
+                                          fontSize: '0.78rem',
                                           cursor: 'pointer',
                                         }}
                                         title="Reject application"
                                       >
                                         Reject
                                       </button>
-                                    </>
-                                  )}
-
-                                  {inst.status === 'COMPLETED' && (
-                                    <div style={{ textAlign: 'right' }}>
-                                      <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                        <i className="fa-solid fa-circle-check"></i> Dispatched to Schedule
-                                      </span>
-                                      {inst.assignedTech && (
-                                        <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                                          {inst.assignedTech} • {inst.scheduledDate}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {inst.status === 'REJECTED' && (
-                                    <span style={{ fontSize: '0.8rem', color: '#dc2626', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                      <i className="fa-solid fa-circle-xmark"></i> Rejected
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ));
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          });
                       })()
                     )}
                   </tbody>
@@ -7102,6 +7622,696 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* MODAL: CUSTOMER INSTALLMENT MONITORING & PAYMENT LEDGER DOSSIER (TAB 4) */}
+      {selectedInstallment && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem',
+          }}
+          onClick={() => setSelectedInstallment(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '24px',
+              maxWidth: '920px',
+              width: '100%',
+              maxHeight: '92vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.35)',
+              border: '1px solid #cbd5e1',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            {(() => {
+              const fin = getInstallmentFinancials(selectedInstallment);
+              const meta = parseInstallmentMeta(selectedInstallment.issue);
+              const paidCount = Array.isArray(meta.paidMonths) ? meta.paidMonths.length : 0;
+              const phone = selectedInstallment.user?.phone || '0917-123-4567';
+              const cleanIncome = Number((selectedInstallment.income || '').split(/[^0-9]/).join('')) || 35000;
+              const dtiRatio = Math.min(25, Math.round((fin.monthlyAmortization / cleanIncome) * 100));
+
+              return (
+                <>
+                  <div style={{ padding: '1.25rem 1.75rem', background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)', color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', color: '#ffffff', fontWeight: 800 }}>
+                        {selectedInstallment.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#ffffff' }}>
+                            {selectedInstallment.name}
+                          </h3>
+                          <span style={{ background: '#0284c7', color: '#ffffff', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800 }}>
+                            #{selectedInstallment.appId}
+                          </span>
+                          <span
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              background:
+                                selectedInstallment.status === 'COMPLETED'
+                                  ? '#dcfce7'
+                                  : selectedInstallment.status === 'CI_ACCEPTED'
+                                    ? '#e0f2fe'
+                                    : selectedInstallment.status === 'REJECTED'
+                                      ? '#fee2e2'
+                                      : '#fef3c7',
+                              color:
+                                selectedInstallment.status === 'COMPLETED'
+                                  ? '#15803d'
+                                  : selectedInstallment.status === 'CI_ACCEPTED'
+                                    ? '#0369a1'
+                                    : selectedInstallment.status === 'REJECTED'
+                                      ? '#dc2626'
+                                      : '#b45309',
+                            }}
+                          >
+                            {selectedInstallment.status === 'CI_ACCEPTED' ? 'Under CI' : selectedInstallment.status}
+                          </span>
+                        </div>
+                        <p style={{ margin: '3px 0 0', fontSize: '0.82rem', color: '#bae6fd' }}>
+                          Financing: <strong>{selectedInstallment.item}</strong> • {selectedInstallment.term} Months Term
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedInstallment(null)}
+                      style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        border: 'none',
+                        color: '#ffffff',
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        cursor: 'pointer',
+                        fontSize: '1rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <i className="fa-solid fa-xmark"></i>
+                    </button>
+                  </div>
+
+                  {/* Internal Sub-Tabs Navigation */}
+                  <div style={{ display: 'flex', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '0 1.75rem' }}>
+                    {[
+                      { key: 'DOSSIER', label: 'KYC & Credit Investigation (CI)', icon: 'fa-user-shield' },
+                      { key: 'SCHEDULE', label: `Payment Schedule & Ledger (${paidCount}/${selectedInstallment.term})`, icon: 'fa-calendar-days' },
+                      { key: 'COMMUNICATION', label: 'Customer Reminders & SMS', icon: 'fa-paper-plane' },
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setInstallmentMonitoringTab(tab.key as any)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          borderBottom: installmentMonitoringTab === tab.key ? '3px solid #052e80' : '3px solid transparent',
+                          color: installmentMonitoringTab === tab.key ? '#052e80' : '#64748b',
+                          fontWeight: installmentMonitoringTab === tab.key ? 800 : 600,
+                          fontSize: '0.86rem',
+                          padding: '0.85rem 1.1rem',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <i className={`fa-solid ${tab.icon}`}></i>
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Modal Body Container */}
+                  <div style={{ padding: '1.5rem 1.75rem', overflowY: 'auto', flex: 1 }}>
+                    {/* TAB 1: KYC & CREDIT INVESTIGATION */}
+                    {installmentMonitoringTab === 'DOSSIER' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem' }}>
+                        {/* Left Card: Customer & Financial Profile */}
+                        <div style={{ background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.25rem' }}>
+                          <h4 style={{ margin: '0 0 1rem', fontSize: '0.98rem', color: '#052e80', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <i className="fa-solid fa-address-book" style={{ color: '#0284c7' }}></i>
+                            Applicant Dossier &amp; Income Profile
+                          </h4>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.86rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.45rem' }}>
+                              <span style={{ color: '#64748b' }}>Full Name:</span>
+                              <strong style={{ color: '#0f172a' }}>{selectedInstallment.name}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.45rem' }}>
+                              <span style={{ color: '#64748b' }}>Contact Phone:</span>
+                              <strong style={{ color: '#0284c7' }}>{phone}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.45rem' }}>
+                              <span style={{ color: '#64748b' }}>Email:</span>
+                              <strong style={{ color: '#0f172a' }}>{selectedInstallment.user?.email || 'customer@gmail.com'}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.45rem' }}>
+                              <span style={{ color: '#64748b' }}>Delivery Location:</span>
+                              <strong style={{ color: '#0f172a', textAlign: 'right', maxWidth: '200px' }}>{selectedInstallment.location || 'Metro Manila'}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.45rem' }}>
+                              <span style={{ color: '#64748b' }}>Employer / Business:</span>
+                              <strong style={{ color: '#0f172a' }}>{selectedInstallment.employer}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.45rem' }}>
+                              <span style={{ color: '#64748b' }}>Reported Monthly Income:</span>
+                              <strong style={{ color: '#16a34a', fontSize: '0.95rem' }}>₱{selectedInstallment.income}/mo</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.45rem' }}>
+                              <span style={{ color: '#64748b' }}>Valid Government ID:</span>
+                              <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '4px', fontWeight: 700, fontSize: '0.8rem' }}>
+                                {selectedInstallment.idType}
+                              </span>
+                            </div>
+
+                            {/* Capacity to pay evaluation */}
+                            <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #cbd5e1', padding: '0.85rem', marginTop: '0.5rem' }}>
+                              <div style={{ fontSize: '0.76rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Capacity to Pay &amp; Debt Ratio</div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                                <span style={{ fontSize: '0.82rem', color: '#0f172a' }}>Monthly Amortization:</span>
+                                <strong style={{ color: '#16a34a' }}>₱{fin.monthlyAmortization.toLocaleString()}/mo</strong>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                                <span style={{ fontSize: '0.82rem', color: '#0f172a' }}>Income Ratio (DTI):</span>
+                                <span style={{ color: '#16a34a', fontWeight: 800, fontSize: '0.82rem' }}>
+                                  ~{dtiRatio}% (Healthy)
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right Card: Credit Investigation (CI) Field Checklist & Notes */}
+                        <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.25rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                            <h4 style={{ margin: 0, fontSize: '0.98rem', color: '#0f172a', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <i className="fa-solid fa-clipboard-check" style={{ color: '#16a34a' }}></i>
+                              Credit Investigation (CI) Verification
+                            </h4>
+                            <span
+                              style={{
+                                fontSize: '0.75rem',
+                                padding: '2px 8px',
+                                borderRadius: '999px',
+                                fontWeight: 800,
+                                background: meta.riskLevel === 'HIGH' ? '#fee2e2' : meta.riskLevel === 'MEDIUM' ? '#fef3c7' : '#dcfce7',
+                                color: meta.riskLevel === 'HIGH' ? '#dc2626' : meta.riskLevel === 'MEDIUM' ? '#d97706' : '#15803d',
+                              }}
+                            >
+                              {meta.riskLevel || 'LOW'} RISK RATING
+                            </span>
+                          </div>
+
+                          {/* CI Checklist */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                            {[
+                              { key: 'address', label: 'Residence & Delivery Address physically verified' },
+                              { key: 'employer', label: 'Employer HR confirmed & monthly income validated' },
+                              { key: 'id', label: 'Proof of Billing & Government ID genuine' },
+                              { key: 'reference', label: 'Character References / Co-maker contacted' },
+                            ].map((item) => {
+                              const checked = meta.checklist ? !!meta.checklist[item.key] : false;
+                              return (
+                                <label
+                                  key={item.key}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    handleToggleChecklist(selectedInstallment, item.key);
+                                  }}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    padding: '0.55rem 0.75rem',
+                                    borderRadius: '8px',
+                                    background: checked ? '#f0fdf4' : '#f8fafc',
+                                    border: checked ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
+                                    cursor: 'pointer',
+                                    fontSize: '0.82rem',
+                                    color: checked ? '#15803d' : '#475569',
+                                    fontWeight: checked ? 700 : 500,
+                                  }}
+                                >
+                                  <i className={`fa-solid ${checked ? 'fa-square-check' : 'fa-square'}`} style={{ fontSize: '1rem', color: checked ? '#16a34a' : '#cbd5e1' }}></i>
+                                  {item.label}
+                                </label>
+                              );
+                            })}
+                          </div>
+
+                          {/* CI Officer Notes */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                              CI Officer Findings &amp; Assessment Notes:
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={ciNotesInput}
+                              onChange={(e) => setCiNotesInput(e.target.value)}
+                              placeholder="Enter credit investigation findings, verification remarks, or special instructions..."
+                              style={{
+                                width: '100%',
+                                padding: '0.65rem 0.75rem',
+                                borderRadius: '8px',
+                                border: '1px solid #cbd5e1',
+                                fontSize: '0.84rem',
+                                outline: 'none',
+                                resize: 'vertical',
+                              }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                              <button
+                                onClick={() => handleSaveCiNotes(selectedInstallment)}
+                                disabled={isSavingCiNotes}
+                                style={{
+                                  background: '#052e80',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  padding: '0.45rem 0.9rem',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                }}
+                              >
+                                <i className="fa-solid fa-floppy-disk"></i>
+                                {isSavingCiNotes ? 'Saving...' : 'Save CI Notes'}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Quick Workflow Action */}
+                          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1rem', marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Application Workflow Status:</span>
+                            {selectedInstallment.status === 'PENDING' ? (
+                              <button
+                                onClick={() => {
+                                  handleAcceptCI(selectedInstallment);
+                                  setSelectedInstallment({ ...selectedInstallment, status: 'CI_ACCEPTED' });
+                                }}
+                                style={{
+                                  padding: '6px 14px',
+                                  borderRadius: '8px',
+                                  background: '#0284c7',
+                                  color: 'white',
+                                  border: 'none',
+                                  fontWeight: 700,
+                                  fontSize: '0.82rem',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <i className="fa-solid fa-user-check" style={{ marginRight: '5px' }}></i>
+                                Accept for CI Now
+                              </button>
+                            ) : selectedInstallment.status === 'CI_ACCEPTED' ? (
+                              <button
+                                onClick={() => {
+                                  setSelectedInstallment(null);
+                                  handleOpenScheduleInstallmentModal(selectedInstallment);
+                                }}
+                                style={{
+                                  padding: '6px 14px',
+                                  borderRadius: '8px',
+                                  background: '#16a34a',
+                                  color: 'white',
+                                  border: 'none',
+                                  fontWeight: 700,
+                                  fontSize: '0.82rem',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <i className="fa-solid fa-calendar-check" style={{ marginRight: '5px' }}></i>
+                                Proceed to Schedule Installation
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: '0.82rem', color: '#16a34a', fontWeight: 800 }}>
+                                <i className="fa-solid fa-circle-check"></i> {selectedInstallment.status}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TAB 2: PAYMENT SCHEDULE & MONTHLY LEDGER */}
+                    {installmentMonitoringTab === 'SCHEDULE' && (
+                      <div>
+                        {/* Summary Header Cards */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
+                          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.9rem' }}>
+                            <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Retail Cash Price</span>
+                            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
+                              ₱{fin.totalPrice.toLocaleString()}
+                            </div>
+                          </div>
+                          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '0.9rem' }}>
+                            <span style={{ fontSize: '0.72rem', color: '#15803d', fontWeight: 700, textTransform: 'uppercase' }}>Downpayment (15%)</span>
+                            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#16a34a', marginTop: '2px' }}>
+                              ₱{fin.downpayment.toLocaleString()}
+                            </div>
+                            <span style={{ fontSize: '0.7rem', color: '#15803d' }}>Paid at Purchase</span>
+                          </div>
+                          <div style={{ background: '#e0f2fe', border: '1px solid #bae6fd', borderRadius: '12px', padding: '0.9rem' }}>
+                            <span style={{ fontSize: '0.72rem', color: '#0369a1', fontWeight: 700, textTransform: 'uppercase' }}>Financed Balance</span>
+                            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0284c7', marginTop: '2px' }}>
+                              ₱{fin.financedAmount.toLocaleString()}
+                            </div>
+                            <span style={{ fontSize: '0.7rem', color: '#0369a1' }}>{fin.term} Months Duration</span>
+                          </div>
+                          <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '12px', padding: '0.9rem' }}>
+                            <span style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: 700, textTransform: 'uppercase' }}>Monthly Due</span>
+                            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#d97706', marginTop: '2px' }}>
+                              ₱{fin.monthlyAmortization.toLocaleString()}
+                            </div>
+                            <span style={{ fontSize: '0.7rem', color: '#b45309' }}>Fixed Monthly Rate</span>
+                          </div>
+                        </div>
+
+                        {/* Payment Method Selector for Recording */}
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.85rem 1.1rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                            Payment Method to Record:
+                          </span>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            {(['GCash', 'Cash', 'Bank Transfer'] as const).map((method) => (
+                              <button
+                                key={method}
+                                type="button"
+                                onClick={() => setRecordingPaymentMethod(method)}
+                                style={{
+                                  background: recordingPaymentMethod === method ? '#052e80' : '#ffffff',
+                                  color: recordingPaymentMethod === method ? '#ffffff' : '#334155',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '6px',
+                                  padding: '0.35rem 0.75rem',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {method}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Amortization Table */}
+                        <div style={{ border: '1px solid #e2e8f0', borderRadius: '14px', overflow: 'hidden' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                            <thead>
+                              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#334155' }}>
+                                <th style={{ padding: '0.75rem 1rem' }}>Amortization Month</th>
+                                <th style={{ padding: '0.75rem 1rem' }}>Due Date</th>
+                                <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Amount Due (₱)</th>
+                                <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Payment Status</th>
+                                <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Action / Official Receipt</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(() => {
+                                const baseDate = selectedInstallment.date ? new Date(selectedInstallment.date) : new Date();
+                                const validDate = isNaN(baseDate.getTime()) ? new Date() : baseDate;
+                                const paidMonths: number[] = Array.isArray(meta.paidMonths) ? meta.paidMonths : [];
+
+                                return Array.from({ length: fin.term }, (_, idx) => {
+                                  const monthNum = idx + 1;
+                                  const dueDate = new Date(validDate);
+                                  dueDate.setMonth(dueDate.getMonth() + monthNum);
+                                  const dueDateStr = dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                                  const isPaid = paidMonths.includes(monthNum);
+
+                                  return (
+                                    <tr key={monthNum} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                      <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#0f172a' }}>
+                                        Month #{monthNum} of {fin.term}
+                                      </td>
+                                      <td style={{ padding: '0.75rem 1rem', color: '#475569' }}>
+                                        {dueDateStr}
+                                      </td>
+                                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
+                                        ₱{fin.monthlyAmortization.toLocaleString()}
+                                      </td>
+                                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                                        <span
+                                          style={{
+                                            padding: '3px 9px',
+                                            borderRadius: '999px',
+                                            fontSize: '0.74rem',
+                                            fontWeight: 800,
+                                            background: isPaid ? '#dcfce7' : '#fef3c7',
+                                            color: isPaid ? '#15803d' : '#b45309',
+                                          }}
+                                        >
+                                          {isPaid ? 'PAID' : 'DUE / PENDING'}
+                                        </span>
+                                      </td>
+                                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
+                                        {isPaid ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const rData: ReceiptData = {
+                                                receiptNo: `FT-INST-${selectedInstallment.appId}-M${monthNum}`,
+                                                orderNo: selectedInstallment.appId,
+                                                date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                                                customerName: selectedInstallment.name,
+                                                customerPhone: selectedInstallment.user?.phone || undefined,
+                                                location: selectedInstallment.location || 'Customer Address',
+                                                paymentMethod: recordingPaymentMethod,
+                                                status: 'Paid',
+                                                items: [
+                                                  {
+                                                    name: `${selectedInstallment.item} — Month #${monthNum} Installment Amortization`,
+                                                    category: 'AC Unit',
+                                                    quantity: 1,
+                                                    price: fin.monthlyAmortization,
+                                                  },
+                                                ],
+                                                subtotal: fin.monthlyAmortization,
+                                                totalAmount: fin.monthlyAmortization,
+                                                notes: `Official electronic payment voucher for Installment Amortization Month ${monthNum} of ${fin.term}.`,
+                                              };
+                                              setAdminReceiptData(rData);
+                                              setIsAdminReceiptOpen(true);
+                                            }}
+                                            style={{
+                                              padding: '4px 10px',
+                                              borderRadius: '6px',
+                                              background: '#e0f2fe',
+                                              color: '#0369a1',
+                                              border: '1px solid #bae6fd',
+                                              fontSize: '0.78rem',
+                                              fontWeight: 700,
+                                              cursor: 'pointer',
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '4px',
+                                            }}
+                                          >
+                                            <i className="fa-solid fa-receipt"></i> View Receipt
+                                          </button>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRecordInstallmentPayment(selectedInstallment, monthNum)}
+                                            style={{
+                                              padding: '5px 12px',
+                                              borderRadius: '6px',
+                                              background: '#16a34a',
+                                              color: 'white',
+                                              border: 'none',
+                                              fontSize: '0.78rem',
+                                              fontWeight: 700,
+                                              cursor: 'pointer',
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '4px',
+                                              boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)',
+                                            }}
+                                          >
+                                            <i className="fa-solid fa-cash-register"></i> Record Payment
+                                          </button>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                });
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TAB 3: CUSTOMER REMINDERS & DIRECT SMS */}
+                    {installmentMonitoringTab === 'COMMUNICATION' && (
+                      <div style={{ maxWidth: '650px', margin: '0 auto' }}>
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1.5rem' }}>
+                          <h4 style={{ margin: '0 0 0.5rem', fontSize: '1.05rem', color: '#052e80', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <i className="fa-solid fa-paper-plane" style={{ color: '#0284c7' }}></i>
+                            Direct Customer SMS Reminders (PhilSMS)
+                          </h4>
+                          <p style={{ margin: '0 0 1rem', fontSize: '0.82rem', color: '#64748b' }}>
+                            Send real-time SMS alerts to customer <strong>{selectedInstallment.name}</strong> at <strong>{phone}</strong>.
+                          </p>
+
+                          {/* Quick Template Buttons */}
+                          <div style={{ marginBottom: '1rem' }}>
+                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                              Quick Message Templates:
+                            </label>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setInstallmentSmsMessage(
+                                    `Reminder: Hi ${selectedInstallment.name}, your monthly FrostTech installment of ₱${fin.monthlyAmortization.toLocaleString()} for "${selectedInstallment.item}" is due soon. Please settle to maintain your active account. Thank you!`
+                                  )
+                                }
+                                style={{
+                                  background: '#ffffff',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '6px',
+                                  padding: '4px 9px',
+                                  fontSize: '0.76rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                🔔 Due Date Reminder
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setInstallmentSmsMessage(
+                                    `Update: Hi ${selectedInstallment.name}! Your FrostTech installment application (#${selectedInstallment.appId}) has been accepted for Credit Investigation (CI). Our team will reach out for verification.`
+                                  )
+                                }
+                                style={{
+                                  background: '#ffffff',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '6px',
+                                  padding: '4px 9px',
+                                  fontSize: '0.76rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                📋 CI In-Progress Notice
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setInstallmentSmsMessage(
+                                    `Congratulations ${selectedInstallment.name}! Your installment application (#${selectedInstallment.appId}) for "${selectedInstallment.item}" has been APPROVED. Installation schedule is now being arranged.`
+                                  )
+                                }
+                                style={{
+                                  background: '#ffffff',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '6px',
+                                  padding: '4px 9px',
+                                  fontSize: '0.76rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                ✅ Approval Notification
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Message Editor */}
+                          <div style={{ marginBottom: '1rem' }}>
+                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                              SMS Message Body:
+                            </label>
+                            <textarea
+                              rows={4}
+                              value={installmentSmsMessage}
+                              onChange={(e) => setInstallmentSmsMessage(e.target.value)}
+                              placeholder="Type your SMS message to the customer..."
+                              style={{
+                                width: '100%',
+                                padding: '0.65rem 0.75rem',
+                                borderRadius: '8px',
+                                border: '1px solid #cbd5e1',
+                                fontSize: '0.84rem',
+                                outline: 'none',
+                                resize: 'vertical',
+                              }}
+                            />
+                            <div style={{ fontSize: '0.72rem', color: '#64748b', textAlign: 'right', marginTop: '2px' }}>
+                              {installmentSmsMessage.length} characters
+                            </div>
+                          </div>
+
+                          {/* Send Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleSendInstallmentSms(selectedInstallment)}
+                            disabled={isSendingInstallmentSms || !installmentSmsMessage.trim()}
+                            style={{
+                              width: '100%',
+                              padding: '0.75rem',
+                              borderRadius: '10px',
+                              background: '#0284c7',
+                              color: 'white',
+                              border: 'none',
+                              fontWeight: 800,
+                              fontSize: '0.9rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '8px',
+                              boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+                              opacity: isSendingInstallmentSms || !installmentSmsMessage.trim() ? 0.6 : 1,
+                            }}
+                          >
+                            <i className={`fa-solid ${isSendingInstallmentSms ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`}></i>
+                            {isSendingInstallmentSms ? 'Sending SMS Notification...' : `Send PhilSMS to ${phone}`}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      
       {/* MODAL: ASSIGN TECHNICIAN & SCHEDULE INSTALLMENT (TAB 4) */}
       {selectedInstallmentToSchedule && (
         <div

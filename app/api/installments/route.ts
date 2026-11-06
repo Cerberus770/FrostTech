@@ -10,7 +10,17 @@ export async function GET(request: NextRequest) {
 
     const installments = await prisma.installment.findMany({
       where: userId ? { userId } : {},
-      include: { user: { select: { firstName: true, lastName: true, email: true } } },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return NextResponse.json(installments);
@@ -32,38 +42,55 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PATCH /api/installments - Update status (approve/reject/re-pend)
+// PATCH /api/installments - Update status, CI details, or payment tracking
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, ...data } = body;
+    const { id, customSms, customerPhone, ...data } = body;
+
     const installment = await prisma.installment.update({
       where: { id },
       data,
     });
 
-    // Send SMS notification on status changes (CI_ACCEPTED, COMPLETED, REJECTED)
-    if (data.status === 'CI_ACCEPTED' || data.status === 'COMPLETED' || data.status === 'REJECTED') {
+    // If custom reminder SMS was requested
+    if (customSms && customerPhone) {
+      try {
+        await sendPhilSMS(customerPhone, customSms);
+      } catch (smsErr) {
+        console.error('Failed to send custom reminder SMS:', smsErr);
+      }
+    } else if (
+      data.status === 'CI_ACCEPTED' ||
+      data.status === 'COMPLETED' ||
+      data.status === 'REJECTED'
+    ) {
+      // Send automatic status update SMS
       try {
         const customer = await prisma.user.findUnique({
           where: { id: installment.userId },
-          select: { phone: true, firstName: true }
+          select: { phone: true, firstName: true },
         });
 
-        if (customer && customer.phone) {
+        const targetPhone = customer?.phone || customerPhone;
+        const targetName = customer?.firstName || installment.name || 'Valued Customer';
+
+        if (targetPhone) {
           let msg = '';
           if (data.status === 'CI_ACCEPTED') {
-            msg = `Hi ${customer.firstName}! Your FrostTech installment application (${installment.appId}) for "${installment.item}" has been accepted for Credit Investigation (CI). Our team will reach out shortly to conduct verification.`;
+            msg = `Hi ${targetName}! Your FrostTech installment application (${installment.appId}) for "${installment.item}" has been accepted for Credit Investigation (CI). Our verification team will contact you shortly.`;
           } else if (data.status === 'COMPLETED') {
-            const schedInfo = data.scheduledDate ? ` Installation is scheduled for ${data.scheduledDate}.` : '';
-            msg = `Congratulations ${customer.firstName}! Your FrostTech installment application (${installment.appId}) for "${installment.item}" has been APPROVED.${schedInfo} Thank you for choosing FrostTech!`;
+            const schedInfo = data.scheduledDate
+              ? ` Installation is scheduled for ${data.scheduledDate}.`
+              : '';
+            msg = `Congratulations ${targetName}! Your FrostTech installment application (${installment.appId}) for "${installment.item}" has been APPROVED.${schedInfo} Thank you for choosing FrostTech!`;
           } else {
-            msg = `Hi ${customer.firstName}, we regret to inform you that your FrostTech installment application (${installment.appId}) was not approved at this time. ${installment.issue ? 'Reason: ' + installment.issue : 'Please contact us for more details.'}`;
+            msg = `Hi ${targetName}, we regret to inform you that your FrostTech installment application (${installment.appId}) was not approved at this time. ${installment.issue ? 'Reason: ' + installment.issue : 'Please contact us for more details.'}`;
           }
-          await sendPhilSMS(customer.phone, msg);
+          await sendPhilSMS(targetPhone, msg);
         }
       } catch (smsError) {
-        console.error('Failed to send installment SMS:', smsError);
+        console.error('Failed to send installment status SMS:', smsError);
       }
     }
 

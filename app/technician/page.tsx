@@ -366,7 +366,9 @@ export default function TechnicianDashboard() {
 
   // Services = Technical Services (Cleaning, Repair, Maintenance)
   const serviceDispatch = tasks.filter(t => !isAssignedTask(t));
-  const normalizedMaintenance: DispatchItem[] = maintenanceTasks.map(m => ({
+  const normalizedMaintenance: DispatchItem[] = maintenanceTasks
+    .filter(m => !isAssignedTask(m))
+    .map(m => ({
     id: m.id,
     dispatchNo: m.scheduleNo,
     type: m.serviceType,
