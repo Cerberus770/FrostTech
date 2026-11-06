@@ -248,17 +248,20 @@ export default function AdminDashboard() {
   // Order Details Modal
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
 
-  // Installment Monitoring & Ledger State (Tab 4)
+  // Installment Monitoring & Ledger State (Tab 4 & Tab 4B)
   const [selectedInstallment, setSelectedInstallment] = useState<Installment | null>(null);
   const [installmentStatusFilter, setInstallmentStatusFilter] = useState<'ALL' | 'PENDING' | 'CI_ACCEPTED' | 'COMPLETED' | 'REJECTED'>('ALL');
   const [installmentTermFilter, setInstallmentTermFilter] = useState<'ALL' | '6' | '12' | '24'>('ALL');
-  const [installmentMonitoringTab, setInstallmentMonitoringTab] = useState<'DOSSIER' | 'SCHEDULE' | 'COMMUNICATION'>('DOSSIER');
+  const [installmentMonitoringTab, setInstallmentMonitoringTab] = useState<'DOSSIER' | 'SCHEDULE' | 'COMMUNICATION'>('SCHEDULE');
   const [installmentSearch, setInstallmentSearch] = useState('');
   const [ciNotesInput, setCiNotesInput] = useState('');
   const [isSavingCiNotes, setIsSavingCiNotes] = useState(false);
   const [installmentSmsMessage, setInstallmentSmsMessage] = useState('');
   const [isSendingInstallmentSms, setIsSendingInstallmentSms] = useState(false);
   const [recordingPaymentMethod, setRecordingPaymentMethod] = useState<'Cash' | 'GCash' | 'Bank Transfer'>('GCash');
+  const [installmentMonitoringPage, setInstallmentMonitoringPage] = useState(1);
+  const [installmentMonitoringTermFilter, setInstallmentMonitoringTermFilter] = useState<'ALL' | '6' | '12' | '24'>('ALL');
+  const [installmentMonitoringBalanceFilter, setInstallmentMonitoringBalanceFilter] = useState<'ALL' | 'ACTIVE' | 'PAID'>('ALL');
 
   // Dispatch Filters & Pagination State (10 items per page)
   const [dispatchStatusFilter, setDispatchStatusFilter] = useState<'All' | 'Assigned' | 'Pending' | 'Completed'>('All');
@@ -753,7 +756,7 @@ export default function AdminDashboard() {
     );
   });
 
-  // Helper to estimate total price, downpayment, and monthly amortization
+  // Helper to calculate total price, downpayment, monthly amortization, and remaining balance
   const getInstallmentFinancials = (inst: Installment) => {
     let price = 32000;
     const lowerItem = (inst.item || '').toLowerCase();
@@ -769,14 +772,29 @@ export default function AdminDashboard() {
     const downpayment = Math.round(price * 0.15);
     const financedAmount = price - downpayment;
     const monthlyInterestRate = 0.015;
-    const monthlyAmortization = Math.round((financedAmount * (1 + monthlyInterestRate * term)) / term);
+    const totalFinancedWithInterest = Math.round(financedAmount * (1 + monthlyInterestRate * term));
+    const monthlyAmortization = Math.round(totalFinancedWithInterest / term);
+
+    const meta = parseInstallmentMeta(inst.issue);
+    const paidMonthsCount = Array.isArray(meta.paidMonths) ? meta.paidMonths.length : 0;
+    const totalPaidAmortization = paidMonthsCount * monthlyAmortization;
+    const remainingBalance = Math.max(0, totalFinancedWithInterest - totalPaidAmortization);
+    const isFullyPaid = paidMonthsCount >= term || remainingBalance === 0;
+    const progressPercent = Math.min(100, Math.round((paidMonthsCount / term) * 100));
 
     return {
+      price,
       totalPrice: price,
       downpayment,
       financedAmount,
-      term,
+      totalFinancedWithInterest,
       monthlyAmortization,
+      paidMonthsCount,
+      totalPaidAmortization,
+      remainingBalance,
+      isFullyPaid,
+      progressPercent,
+      term,
     };
   };
 
@@ -796,7 +814,7 @@ export default function AdminDashboard() {
     };
   };
 
-  // Filtered Installments with Status Filter, Term Filter, and Search
+  // Filtered Installments (Applications & Approvals for tab-installments)
   const filteredInstallments = installments.filter((inst) => {
     if (installmentStatusFilter !== 'ALL' && inst.status !== installmentStatusFilter) {
       return false;
@@ -813,6 +831,36 @@ export default function AdminDashboard() {
       (inst.employer || '').toLowerCase().includes(q) ||
       (inst.idType || '').toLowerCase().includes(q) ||
       (inst.status || '').toLowerCase().includes(q) ||
+      (inst.location || '').toLowerCase().includes(q) ||
+      (inst.user?.phone || '').toLowerCase().includes(q) ||
+      (inst.user?.email || '').toLowerCase().includes(q)
+    );
+  });
+
+  // Monitored Installments (Active Accounts with Remaining Balances for tab-installment-monitoring)
+  // This is where customer accounts go after Admin/CI accepts their application for installment AC
+  const monitoredInstallments = installments.filter((inst) => {
+    // Show accepted CI and completed/scheduled accounts
+    if (inst.status !== 'CI_ACCEPTED' && inst.status !== 'COMPLETED') {
+      return false;
+    }
+    if (installmentMonitoringTermFilter !== 'ALL' && inst.term !== Number(installmentMonitoringTermFilter)) {
+      return false;
+    }
+    const fin = getInstallmentFinancials(inst);
+    if (installmentMonitoringBalanceFilter === 'ACTIVE' && fin.isFullyPaid) {
+      return false;
+    }
+    if (installmentMonitoringBalanceFilter === 'PAID' && !fin.isFullyPaid) {
+      return false;
+    }
+    const q = (installmentSearch || searchQuery || '').toLowerCase().trim();
+    if (!q) return true;
+    return (
+      (inst.appId || '').toLowerCase().includes(q) ||
+      (inst.name || '').toLowerCase().includes(q) ||
+      (inst.item || '').toLowerCase().includes(q) ||
+      (inst.employer || '').toLowerCase().includes(q) ||
       (inst.location || '').toLowerCase().includes(q) ||
       (inst.user?.phone || '').toLowerCase().includes(q) ||
       (inst.user?.email || '').toLowerCase().includes(q)
@@ -2226,6 +2274,7 @@ export default function AdminDashboard() {
                 setCartHoldsPage(1);
                 setServicesPage(1);
                 setInstallmentsPage(1);
+                setInstallmentMonitoringPage(1);
                 setMaintenancePage(1);
                 setInvoicesPage(1);
               }}
@@ -2251,6 +2300,7 @@ export default function AdminDashboard() {
                   setCartHoldsPage(1);
                   setServicesPage(1);
                   setInstallmentsPage(1);
+                  setInstallmentMonitoringPage(1);
                   setMaintenancePage(1);
                   setInvoicesPage(1);
                 }}
@@ -2562,10 +2612,37 @@ export default function AdminDashboard() {
                 }}
               >
                 <i className="fa-solid fa-file-invoice-dollar" style={{ width: '20px', textAlign: 'center', color: '#0284c7' }}></i>
-                {!isAdminSidebarCollapsed && <span>Installment Monitoring</span>}
-                {!isAdminSidebarCollapsed && installments.filter((i) => i.status === 'PENDING' || i.status === 'CI_ACCEPTED').length > 0 && (
+                {!isAdminSidebarCollapsed && <span>Installment Approvals</span>}
+                {!isAdminSidebarCollapsed && installments.filter((i) => i.status === 'PENDING').length > 0 && (
                   <span style={{ marginLeft: 'auto', background: '#f59e0b', color: 'white', padding: '2px 7px', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700 }}>
-                    {installments.filter((i) => i.status === 'PENDING' || i.status === 'CI_ACCEPTED').length}
+                    {installments.filter((i) => i.status === 'PENDING').length}
+                  </span>
+                )}
+              </a>
+            </li>
+
+            <li>
+              <a
+                href="#"
+                onClick={(e) => { e.preventDefault(); setActiveTab('tab-installment-monitoring'); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '10px',
+                  textDecoration: 'none',
+                  fontSize: '0.92rem',
+                  fontWeight: 600,
+                  color: activeTab === 'tab-installment-monitoring' ? '#0284c7' : '#475569',
+                  background: activeTab === 'tab-installment-monitoring' ? '#e0f2fe' : 'transparent',
+                }}
+              >
+                <i className="fa-solid fa-hand-holding-dollar" style={{ width: '20px', textAlign: 'center', color: '#0284c7' }}></i>
+                {!isAdminSidebarCollapsed && <span>Installment Monitoring</span>}
+                {!isAdminSidebarCollapsed && installments.filter((i) => i.status === 'CI_ACCEPTED' || i.status === 'COMPLETED').length > 0 && (
+                  <span style={{ marginLeft: 'auto', background: '#0284c7', color: 'white', padding: '2px 7px', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700 }}>
+                    {installments.filter((i) => i.status === 'CI_ACCEPTED' || i.status === 'COMPLETED').length}
                   </span>
                 )}
               </a>
@@ -2926,10 +3003,11 @@ export default function AdminDashboard() {
                       activeTab === 'tab-pos' ? 'POS Catalog' :
                         activeTab === 'tab-installations' ? (orderServiceFilter === 'ORDERS' ? 'Orders & Cart Holds' : 'Services') :
                           activeTab === 'tab-installments' ? 'Installment Applications' :
-                            activeTab === 'tab-dispatch' ? 'Dispatches' :
-                              activeTab === 'tab-maintenance' ? 'Maintenance Schedules' :
-                                activeTab === 'tab-users' ? 'Users' :
-                                  activeTab === 'tab-invoices' ? 'Invoices' : activeTab === 'tab-reports' ? 'Sales Reports' : 'Items'
+                            activeTab === 'tab-installment-monitoring' ? 'Installment Remaining Balances' :
+                              activeTab === 'tab-dispatch' ? 'Dispatches' :
+                                activeTab === 'tab-maintenance' ? 'Maintenance Schedules' :
+                                  activeTab === 'tab-users' ? 'Users' :
+                                    activeTab === 'tab-invoices' ? 'Invoices' : activeTab === 'tab-reports' ? 'Sales Reports' : 'Items'
                   } by: <strong>&ldquo;{searchQuery}&rdquo;</strong>
                 </span>
               </div>
@@ -2942,6 +3020,7 @@ export default function AdminDashboard() {
                   setCartHoldsPage(1);
                   setServicesPage(1);
                   setInstallmentsPage(1);
+                  setInstallmentMonitoringPage(1);
                   setMaintenancePage(1);
                   setInvoicesPage(1);
                 }}
@@ -4157,18 +4236,84 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB 4: INSTALLMENT CUSTOMER MONITORING & APPROVALS */}
+          {/* TAB 4: INSTALLMENT APPROVALS (APPLICATIONS) */}
           {activeTab === 'tab-installments' && (
             <div>
+              {/* Top Sub-Navigation Pills */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.85rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tab-installments')}
+                  style={{
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#052e80',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '0.86rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 2px 5px rgba(5, 46, 128, 0.2)',
+                  }}
+                >
+                  <i className="fa-solid fa-file-invoice-dollar"></i>
+                  Installment Approvals (Applications)
+                  <span style={{
+                    background: 'rgba(255,255,255,0.25)',
+                    color: '#ffffff',
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                  }}>
+                    {installments.filter((i) => i.status === 'PENDING').length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tab-installment-monitoring')}
+                  style={{
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    color: '#334155',
+                    fontWeight: 700,
+                    fontSize: '0.86rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <i className="fa-solid fa-hand-holding-dollar" style={{ color: '#0284c7' }}></i>
+                  Installment Monitoring (Customer Remaining Balances)
+                  <span style={{
+                    background: '#e0f2fe',
+                    color: '#0369a1',
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                  }}>
+                    {installments.filter((i) => i.status === 'CI_ACCEPTED' || i.status === 'COMPLETED').length}
+                  </span>
+                </button>
+              </div>
+
               {/* Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
                   <h2 style={{ margin: 0, fontSize: '1.6rem', color: '#0f172a', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <i className="fa-solid fa-file-invoice-dollar" style={{ color: '#0284c7' }}></i>
-                    Customer Installment Monitoring &amp; Approvals
+                    Installment Approvals
                   </h2>
                   <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: '#64748b' }}>
-                    Monitor customer installment applications, verify Credit Investigation (CI), track month-by-month payment ledgers, and manage schedules.
+                    <strong>Two-Step Approval:</strong> 1. Accept for Credit Investigation (CI) &rarr; 2. Assign Certified Technician &amp; Schedule Installation. Once accepted, customer accounts automatically move to <strong>Installment Monitoring</strong> to track remaining balances.
                   </p>
                 </div>
 
@@ -4202,243 +4347,52 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* KPI Monitoring Overview Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.1rem', marginBottom: '1.75rem' }}>
-                {/* 1. Total Applications */}
-                <div
-                  onClick={() => setInstallmentStatusFilter('ALL')}
-                  style={{
-                    background: installmentStatusFilter === 'ALL' ? '#f0f9ff' : '#ffffff',
-                    border: installmentStatusFilter === 'ALL' ? '2px solid #0284c7' : '1px solid #e2e8f0',
-                    borderRadius: '16px',
-                    padding: '1.25rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Applications</span>
-                      <h3 style={{ margin: '4px 0 0', fontSize: '1.8rem', fontWeight: 900, color: '#0f172a' }}>{installments.length}</h3>
-                    </div>
-                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7', fontSize: '1.2rem' }}>
-                      <i className="fa-solid fa-users-viewfinder"></i>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#64748b' }}>All customer installment requests</div>
-                </div>
-
-                {/* 2. Pending CI */}
-                <div
-                  onClick={() => setInstallmentStatusFilter('PENDING')}
-                  style={{
-                    background: installmentStatusFilter === 'PENDING' ? '#fffbeb' : '#ffffff',
-                    border: installmentStatusFilter === 'PENDING' ? '2px solid #d97706' : '1px solid #e2e8f0',
-                    borderRadius: '16px',
-                    padding: '1.25rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pending Review</span>
-                      <h3 style={{ margin: '4px 0 0', fontSize: '1.8rem', fontWeight: 900, color: '#78350f' }}>
-                        {installments.filter((i) => i.status === 'PENDING').length}
-                      </h3>
-                    </div>
-                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706', fontSize: '1.2rem' }}>
-                      <i className="fa-solid fa-clock-rotate-left"></i>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#64748b' }}>Awaiting initial Credit Investigation</div>
-                </div>
-
-                {/* 3. Under CI Investigation */}
-                <div
-                  onClick={() => setInstallmentStatusFilter('CI_ACCEPTED')}
-                  style={{
-                    background: installmentStatusFilter === 'CI_ACCEPTED' ? '#eff6ff' : '#ffffff',
-                    border: installmentStatusFilter === 'CI_ACCEPTED' ? '2px solid #2563eb' : '1px solid #e2e8f0',
-                    borderRadius: '16px',
-                    padding: '1.25rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Under CI</span>
-                      <h3 style={{ margin: '4px 0 0', fontSize: '1.8rem', fontWeight: 900, color: '#1e3a8a' }}>
-                        {installments.filter((i) => i.status === 'CI_ACCEPTED').length}
-                      </h3>
-                    </div>
-                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb', fontSize: '1.2rem' }}>
-                      <i className="fa-solid fa-magnifying-glass-chart"></i>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#64748b' }}>CI accepted &amp; undergoing verification</div>
-                </div>
-
-                {/* 4. Approved & Active */}
-                <div
-                  onClick={() => setInstallmentStatusFilter('COMPLETED')}
-                  style={{
-                    background: installmentStatusFilter === 'COMPLETED' ? '#f0fdf4' : '#ffffff',
-                    border: installmentStatusFilter === 'COMPLETED' ? '2px solid #16a34a' : '1px solid #e2e8f0',
-                    borderRadius: '16px',
-                    padding: '1.25rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Approved &amp; Active</span>
-                      <h3 style={{ margin: '4px 0 0', fontSize: '1.8rem', fontWeight: 900, color: '#14532d' }}>
-                        {installments.filter((i) => i.status === 'COMPLETED').length}
-                      </h3>
-                    </div>
-                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a', fontSize: '1.2rem' }}>
-                      <i className="fa-solid fa-circle-check"></i>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#64748b' }}>Dispatched &amp; paying monthly amortization</div>
-                </div>
-
-                {/* 5. Est. Monthly Amortization Receivables */}
-                <div
-                  style={{
-                    background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
-                    borderRadius: '16px',
-                    padding: '1.25rem',
-                    color: '#ffffff',
-                    boxShadow: '0 4px 14px rgba(5, 46, 128, 0.25)',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Est. Monthly Receivables</span>
-                      <h3 style={{ margin: '4px 0 0', fontSize: '1.6rem', fontWeight: 900, color: '#ffffff' }}>
-                        ₱
-                        {installments
-                          .filter((i) => i.status === 'COMPLETED' || i.status === 'CI_ACCEPTED')
-                          .reduce((sum, inst) => sum + getInstallmentFinancials(inst).monthlyAmortization, 0)
-                          .toLocaleString()}
-                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#bae6fd' }}>/mo</span>
-                      </h3>
-                    </div>
-                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontSize: '1.2rem' }}>
-                      <i className="fa-solid fa-peso-sign"></i>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#bae6fd' }}>Expected monthly collection from active accounts</div>
-                </div>
+              {/* Status Filter Tabs */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                {(['ALL', 'PENDING', 'CI_ACCEPTED', 'COMPLETED', 'REJECTED'] as const).map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setInstallmentStatusFilter(st)}
+                    style={{
+                      padding: '0.4rem 0.85rem',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: installmentStatusFilter === st ? '#0284c7' : '#f1f5f9',
+                      color: installmentStatusFilter === st ? '#ffffff' : '#475569',
+                      fontWeight: installmentStatusFilter === st ? 700 : 500,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {st === 'ALL' ? 'All Applications' : st === 'CI_ACCEPTED' ? 'CI Accepted' : st}
+                    <span style={{ marginLeft: '6px', opacity: 0.85, fontSize: '0.75rem' }}>
+                      ({st === 'ALL' ? installments.length : installments.filter((i) => i.status === st).length})
+                    </span>
+                  </button>
+                ))}
               </div>
 
-              {/* Filtering Bar: Status Pills, Term Filter & Search */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
-                {/* Status Tabs */}
-                <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '10px', border: '1px solid #cbd5e1', overflowX: 'auto' }}>
-                  {[
-                    { key: 'ALL', label: 'All Applications' },
-                    { key: 'PENDING', label: `Pending CI (${installments.filter((i) => i.status === 'PENDING').length})` },
-                    { key: 'CI_ACCEPTED', label: `Under CI (${installments.filter((i) => i.status === 'CI_ACCEPTED').length})` },
-                    { key: 'COMPLETED', label: `Approved / Active (${installments.filter((i) => i.status === 'COMPLETED').length})` },
-                    { key: 'REJECTED', label: `Rejected (${installments.filter((i) => i.status === 'REJECTED').length})` },
-                  ].map((f) => (
-                    <button
-                      key={f.key}
-                      onClick={() => setInstallmentStatusFilter(f.key as any)}
-                      style={{
-                        background: installmentStatusFilter === f.key ? '#052e80' : 'transparent',
-                        color: installmentStatusFilter === f.key ? '#ffffff' : '#475569',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '0.45rem 0.85rem',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                  {/* Term Selector */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Term:</span>
-                    <select
-                      value={installmentTermFilter}
-                      onChange={(e) => setInstallmentTermFilter(e.target.value as any)}
-                      style={{
-                        padding: '0.45rem 0.75rem',
-                        borderRadius: '8px',
-                        border: '1px solid #cbd5e1',
-                        fontSize: '0.82rem',
-                        outline: 'none',
-                        background: '#ffffff',
-                      }}
-                    >
-                      <option value="ALL">All Terms</option>
-                      <option value="6">6 Months</option>
-                      <option value="12">12 Months</option>
-                      <option value="24">24 Months</option>
-                    </select>
-                  </div>
-
-                  {/* Search Input */}
-                  <div style={{ position: 'relative', minWidth: '240px' }}>
-                    <input
-                      type="text"
-                      placeholder="Search customer, item, ID..."
-                      value={installmentSearch}
-                      onChange={(e) => setInstallmentSearch(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '0.45rem 0.85rem 0.45rem 2.1rem',
-                        borderRadius: '8px',
-                        border: '1px solid #cbd5e1',
-                        fontSize: '0.82rem',
-                        outline: 'none',
-                        background: '#ffffff',
-                      }}
-                    />
-                    <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }}></i>
-                  </div>
-                </div>
-              </div>
-
-              {/* Installment Monitoring Table */}
+              {/* Original Installment Approvals Table */}
               <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#1e293b' }}>
-                      <th style={{ padding: '0.9rem 1rem', color: '#1e293b', fontWeight: 700, fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>App ID &amp; Date</th>
-                      <th style={{ padding: '0.9rem 1rem' }}>Customer Profile</th>
-                      <th style={{ padding: '0.9rem 1rem' }}>AC Item &amp; Financed Term</th>
-                      <th style={{ padding: '0.9rem 1rem' }}>Employer &amp; Income</th>
-                      <th style={{ padding: '0.9rem 1rem' }}>Credit Investigation (CI)</th>
+                      <th style={{ padding: '0.9rem 1rem', color: '#1e293b', fontWeight: 700, fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>App ID</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>Customer Name</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>AC Item &amp; Term</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>Employer &amp; Monthly Income</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>Valid ID</th>
                       <th style={{ padding: '0.9rem 1rem' }}>Status</th>
-                      <th style={{ padding: '0.9rem 1rem', textAlign: 'right' }}>Monitoring Actions</th>
+                      <th style={{ padding: '0.9rem 1rem', textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredInstallments.length === 0 ? (
                       <tr>
                         <td colSpan={7} style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
-                          <i className="fa-solid fa-file-circle-question" style={{ fontSize: '2rem', display: 'block', marginBottom: '8px', opacity: 0.5 }}></i>
-                          {installmentSearch.trim() || searchQuery.trim()
-                            ? `No installment applications found matching "${installmentSearch || searchQuery}".`
-                            : 'No installment applications found for this filter.'}
+                          {searchQuery.trim()
+                            ? `No installment applications found matching "${searchQuery}".`
+                            : 'No installment applications recorded.'}
                         </td>
                       </tr>
                     ) : (
@@ -4446,10 +4400,474 @@ export default function AdminDashboard() {
                         const safeInstallmentsPage = Math.min(Math.max(1, installmentsPage), Math.max(1, Math.ceil(filteredInstallments.length / ITEMS_PER_PAGE_8)));
                         return filteredInstallments
                           .slice((safeInstallmentsPage - 1) * ITEMS_PER_PAGE_8, safeInstallmentsPage * ITEMS_PER_PAGE_8)
+                          .map((inst) => (
+                            <tr key={inst.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '0.8rem 1rem', fontWeight: 700, color: '#0f172a' }}>{inst.appId}</td>
+                              <td style={{ padding: '0.8rem 1rem', fontWeight: 600, color: '#0f172a' }}>
+                                <div>{inst.name}</div>
+                                {inst.user?.phone && (
+                                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                    <i className="fa-solid fa-phone" style={{ fontSize: '0.7rem', marginRight: '4px', color: '#0284c7' }}></i>
+                                    {inst.user.phone}
+                                  </div>
+                                )}
+                              </td>
+                              <td style={{ padding: '0.8rem 1rem' }}>
+                                <strong style={{ color: '#0284c7' }}>{inst.item}</strong>
+                                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{inst.term} Months Installment</div>
+                              </td>
+                              <td style={{ padding: '0.8rem 1rem' }}>
+                                <div>{inst.employer}</div>
+                                <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 700 }}>₱{inst.income}/mo</span>
+                              </td>
+                              <td style={{ padding: '0.8rem 1rem', color: '#475569' }}>{inst.idType}</td>
+                              <td style={{ padding: '0.8rem 1rem' }}>
+                                <span
+                                  style={{
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    background:
+                                      inst.status === 'COMPLETED' ? '#dcfce7' : inst.status === 'CI_ACCEPTED' ? '#e0f2fe' : inst.status === 'REJECTED' ? '#fee2e2' : '#fef3c7',
+                                    color:
+                                      inst.status === 'COMPLETED' ? '#16a34a' : inst.status === 'CI_ACCEPTED' ? '#0284c7' : inst.status === 'REJECTED' ? '#dc2626' : '#b45309',
+                                  }}
+                                >
+                                  {inst.status === 'CI_ACCEPTED' ? 'CI Accepted' : inst.status}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.8rem 1rem', textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                                  {/* Step 1: PENDING applications can be Accepted for CI (or Rejected) */}
+                                  {inst.status === 'PENDING' && (
+                                    <>
+                                      <button
+                                        onClick={() => handleAcceptCI(inst)}
+                                        style={{
+                                          padding: '6px 14px',
+                                          borderRadius: '6px',
+                                          background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)',
+                                          color: 'white',
+                                          border: 'none',
+                                          fontWeight: 700,
+                                          fontSize: '0.82rem',
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '5px',
+                                          boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                                        }}
+                                        title="Accept application for Credit Investigation"
+                                      >
+                                        <i className="fa-solid fa-user-check" style={{ fontSize: '0.75rem' }}></i>
+                                        Accept for CI
+                                      </button>
+                                      <button
+                                        onClick={() => handleRejectInstallment(inst)}
+                                        style={{
+                                          padding: '6px 12px',
+                                          borderRadius: '6px',
+                                          background: '#fee2e2',
+                                          color: '#dc2626',
+                                          border: '1px solid #fca5a5',
+                                          fontWeight: 700,
+                                          fontSize: '0.82rem',
+                                          cursor: 'pointer',
+                                        }}
+                                        title="Reject application"
+                                      >
+                                        Reject
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {/* Step 2: CI_ACCEPTED - Assign technician & schedule, or jump to monitoring */}
+                                  {inst.status === 'CI_ACCEPTED' && (
+                                    <>
+                                      <button
+                                        onClick={() => handleOpenScheduleInstallmentModal(inst)}
+                                        style={{
+                                          padding: '6px 14px',
+                                          borderRadius: '6px',
+                                          background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
+                                          color: 'white',
+                                          border: 'none',
+                                          fontWeight: 700,
+                                          fontSize: '0.82rem',
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                          boxShadow: '0 2px 5px rgba(22, 163, 74, 0.25)',
+                                        }}
+                                        title="Assign technician and schedule installation"
+                                      >
+                                        <i className="fa-solid fa-calendar-check" style={{ fontSize: '0.75rem' }}></i>
+                                        Assign &amp; Schedule
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setActiveTab('tab-installment-monitoring');
+                                          handleOpenInstallmentMonitor(inst);
+                                        }}
+                                        style={{
+                                          padding: '6px 12px',
+                                          borderRadius: '6px',
+                                          background: '#e0f2fe',
+                                          color: '#0369a1',
+                                          border: '1px solid #bae6fd',
+                                          fontWeight: 700,
+                                          fontSize: '0.82rem',
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                        }}
+                                        title="Monitor remaining balance in Installment Monitoring"
+                                      >
+                                        <i className="fa-solid fa-chart-pie" style={{ fontSize: '0.75rem' }}></i>
+                                        Monitor Balance
+                                      </button>
+                                      <button
+                                        onClick={() => handleRejectInstallment(inst)}
+                                        style={{
+                                          padding: '6px 12px',
+                                          borderRadius: '6px',
+                                          background: '#fee2e2',
+                                          color: '#dc2626',
+                                          border: '1px solid #fca5a5',
+                                          fontWeight: 700,
+                                          fontSize: '0.82rem',
+                                          cursor: 'pointer',
+                                        }}
+                                        title="Reject application"
+                                      >
+                                        Reject
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {inst.status === 'COMPLETED' && (
+                                    <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                                      <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <i className="fa-solid fa-circle-check"></i> Dispatched to Schedule
+                                      </span>
+                                      <button
+                                        onClick={() => {
+                                          setActiveTab('tab-installment-monitoring');
+                                          handleOpenInstallmentMonitor(inst);
+                                        }}
+                                        style={{
+                                          padding: '4px 10px',
+                                          borderRadius: '6px',
+                                          background: '#f0fdf4',
+                                          color: '#166534',
+                                          border: '1px solid #bbf7d0',
+                                          fontWeight: 700,
+                                          fontSize: '0.78rem',
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                        }}
+                                      >
+                                        <i className="fa-solid fa-chart-pie"></i> Monitor Balance
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {inst.status === 'REJECTED' && (
+                                    <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                      Application Rejected
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                      })()
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {renderTablePagination(installmentsPage, filteredInstallments.length, setInstallmentsPage, 8)}
+            </div>
+          )}
+
+          {/* TAB 4B: INSTALLMENT MONITORING — CUSTOMER REMAINING BALANCES */}
+          {/* This is where customer accounts go AFTER Admin/CI accepts their application for installment AC */}
+          {activeTab === 'tab-installment-monitoring' && (
+            <div>
+              {/* Top Sub-Navigation Pills */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.85rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tab-installments')}
+                  style={{
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    color: '#334155',
+                    fontWeight: 700,
+                    fontSize: '0.86rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <i className="fa-solid fa-file-invoice-dollar" style={{ color: '#0284c7' }}></i>
+                  Installment Approvals (Applications)
+                  <span style={{
+                    background: '#e0f2fe',
+                    color: '#0369a1',
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                  }}>
+                    {installments.filter((i) => i.status === 'PENDING').length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tab-installment-monitoring')}
+                  style={{
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#052e80',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '0.86rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 2px 5px rgba(5, 46, 128, 0.2)',
+                  }}
+                >
+                  <i className="fa-solid fa-hand-holding-dollar"></i>
+                  Installment Monitoring (Customer Remaining Balances)
+                  <span style={{
+                    background: 'rgba(255,255,255,0.25)',
+                    color: '#ffffff',
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                  }}>
+                    {installments.filter((i) => i.status === 'CI_ACCEPTED' || i.status === 'COMPLETED').length}
+                  </span>
+                </button>
+              </div>
+
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.6rem', color: '#0f172a', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <i className="fa-solid fa-hand-holding-dollar" style={{ color: '#0284c7' }}></i>
+                    Installment Monitoring &amp; Customer Remaining Balances
+                  </h2>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: '#64748b' }}>
+                    <strong>Active Customer Accounts:</strong> Monitor all remaining balances of customers for AC installments after their application has been accepted/approved by Admin/CI. Track monthly collections, remaining amortization, and payment histories.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => {
+                      fetch('/api/installments')
+                        .then((r) => r.json())
+                        .then((data) => {
+                          if (Array.isArray(data)) setInstallments(data);
+                          showAlert({ title: 'Refreshed', message: 'Installment accounts and balances updated.', type: 'info' });
+                        })
+                        .catch(console.error);
+                    }}
+                    style={{
+                      background: '#f8fafc',
+                      color: '#0f172a',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '10px',
+                      padding: '0.55rem 0.95rem',
+                      fontSize: '0.84rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <i className="fa-solid fa-arrows-rotate"></i> Refresh
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Outstanding Metric Cards: Monitoring Overview */}
+              {(() => {
+                const acceptedAccounts = installments.filter((i) => i.status === 'CI_ACCEPTED' || i.status === 'COMPLETED');
+                const totalFinanced = acceptedAccounts.reduce((sum, i) => sum + getInstallmentFinancials(i).totalFinancedWithInterest, 0);
+                const totalCollected = acceptedAccounts.reduce((sum, i) => {
+                  const f = getInstallmentFinancials(i);
+                  return sum + f.downpayment + f.totalPaidAmortization;
+                }, 0);
+                const totalRemaining = acceptedAccounts.reduce((sum, i) => sum + getInstallmentFinancials(i).remainingBalance, 0);
+                const totalMonthlyReceivable = acceptedAccounts
+                  .filter((i) => !getInstallmentFinancials(i).isFullyPaid)
+                  .reduce((sum, i) => sum + getInstallmentFinancials(i).monthlyAmortization, 0);
+
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1.1rem', marginBottom: '1.75rem' }}>
+                    {/* 1. Active Accounts */}
+                    <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active Accounts</span>
+                          <h3 style={{ margin: '4px 0 0', fontSize: '1.8rem', fontWeight: 900, color: '#0f172a' }}>{acceptedAccounts.length}</h3>
+                        </div>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7', fontSize: '1.2rem' }}>
+                          <i className="fa-solid fa-users"></i>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#64748b' }}>Accepted / Approved AC installment plans</div>
+                    </div>
+
+                    {/* 2. Total Financed Portfolio */}
+                    <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Financed</span>
+                          <h3 style={{ margin: '4px 0 0', fontSize: '1.8rem', fontWeight: 900, color: '#0f172a' }}>₱{totalFinanced.toLocaleString()}</h3>
+                        </div>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '1.2rem' }}>
+                          <i className="fa-solid fa-file-invoice"></i>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#64748b' }}>Total principal + interest financed</div>
+                    </div>
+
+                    {/* 3. Total Collected to Date */}
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '16px', padding: '1.25rem', boxShadow: '0 2px 8px rgba(22, 163, 74, 0.05)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Collected</span>
+                          <h3 style={{ margin: '4px 0 0', fontSize: '1.8rem', fontWeight: 900, color: '#166534' }}>₱{totalCollected.toLocaleString()}</h3>
+                        </div>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a', fontSize: '1.2rem' }}>
+                          <i className="fa-solid fa-circle-check"></i>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#15803d' }}>Downpayments + monthly amortizations paid</div>
+                    </div>
+
+                    {/* 4. TOTAL OUTSTANDING REMAINING BALANCE (PROMINENT HIGHLIGHT) */}
+                    <div style={{ background: 'linear-gradient(135deg, #052e80 0%, #0369a1 100%)', color: '#ffffff', borderRadius: '16px', padding: '1.25rem', boxShadow: '0 4px 14px rgba(5, 46, 128, 0.25)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#bae6fd', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Remaining Balance</span>
+                          <h3 style={{ margin: '4px 0 0', fontSize: '1.8rem', fontWeight: 900, color: '#ffffff' }}>₱{totalRemaining.toLocaleString()}</h3>
+                        </div>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontSize: '1.2rem' }}>
+                          <i className="fa-solid fa-scale-unbalanced"></i>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#bae6fd' }}>
+                        ₱{totalMonthlyReceivable.toLocaleString()}/mo expected monthly collection
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Filtering Toolbar for Monitoring */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+                {/* Term Filters */}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', marginRight: '4px' }}>Term:</span>
+                  {(['ALL', '6', '12', '24'] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setInstallmentMonitoringTermFilter(t)}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: installmentMonitoringTermFilter === t ? '#052e80' : '#f1f5f9',
+                        color: installmentMonitoringTermFilter === t ? '#ffffff' : '#475569',
+                        fontWeight: installmentMonitoringTermFilter === t ? 700 : 500,
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {t === 'ALL' ? 'All Terms' : `${t} Months`}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Balance Status Filters */}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', marginRight: '4px' }}>Balance Status:</span>
+                  {(['ALL', 'ACTIVE', 'PAID'] as const).map((b) => (
+                    <button
+                      key={b}
+                      onClick={() => setInstallmentMonitoringBalanceFilter(b)}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: installmentMonitoringBalanceFilter === b ? '#0284c7' : '#f1f5f9',
+                        color: installmentMonitoringBalanceFilter === b ? '#ffffff' : '#475569',
+                        fontWeight: installmentMonitoringBalanceFilter === b ? 700 : 500,
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {b === 'ALL' ? 'All Accounts' : b === 'ACTIVE' ? 'With Remaining Balance' : 'Fully Settled'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Installment Remaining Balance Monitoring Table */}
+              <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#1e293b' }}>
+                      <th style={{ padding: '0.9rem 1rem', color: '#1e293b', fontWeight: 700, fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>App ID &amp; Date</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>Customer Profile</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>AC Unit Financed &amp; Term</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>Contract &amp; Downpayment</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>Monthly Rate</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>Payments Progress</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>Remaining Balance</th>
+                      <th style={{ padding: '0.9rem 1rem' }}>Status</th>
+                      <th style={{ padding: '0.9rem 1rem', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monitoredInstallments.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
+                          <i className="fa-solid fa-hand-holding-dollar" style={{ fontSize: '2.5rem', color: '#cbd5e1', marginBottom: '0.75rem', display: 'block' }}></i>
+                          <strong>No accepted installment accounts found.</strong>
+                          <p style={{ margin: '4px 0 0', fontSize: '0.84rem' }}>
+                            Once you click &ldquo;Accept for CI&rdquo; on an installment application in Installment Approvals, the customer account will appear here to monitor their remaining balance.
+                          </p>
+                        </td>
+                      </tr>
+                    ) : (
+                      (() => {
+                        const safeMonitoredPage = Math.min(Math.max(1, installmentMonitoringPage), Math.max(1, Math.ceil(monitoredInstallments.length / ITEMS_PER_PAGE_8)));
+                        return monitoredInstallments
+                          .slice((safeMonitoredPage - 1) * ITEMS_PER_PAGE_8, safeMonitoredPage * ITEMS_PER_PAGE_8)
                           .map((inst) => {
                             const fin = getInstallmentFinancials(inst);
-                            const meta = parseInstallmentMeta(inst.issue);
-                            const paidCount = Array.isArray(meta.paidMonths) ? meta.paidMonths.length : 0;
+                            const phone = inst.user?.phone || '0917-123-4567';
+
                             return (
                               <tr key={inst.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                 {/* App ID & Date */}
@@ -4463,63 +4881,86 @@ export default function AdminDashboard() {
                                   <div style={{ fontWeight: 700, color: '#0f172a' }}>{inst.name}</div>
                                   <div style={{ fontSize: '0.76rem', color: '#475569' }}>
                                     <i className="fa-solid fa-phone" style={{ fontSize: '0.7rem', marginRight: '4px', color: '#0284c7' }}></i>
-                                    {inst.user?.phone || '0917-123-4567'}
+                                    {phone}
                                   </div>
-                                  <div style={{ fontSize: '0.74rem', color: '#64748b', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <div style={{ fontSize: '0.74rem', color: '#64748b', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     <i className="fa-solid fa-location-dot" style={{ fontSize: '0.7rem', marginRight: '4px', color: '#ef4444' }}></i>
                                     {inst.location || 'Metro Manila'}
                                   </div>
                                 </td>
 
-                                {/* AC Item & Financed Term */}
+                                {/* AC Item & Term */}
                                 <td style={{ padding: '0.85rem 1rem' }}>
                                   <strong style={{ color: '#0284c7' }}>{inst.item}</strong>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+                                  <div style={{ marginTop: '2px' }}>
                                     <span style={{ fontSize: '0.75rem', background: '#f1f5f9', padding: '1px 7px', borderRadius: '4px', fontWeight: 700, color: '#334155' }}>
-                                      {inst.term} Mos
+                                      {inst.term} Months Term
                                     </span>
-                                    <span style={{ fontSize: '0.78rem', color: '#16a34a', fontWeight: 800 }}>
-                                      ₱{fin.monthlyAmortization.toLocaleString()}/mo
-                                    </span>
-                                  </div>
-                                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                                    Est. Cash: ₱{fin.totalPrice.toLocaleString()} • DP: ₱{fin.downpayment.toLocaleString()}
                                   </div>
                                 </td>
 
-                                {/* Employer & Income */}
+                                {/* Contract Price & Downpayment */}
                                 <td style={{ padding: '0.85rem 1rem' }}>
-                                  <div style={{ fontWeight: 600, color: '#1e293b' }}>{inst.employer}</div>
-                                  <div style={{ fontSize: '0.78rem', color: '#16a34a', fontWeight: 700 }}>₱{inst.income}/mo</div>
-                                  <span style={{ fontSize: '0.72rem', color: '#64748b', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: '4px' }}>
-                                    ID: {inst.idType}
-                                  </span>
+                                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b' }}>
+                                    ₱{fin.totalPrice.toLocaleString()}
+                                  </div>
+                                  <div style={{ fontSize: '0.74rem', color: '#16a34a', fontWeight: 700 }}>
+                                    DP Paid: ₱{fin.downpayment.toLocaleString()}
+                                  </div>
                                 </td>
 
-                                {/* CI & Verification Status */}
+                                {/* Monthly Amortization */}
                                 <td style={{ padding: '0.85rem 1rem' }}>
-                                  <div>
-                                    <span
+                                  <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a' }}>
+                                    ₱{fin.monthlyAmortization.toLocaleString()}
+                                  </div>
+                                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>per month</span>
+                                </td>
+
+                                {/* Payments Progress */}
+                                <td style={{ padding: '0.85rem 1rem', minWidth: '150px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', fontWeight: 700, color: '#334155', marginBottom: '3px' }}>
+                                    <span>{fin.paidMonthsCount} of {fin.term} Mos Paid</span>
+                                    <span style={{ color: fin.isFullyPaid ? '#16a34a' : '#0284c7' }}>{fin.progressPercent}%</span>
+                                  </div>
+                                  <div style={{ width: '100%', height: '7px', background: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
+                                    <div
                                       style={{
-                                        fontSize: '0.72rem',
-                                        padding: '2px 8px',
+                                        width: `${fin.progressPercent}%`,
+                                        height: '100%',
+                                        background: fin.isFullyPaid ? '#16a34a' : 'linear-gradient(90deg, #0284c7, #2563eb)',
                                         borderRadius: '999px',
-                                        fontWeight: 700,
-                                        background: meta.riskLevel === 'HIGH' ? '#fee2e2' : meta.riskLevel === 'MEDIUM' ? '#fef3c7' : '#dcfce7',
-                                        color: meta.riskLevel === 'HIGH' ? '#dc2626' : meta.riskLevel === 'MEDIUM' ? '#d97706' : '#15803d',
+                                        transition: 'width 0.3s ease',
                                       }}
-                                    >
-                                      {meta.riskLevel || 'LOW'} RISK
-                                    </span>
+                                    />
                                   </div>
-                                  <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '4px' }}>
-                                    {inst.status === 'PENDING'
-                                      ? 'Awaiting CI Action'
-                                      : inst.status === 'CI_ACCEPTED'
-                                        ? 'Under Investigation'
-                                        : inst.status === 'COMPLETED'
-                                          ? `${paidCount}/${inst.term} Mos Paid`
-                                          : 'Application Closed'}
+                                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
+                                    Collected: ₱{fin.totalPaidAmortization.toLocaleString()}
+                                  </div>
+                                </td>
+
+                                {/* REMAINING BALANCE (PROMINENT DISPLAY) */}
+                                <td style={{ padding: '0.85rem 1rem' }}>
+                                  <div
+                                    style={{
+                                      background: fin.isFullyPaid ? '#dcfce7' : '#eff6ff',
+                                      border: fin.isFullyPaid ? '1.5px solid #86efac' : '1.5px solid #bfdbfe',
+                                      borderRadius: '10px',
+                                      padding: '6px 10px',
+                                      display: 'inline-block',
+                                      minWidth: '135px',
+                                      boxShadow: fin.isFullyPaid ? '0 1px 3px rgba(22, 163, 74, 0.1)' : '0 1px 3px rgba(2, 132, 199, 0.1)',
+                                    }}
+                                  >
+                                    <div style={{ fontSize: '0.68rem', color: fin.isFullyPaid ? '#15803d' : '#1e40af', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                      Remaining Balance
+                                    </div>
+                                    <div style={{ fontSize: '1.05rem', fontWeight: 900, color: fin.isFullyPaid ? '#166534' : '#1d4ed8', marginTop: '1px' }}>
+                                      ₱{fin.remainingBalance.toLocaleString()}
+                                    </div>
+                                    <div style={{ fontSize: '0.7rem', color: fin.isFullyPaid ? '#15803d' : '#64748b' }}>
+                                      {fin.isFullyPaid ? 'Fully Paid' : `${fin.term - fin.paidMonthsCount} mo(s) remaining`}
+                                    </div>
                                   </div>
                                 </td>
 
@@ -4529,41 +4970,30 @@ export default function AdminDashboard() {
                                     style={{
                                       padding: '3px 8px',
                                       borderRadius: '6px',
-                                      fontSize: '0.75rem',
+                                      fontSize: '0.74rem',
                                       fontWeight: 700,
-                                      background:
-                                        inst.status === 'COMPLETED'
-                                          ? '#dcfce7'
-                                          : inst.status === 'CI_ACCEPTED'
-                                            ? '#e0f2fe'
-                                            : inst.status === 'REJECTED'
-                                              ? '#fee2e2'
-                                              : '#fef3c7',
-                                      color:
-                                        inst.status === 'COMPLETED'
-                                          ? '#16a34a'
-                                          : inst.status === 'CI_ACCEPTED'
-                                            ? '#0284c7'
-                                            : inst.status === 'REJECTED'
-                                              ? '#dc2626'
-                                              : '#b45309',
+                                      background: fin.isFullyPaid ? '#dcfce7' : inst.status === 'COMPLETED' ? '#e0f2fe' : '#fef3c7',
+                                      color: fin.isFullyPaid ? '#166534' : inst.status === 'COMPLETED' ? '#0369a1' : '#b45309',
                                     }}
                                   >
-                                    {inst.status === 'CI_ACCEPTED' ? 'CI Accepted' : inst.status === 'COMPLETED' ? 'Active / Dispatched' : inst.status}
+                                    {fin.isFullyPaid ? 'Fully Paid' : inst.status === 'COMPLETED' ? 'Active / Dispatched' : 'CI Accepted'}
                                   </span>
                                 </td>
 
-                                {/* Monitoring Actions */}
+                                {/* Actions */}
                                 <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
-                                  <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                    {/* Primary Monitoring Button */}
+                                  <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                    {/* Record Payment Button */}
                                     <button
-                                      onClick={() => handleOpenInstallmentMonitor(inst)}
+                                      onClick={() => {
+                                        setInstallmentMonitoringTab('SCHEDULE');
+                                        handleOpenInstallmentMonitor(inst);
+                                      }}
                                       style={{
                                         padding: '6px 12px',
                                         borderRadius: '8px',
-                                        background: '#052e80',
-                                        color: '#ffffff',
+                                        background: fin.isFullyPaid ? '#f1f5f9' : '#052e80',
+                                        color: fin.isFullyPaid ? '#64748b' : '#ffffff',
                                         border: 'none',
                                         fontWeight: 700,
                                         fontSize: '0.8rem',
@@ -4571,77 +5001,38 @@ export default function AdminDashboard() {
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         gap: '5px',
-                                        boxShadow: '0 2px 4px rgba(5, 46, 128, 0.2)',
+                                        boxShadow: fin.isFullyPaid ? 'none' : '0 2px 4px rgba(5, 46, 128, 0.2)',
                                       }}
-                                      title="Open Customer Installment Monitoring & Ledger Dossier"
+                                      title="Record customer amortization payment and view ledger"
                                     >
-                                      <i className="fa-solid fa-address-card"></i>
-                                      Monitor Dossier
+                                      <i className="fa-solid fa-receipt"></i>
+                                      {fin.isFullyPaid ? 'View Ledger' : 'Record Payment'}
                                     </button>
 
-                                    {/* Quick Actions based on status */}
-                                    {inst.status === 'PENDING' && (
-                                      <button
-                                        onClick={() => handleAcceptCI(inst)}
-                                        style={{
-                                          padding: '6px 10px',
-                                          borderRadius: '8px',
-                                          background: '#0284c7',
-                                          color: 'white',
-                                          border: 'none',
-                                          fontWeight: 700,
-                                          fontSize: '0.78rem',
-                                          cursor: 'pointer',
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '4px',
-                                        }}
-                                        title="Accept for Credit Investigation"
-                                      >
-                                        <i className="fa-solid fa-user-check"></i> Accept CI
-                                      </button>
-                                    )}
-
-                                    {inst.status === 'CI_ACCEPTED' && (
-                                      <button
-                                        onClick={() => handleOpenScheduleInstallmentModal(inst)}
-                                        style={{
-                                          padding: '6px 10px',
-                                          borderRadius: '8px',
-                                          background: '#16a34a',
-                                          color: 'white',
-                                          border: 'none',
-                                          fontWeight: 700,
-                                          fontSize: '0.78rem',
-                                          cursor: 'pointer',
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '4px',
-                                        }}
-                                        title="Assign technician and schedule installation"
-                                      >
-                                        <i className="fa-solid fa-calendar-check"></i> Schedule
-                                      </button>
-                                    )}
-
-                                    {(inst.status === 'PENDING' || inst.status === 'CI_ACCEPTED') && (
-                                      <button
-                                        onClick={() => handleRejectInstallment(inst)}
-                                        style={{
-                                          padding: '6px 8px',
-                                          borderRadius: '8px',
-                                          background: '#fee2e2',
-                                          color: '#dc2626',
-                                          border: '1px solid #fca5a5',
-                                          fontWeight: 700,
-                                          fontSize: '0.78rem',
-                                          cursor: 'pointer',
-                                        }}
-                                        title="Reject application"
-                                      >
-                                        Reject
-                                      </button>
-                                    )}
+                                    {/* Send Reminder SMS */}
+                                    <button
+                                      onClick={() => {
+                                        setInstallmentMonitoringTab('COMMUNICATION');
+                                        handleOpenInstallmentMonitor(inst);
+                                      }}
+                                      style={{
+                                        padding: '6px 9px',
+                                        borderRadius: '8px',
+                                        background: '#f8fafc',
+                                        color: '#0284c7',
+                                        border: '1px solid #cbd5e1',
+                                        fontWeight: 700,
+                                        fontSize: '0.8rem',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                      }}
+                                      title="Send SMS balance reminder to customer"
+                                    >
+                                      <i className="fa-solid fa-paper-plane"></i>
+                                      SMS
+                                    </button>
                                   </div>
                                 </td>
                               </tr>
@@ -4652,7 +5043,7 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
-              {renderTablePagination(installmentsPage, filteredInstallments.length, setInstallmentsPage, 8)}
+              {renderTablePagination(installmentMonitoringPage, monitoredInstallments.length, setInstallmentMonitoringPage, 8)}
             </div>
           )}
 
