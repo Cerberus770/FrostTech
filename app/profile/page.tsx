@@ -62,6 +62,8 @@ export default function ProfilePage() {
   const [registeredACs, setRegisteredACs] = useState<any[]>([]);
   const [dispatch, setDispatch] = useState<any[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceItem[]>([]);
+  const [installments, setInstallments] = useState<any[]>([]);
+  const [selectedInstallmentDetails, setSelectedInstallmentDetails] = useState<{ ac?: any; inst?: any; fin: any } | null>(null);
   const [toastMsg, setToastMsg] = useState('');
 
   // Store products state inside dashboard
@@ -164,6 +166,67 @@ export default function ProfilePage() {
   };
   const [newPassword, setNewPassword] = useState('');
 
+  // Helper: parse installment JSON metadata for payments & paid months
+  const parseInstallmentMeta = (issueStr?: string) => {
+    try {
+      if (!issueStr) return { paidMonths: [] as number[], payments: [] as any[] };
+      const parsed = JSON.parse(issueStr);
+      return {
+        paidMonths: Array.isArray(parsed.paidMonths) ? parsed.paidMonths : [],
+        payments: Array.isArray(parsed.payments) ? parsed.payments : [],
+      };
+    } catch {
+      return { paidMonths: [] as number[], payments: [] as any[] };
+    }
+  };
+
+  // Helper: compute financial breakdown & remaining balance for customer installment
+  const getInstallmentFinancials = (inst?: any, ac?: any) => {
+    let price = ac?.totalPrice || 32000;
+    const lowerItem = (inst?.item || ac?.brandModel || '').toLowerCase();
+    if (!ac?.totalPrice) {
+      if (lowerItem.includes('chiq')) price = 18500;
+      else if (lowerItem.includes('iffalcon')) price = 19900;
+      else if (lowerItem.includes('tcl')) price = 16990;
+      else if (lowerItem.includes('midea')) price = 26500;
+      else if (lowerItem.includes('samsung')) price = 35000;
+      else if (lowerItem.includes('carrier')) price = 32000;
+      else if (lowerItem.includes('window')) price = 18000;
+    }
+
+    const term = inst?.term || ac?.months || 12;
+    const downpayment = Math.round(price * 0.15);
+    const financedAmount = price - downpayment;
+    const monthlyInterestRate = 0.015;
+    const totalFinancedWithInterest = Math.round(financedAmount * (1 + monthlyInterestRate * term));
+    const monthlyAmortization = ac?.pricePerMonth || Math.round(totalFinancedWithInterest / term);
+
+    const meta = parseInstallmentMeta(inst?.issue);
+    const paidMonthsCount = Array.isArray(meta.paidMonths) ? meta.paidMonths.length : 0;
+    const totalPaidAmortization = paidMonthsCount * monthlyAmortization;
+    const remainingBalance = Math.max(0, totalFinancedWithInterest - totalPaidAmortization);
+    const isFullyPaid = paidMonthsCount >= term || remainingBalance === 0;
+    const progressPercent = Math.min(100, Math.round((paidMonthsCount / term) * 100));
+
+    return {
+      price,
+      totalPrice: price,
+      downpayment,
+      financedAmount,
+      term,
+      monthlyAmortization,
+      paidMonthsCount,
+      remainingMonthsCount: Math.max(0, term - paidMonthsCount),
+      totalFinancedWithInterest,
+      totalPaidAmortization,
+      remainingBalance,
+      isFullyPaid,
+      progressPercent,
+      paidMonths: meta.paidMonths,
+      payments: meta.payments,
+    };
+  };
+
   useEffect(() => {
     // Check hash for settings tab
     if (typeof window !== 'undefined' && window.location.hash) {
@@ -208,6 +271,11 @@ export default function ProfilePage() {
       fetch(`/api/maintenance?userId=${currentUid}`)
         .then((r) => r.json())
         .then((data) => { if (Array.isArray(data)) setMaintenance(data); })
+        .catch(console.error);
+
+      fetch(`/api/installments?userId=${currentUid}`)
+        .then((r) => r.json())
+        .then((data) => { if (Array.isArray(data)) setInstallments(data); })
         .catch(console.error);
 
       fetch(`/api/addresses?userId=${currentUid}`)
@@ -1648,167 +1716,436 @@ export default function ProfilePage() {
                   </button>
                 </div>
               ) : (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(3, 1fr)',
-                    gap: '1.25rem',
-                  }}
-                >
-                  {registeredACs.map((ac) => {
-                    const isSelected = selectedAcIds.includes(ac.id);
+                <>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      gap: '1.25rem',
+                    }}
+                  >
+                    {registeredACs.map((ac) => {
+                      const isSelected = selectedAcIds.includes(ac.id);
+                      const matchedInst = installments.find((inst) => {
+                        const instItem = (inst.item || '').toLowerCase();
+                        const acModel = (ac.brandModel || '').toLowerCase();
+                        return (
+                          instItem.includes(acModel) ||
+                          acModel.includes(instItem) ||
+                          (ac.installmentId && inst.id === ac.installmentId)
+                        );
+                      });
+                      const isInstallmentUnit = ac.paymentType === 'Installment' || !!matchedInst;
+                      const fin = isInstallmentUnit ? getInstallmentFinancials(matchedInst, ac) : null;
 
-                    return (
-                      <div
-                        key={ac.id}
-                        style={{
-                          background: '#ffffff',
-                          border: isSelected ? '2px solid #0284c7' : '1px solid #e2e8f0',
-                          borderRadius: '16px',
-                          padding: '1.4rem',
-                          boxShadow: isSelected ? '0 8px 24px -4px rgba(2, 132, 199, 0.2)' : '0 2px 6px rgba(0,0,0,0.04)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'space-between',
-                          position: 'relative',
-                          transition: 'all 0.2s ease',
-                        }}
-                      >
-                        {/* Header: Checkbox + Badges */}
-                        <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => toggleAcSelect(ac.id)}
-                                style={{ width: '19px', height: '19px', accentColor: '#0284c7', cursor: 'pointer' }}
-                              />
-                              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: isSelected ? '#0284c7' : '#64748b' }}>
-                                {isSelected ? 'Selected' : 'Select'}
-                              </span>
-                            </label>
+                      return (
+                        <div
+                          key={ac.id}
+                          style={{
+                            background: '#ffffff',
+                            border: isSelected ? '2px solid #0284c7' : isInstallmentUnit ? '1.5px solid #bae6fd' : '1px solid #e2e8f0',
+                            borderRadius: '16px',
+                            padding: '1.4rem',
+                            boxShadow: isSelected ? '0 8px 24px -4px rgba(2, 132, 199, 0.2)' : '0 2px 6px rgba(0,0,0,0.04)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            position: 'relative',
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          {/* Header: Checkbox + Badges */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '6px' }}>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleAcSelect(ac.id)}
+                                  style={{ width: '19px', height: '19px', accentColor: '#0284c7', cursor: 'pointer' }}
+                                />
+                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: isSelected ? '#0284c7' : '#64748b' }}>
+                                  {isSelected ? 'Selected' : 'Select'}
+                                </span>
+                              </label>
 
-                            {ac.purchasedFromStore ? (
-                              <span style={{ fontSize: '0.72rem', background: '#e0f2fe', color: '#0284c7', padding: '3px 8px', borderRadius: '999px', fontWeight: 700 }}>
-                                FrostTech Unit
-                              </span>
-                            ) : ac.isEnrolledMaintenance ? (
-                              <span style={{ fontSize: '0.72rem', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '3px 8px', borderRadius: '999px', fontWeight: 700 }}>
-                                <i className="fa-solid fa-shield-check"></i> Enrolled (6-Mo)
-                              </span>
-                            ) : (
-                              <span style={{ fontSize: '0.72rem', background: '#f1f5f9', color: '#64748b', padding: '3px 8px', borderRadius: '999px', fontWeight: 600 }}>
-                                External Unit
-                              </span>
-                            )}
-                          </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                {isInstallmentUnit && fin && (
+                                  <span
+                                    onClick={() => setSelectedInstallmentDetails({ ac, inst: matchedInst, fin })}
+                                    style={{
+                                      fontSize: '0.72rem',
+                                      background: '#eff6ff',
+                                      color: '#1d4ed8',
+                                      border: '1px solid #bfdbfe',
+                                      padding: '3px 8px',
+                                      borderRadius: '999px',
+                                      fontWeight: 800,
+                                      cursor: 'pointer',
+                                    }}
+                                    title="Click to view installment schedule and remaining balance"
+                                  >
+                                    <i className="fa-solid fa-coins" style={{ marginRight: '3px' }}></i> Installment
+                                  </span>
+                                )}
 
-                          {/* AC icon & details */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1rem' }}>
+                                {ac.purchasedFromStore ? (
+                                  <span style={{ fontSize: '0.72rem', background: '#e0f2fe', color: '#0284c7', padding: '3px 8px', borderRadius: '999px', fontWeight: 700 }}>
+                                    FrostTech Unit
+                                  </span>
+                                ) : ac.isEnrolledMaintenance ? (
+                                  <span style={{ fontSize: '0.72rem', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '3px 8px', borderRadius: '999px', fontWeight: 700 }}>
+                                    <i className="fa-solid fa-shield-check"></i> Enrolled (6-Mo)
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '0.72rem', background: '#f1f5f9', color: '#64748b', padding: '3px 8px', borderRadius: '999px', fontWeight: 600 }}>
+                                    External Unit
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* AC icon & details */}
                             <div
                               style={{
-                                width: '48px',
-                                height: '48px',
-                                borderRadius: '12px',
-                                background: 'linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 100%)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                marginBottom: '1rem',
+                                cursor: isInstallmentUnit ? 'pointer' : 'default',
+                              }}
+                              onClick={() => {
+                                if (isInstallmentUnit && fin) {
+                                  setSelectedInstallmentDetails({ ac, inst: matchedInst, fin });
+                                }
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: '48px',
+                                  height: '48px',
+                                  borderRadius: '12px',
+                                  background: 'linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 100%)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#0284c7',
+                                  fontSize: '1.5rem',
+                                }}
+                              >
+                                <i className="fa-solid fa-snowflake"></i>
+                              </div>
+                              <div>
+                                <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#0f172a', fontWeight: 700 }}>
+                                  {ac.brandModel}
+                                </h3>
+                                <span style={{ fontSize: '0.82rem', color: '#0284c7', fontWeight: 600 }}>
+                                  <i className="fa-solid fa-location-dot" style={{ marginRight: '4px' }}></i> {ac.location}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Prominent Installment Remaining Balance Card */}
+                            {isInstallmentUnit && fin && (
+                              <div
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedInstallmentDetails({ ac, inst: matchedInst, fin });
+                                }}
+                                style={{
+                                  background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                                  border: '1.5px solid #bae6fd',
+                                  borderRadius: '12px',
+                                  padding: '0.85rem 1rem',
+                                  marginBottom: '1rem',
+                                  cursor: 'pointer',
+                                  boxShadow: '0 2px 6px rgba(2, 132, 199, 0.08)',
+                                  transition: 'transform 0.15s ease',
+                                }}
+                                title="Click to view full payment schedule and months to pay"
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                  <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                    Remaining Balance
+                                  </span>
+                                  <span style={{ fontSize: '1.15rem', fontWeight: 900, color: '#0284c7' }}>
+                                    ₱{fin.remainingBalance.toLocaleString()}
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#475569', marginBottom: '6px' }}>
+                                  <span>Amortization ({fin.term} Mos):</span>
+                                  <strong style={{ color: fin.remainingMonthsCount > 0 ? '#b45309' : '#16a34a' }}>
+                                    {fin.paidMonthsCount} of {fin.term} Mos Paid ({fin.remainingMonthsCount} left)
+                                  </strong>
+                                </div>
+                                {/* Progress Bar */}
+                                <div style={{ width: '100%', height: '6px', background: '#cbd5e1', borderRadius: '999px', overflow: 'hidden' }}>
+                                  <div
+                                    style={{
+                                      width: `${fin.progressPercent}%`,
+                                      height: '100%',
+                                      background: 'linear-gradient(90deg, #0284c7, #38bdf8)',
+                                      borderRadius: '999px',
+                                    }}
+                                  />
+                                </div>
+                                <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontSize: '0.73rem', color: '#0369a1', fontWeight: 700 }}>
+                                    ₱{fin.monthlyAmortization.toLocaleString()}/mo
+                                  </span>
+                                  <span style={{ fontSize: '0.73rem', color: '#0284c7', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <i className="fa-solid fa-calendar-days"></i> Months to Pay &rarr;
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            <div style={{ background: '#f8fafc', padding: '0.8rem', borderRadius: '10px', fontSize: '0.82rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '1rem' }}>
+                              <div><strong>Type:</strong> {ac.acType}</div>
+                              <div><strong>Capacity:</strong> {ac.horsepower}</div>
+                              <div><strong>Location Address:</strong> {ac.fullAddress || 'Main Profile Address'}</div>
+                              <div><strong>Date Added:</strong> {ac.createdAt ? new Date(ac.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently Added'}</div>
+                            </div>
+                          </div>
+
+                          {/* Footer action: Clickable to edit info/location & Months to pay */}
+                          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.9rem', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            {isInstallmentUnit && fin && (
+                              <button
+                                onClick={() => setSelectedInstallmentDetails({ ac, inst: matchedInst, fin })}
+                                title="View Installment Schedule & Months to Pay"
+                                style={{
+                                  flex: 1,
+                                  padding: '0.6rem 0.85rem',
+                                  background: '#e0f2fe',
+                                  border: '1px solid #7dd3fc',
+                                  borderRadius: '8px',
+                                  color: '#0369a1',
+                                  fontWeight: 700,
+                                  fontSize: '0.8rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '5px',
+                                }}
+                              >
+                                <i className="fa-solid fa-calendar-check" style={{ color: '#0284c7' }}></i>
+                                Months to Pay ({fin.remainingMonthsCount} Left)
+                              </button>
+                            )}
+                            <button
+                              onClick={() => openEditAcModal(ac)}
+                              style={{
+                                flex: isInstallmentUnit ? '0 0 auto' : 1,
+                                padding: '0.6rem',
+                                background: '#f1f5f9',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '8px',
+                                color: '#0f172a',
+                                fontWeight: 600,
+                                fontSize: '0.82rem',
+                                cursor: 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                color: '#0284c7',
-                                fontSize: '1.5rem',
+                                gap: '6px',
                               }}
                             >
-                              <i className="fa-solid fa-snowflake"></i>
-                            </div>
-                            <div>
-                              <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#0f172a', fontWeight: 700 }}>
-                                {ac.brandModel}
-                              </h3>
-                              <span style={{ fontSize: '0.82rem', color: '#0284c7', fontWeight: 600 }}>
-                                <i className="fa-solid fa-location-dot" style={{ marginRight: '4px' }}></i> {ac.location}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div style={{ background: '#f8fafc', padding: '0.8rem', borderRadius: '10px', fontSize: '0.82rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '1rem' }}>
-                            <div><strong>Type:</strong> {ac.acType}</div>
-                            <div><strong>Capacity:</strong> {ac.horsepower}</div>
-                            <div><strong>Location Address:</strong> {ac.fullAddress || 'Main Profile Address'}</div>
-                            <div><strong>Date Added:</strong> {ac.createdAt ? new Date(ac.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently Added'}</div>
+                              <i className="fa-solid fa-pen-to-square" style={{ color: '#0284c7' }}></i> Edit Info
+                            </button>
+                            {ac.isEnrolledMaintenance ? (
+                              <button
+                                onClick={() => handleUnenrollAc(ac)}
+                                title="Cancel Maintenance Monitoring"
+                                style={{
+                                  padding: '0.6rem 0.85rem',
+                                  background: '#fef2f2',
+                                  border: '1px solid #fecaca',
+                                  borderRadius: '8px',
+                                  color: '#dc2626',
+                                  fontWeight: 700,
+                                  fontSize: '0.8rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <i className="fa-solid fa-shield-halved"></i> Unenroll
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  openEnrollModal(ac.id);
+                                }}
+                                title="Enroll in 6-Month Maintenance Monitoring"
+                                style={{
+                                  padding: '0.6rem 0.85rem',
+                                  background: '#fffbeb',
+                                  border: '1px solid #fde68a',
+                                  borderRadius: '8px',
+                                  color: '#b45309',
+                                  fontWeight: 700,
+                                  fontSize: '0.8rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <i className="fa-solid fa-shield-heart" style={{ color: '#d97706' }}></i> Enroll
+                              </button>
+                            )}
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
 
-                        {/* Footer action: Clickable to edit info/location & Enroll/Unenroll */}
-                        <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.9rem', display: 'flex', gap: '8px' }}>
-                          <button
-                            onClick={() => openEditAcModal(ac)}
-                            style={{
-                              flex: 1,
-                              padding: '0.6rem',
-                              background: '#f1f5f9',
-                              border: '1px solid #cbd5e1',
-                              borderRadius: '8px',
-                              color: '#0f172a',
-                              fontWeight: 600,
-                              fontSize: '0.82rem',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '6px',
-                            }}
-                          >
-                            <i className="fa-solid fa-pen-to-square" style={{ color: '#0284c7' }}></i> Edit Info
-                          </button>
-                          {ac.isEnrolledMaintenance ? (
-                            <button
-                              onClick={() => handleUnenrollAc(ac)}
-                              title="Cancel Maintenance Monitoring"
-                              style={{
-                                padding: '0.6rem 0.85rem',
-                                background: '#fef2f2',
-                                border: '1px solid #fecaca',
-                                borderRadius: '8px',
-                                color: '#dc2626',
-                                fontWeight: 700,
-                                fontSize: '0.8rem',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                              }}
-                            >
-                              <i className="fa-solid fa-shield-halved"></i> Unenroll
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                openEnrollModal(ac.id);
-                              }}
-                              title="Enroll in 6-Month Maintenance Monitoring"
-                              style={{
-                                padding: '0.6rem 0.85rem',
-                                background: '#fffbeb',
-                                border: '1px solid #fde68a',
-                                borderRadius: '8px',
-                                color: '#b45309',
-                                fontWeight: 700,
-                                fontSize: '0.8rem',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                              }}
-                            >
-                              <i className="fa-solid fa-shield-heart" style={{ color: '#d97706' }}></i> Enroll
-                            </button>
-                          )}
-                        </div>
+                  {/* Unlinked Accepted Installment Accounts (CI Accepted / Completed from Store) */}
+                  {installments.filter(
+                    (inst) =>
+                      (inst.status === 'CI_ACCEPTED' || inst.status === 'COMPLETED') &&
+                      !registeredACs.some((ac) => {
+                        const acModel = (ac.brandModel || '').toLowerCase();
+                        const instItem = (inst.item || '').toLowerCase();
+                        return instItem.includes(acModel) || acModel.includes(instItem);
+                      })
+                  ).length > 0 && (
+                    <div style={{ marginTop: '2.5rem' }}>
+                      <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <i className="fa-solid fa-file-invoice-dollar" style={{ color: '#0284c7', fontSize: '1.2rem' }}></i>
+                        <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#0f172a', fontWeight: 800 }}>
+                          Approved Installment Air Conditioners
+                        </h3>
+                        <span style={{ background: '#e0f2fe', color: '#0284c7', padding: '2px 8px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
+                          Active Ledger
+                        </span>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(3, 1fr)',
+                          gap: '1.25rem',
+                        }}
+                      >
+                        {installments
+                          .filter(
+                            (inst) =>
+                              (inst.status === 'CI_ACCEPTED' || inst.status === 'COMPLETED') &&
+                              !registeredACs.some((ac) => {
+                                const acModel = (ac.brandModel || '').toLowerCase();
+                                const instItem = (inst.item || '').toLowerCase();
+                                return instItem.includes(acModel) || acModel.includes(instItem);
+                              })
+                          )
+                          .map((inst) => {
+                            const fin = getInstallmentFinancials(inst);
+                            return (
+                              <div
+                                key={inst.id}
+                                onClick={() => setSelectedInstallmentDetails({ inst, fin })}
+                                style={{
+                                  background: '#ffffff',
+                                  border: '1.5px solid #bae6fd',
+                                  borderRadius: '16px',
+                                  padding: '1.4rem',
+                                  boxShadow: '0 2px 8px rgba(2, 132, 199, 0.08)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  justifyContent: 'space-between',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s ease',
+                                }}
+                              >
+                                <div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                    <span style={{ fontSize: '0.72rem', background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: '999px', fontWeight: 800 }}>
+                                      <i className="fa-solid fa-circle-check" style={{ marginRight: '4px' }}></i> CI Approved
+                                    </span>
+                                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700 }}>
+                                      #{inst.appId}
+                                    </span>
+                                  </div>
+
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1rem' }}>
+                                    <div
+                                      style={{
+                                        width: '46px',
+                                        height: '46px',
+                                        borderRadius: '12px',
+                                        background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: '#ffffff',
+                                        fontSize: '1.4rem',
+                                      }}
+                                    >
+                                      <i className="fa-solid fa-snowflake"></i>
+                                    </div>
+                                    <div>
+                                      <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#0f172a', fontWeight: 800 }}>
+                                        {inst.item}
+                                      </h3>
+                                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                        {inst.term} Months Plan
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px', padding: '0.8rem', marginBottom: '1rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                      <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase' }}>
+                                        Remaining Balance
+                                      </span>
+                                      <span style={{ fontSize: '1.15rem', fontWeight: 900, color: '#0284c7' }}>
+                                        ₱{fin.remainingBalance.toLocaleString()}
+                                      </span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#475569', marginBottom: '6px' }}>
+                                      <span>Months to Pay:</span>
+                                      <strong style={{ color: fin.remainingMonthsCount > 0 ? '#b45309' : '#16a34a' }}>
+                                        {fin.paidMonthsCount} of {fin.term} Mos Paid ({fin.remainingMonthsCount} left)
+                                      </strong>
+                                    </div>
+                                    <div style={{ width: '100%', height: '6px', background: '#cbd5e1', borderRadius: '999px', overflow: 'hidden' }}>
+                                      <div style={{ width: `${fin.progressPercent}%`, height: '100%', background: 'linear-gradient(90deg, #0284c7, #38bdf8)', borderRadius: '999px' }} />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedInstallmentDetails({ inst, fin });
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    padding: '0.65rem',
+                                    background: '#0284c7',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    color: '#ffffff',
+                                    fontWeight: 700,
+                                    fontSize: '0.82rem',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                  }}
+                                >
+                                  <i className="fa-solid fa-calendar-check"></i> View Months to Pay & Balance
+                                </button>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Active Maintenance Monitoring Schedules Section */}
@@ -2871,6 +3208,284 @@ export default function ProfilePage() {
               >
                 Proceed to Cart
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Customer Installment Remaining Balance & Months to Pay Schedule Modal */}
+      {selectedInstallmentDetails && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 10000,
+            padding: '1rem',
+          }}
+          onClick={() => setSelectedInstallmentDetails(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              maxWidth: '750px',
+              width: '100%',
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              border: '1px solid #e2e8f0',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '1.25rem 1.75rem',
+                background: 'linear-gradient(135deg, #052e80 0%, #0369a1 100%)',
+                color: '#ffffff',
+                borderTopLeftRadius: '20px',
+                borderTopRightRadius: '20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '12px',
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.3rem',
+                  }}
+                >
+                  <i className="fa-solid fa-snowflake"></i>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#ffffff' }}>
+                    {selectedInstallmentDetails.ac?.brandModel || selectedInstallmentDetails.inst?.item || 'AC Unit Installment'}
+                  </h3>
+                  <div style={{ fontSize: '0.8rem', color: '#bae6fd', display: 'flex', gap: '10px', marginTop: '2px' }}>
+                    <span>
+                      <strong>App Ref:</strong> #{selectedInstallmentDetails.inst?.appId || 'AC-INST'}
+                    </span>
+                    <span>•</span>
+                    <span>
+                      <strong>Term:</strong> {selectedInstallmentDetails.fin.term} Months Plan
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedInstallmentDetails(null)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  border: 'none',
+                  color: '#ffffff',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  fontSize: '1.1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div style={{ padding: '1.5rem 1.75rem' }}>
+              {/* KPI Financial Overview Cards */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '0.85rem',
+                  marginBottom: '1.5rem',
+                }}
+              >
+                <div style={{ background: '#f8fafc', padding: '0.9rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>
+                    Contract Price
+                  </span>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
+                    ₱{selectedInstallmentDetails.fin.price.toLocaleString()}
+                  </div>
+                  <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>SRP / Base Price</span>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '0.9rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>
+                    Downpayment
+                  </span>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#16a34a', marginTop: '4px' }}>
+                    ₱{selectedInstallmentDetails.fin.downpayment.toLocaleString()}
+                  </div>
+                  <span style={{ fontSize: '0.7rem', color: '#16a34a', fontWeight: 600 }}>15% Paid</span>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '0.9rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>
+                    Monthly Due
+                  </span>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
+                    ₱{selectedInstallmentDetails.fin.monthlyAmortization.toLocaleString()}
+                  </div>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Per Month</span>
+                </div>
+
+                <div style={{ background: '#eff6ff', padding: '0.9rem', borderRadius: '12px', border: '1.5px solid #bfdbfe' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#1d4ed8', fontWeight: 700, textTransform: 'uppercase' }}>
+                    Remaining Balance
+                  </span>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0284c7', marginTop: '4px' }}>
+                    ₱{selectedInstallmentDetails.fin.remainingBalance.toLocaleString()}
+                  </div>
+                  <span style={{ fontSize: '0.7rem', color: '#1d4ed8', fontWeight: 600 }}>
+                    {selectedInstallmentDetails.fin.remainingMonthsCount} Mos Left
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress Countdown Bar */}
+              <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>
+                    <i className="fa-solid fa-chart-line" style={{ color: '#0284c7', marginRight: '6px' }}></i>
+                    Payment Progress
+                  </span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0284c7' }}>
+                    {selectedInstallmentDetails.fin.paidMonthsCount} of {selectedInstallmentDetails.fin.term} Months Paid ({selectedInstallmentDetails.fin.progressPercent}%)
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: '10px', background: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      width: `${selectedInstallmentDetails.fin.progressPercent}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #0284c7 0%, #10b981 100%)',
+                      borderRadius: '999px',
+                      transition: 'width 0.4s ease',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Month-by-Month Amortization Schedule (Months to Pay) */}
+              <div style={{ marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#0f172a', fontWeight: 800 }}>
+                    <i className="fa-solid fa-calendar-days" style={{ color: '#0284c7', marginRight: '8px' }}></i>
+                    Months to Pay Schedule
+                  </h4>
+                  <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                    Total Term: {selectedInstallmentDetails.fin.term} Months
+                  </span>
+                </div>
+
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        <th style={{ padding: '0.75rem 1rem' }}>Month #</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Due Date</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Monthly Due</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Status</th>
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Remaining Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from({ length: selectedInstallmentDetails.fin.term }, (_, idx) => {
+                        const monthNum = idx + 1;
+                        const isPaid = selectedInstallmentDetails.fin.paidMonths.includes(monthNum) || monthNum <= selectedInstallmentDetails.fin.paidMonthsCount;
+                        const isNextDue = !isPaid && monthNum === selectedInstallmentDetails.fin.paidMonthsCount + 1;
+                        
+                        const startDate = selectedInstallmentDetails.inst?.createdAt
+                          ? new Date(selectedInstallmentDetails.inst.createdAt)
+                          : selectedInstallmentDetails.ac?.createdAt
+                          ? new Date(selectedInstallmentDetails.ac.createdAt)
+                          : new Date();
+                        const dueDate = new Date(startDate);
+                        dueDate.setMonth(dueDate.getMonth() + monthNum);
+                        const dueDateStr = dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        const runningRemaining = Math.max(0, selectedInstallmentDetails.fin.totalFinancedWithInterest - monthNum * selectedInstallmentDetails.fin.monthlyAmortization);
+
+                        return (
+                          <tr
+                            key={monthNum}
+                            style={{
+                              borderBottom: '1px solid #f1f5f9',
+                              background: isNextDue ? '#fffbeb' : isPaid ? '#ffffff' : '#fafafa',
+                            }}
+                          >
+                            <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#0f172a' }}>
+                              Month {monthNum}
+                            </td>
+                            <td style={{ padding: '0.75rem 1rem', color: '#475569' }}>
+                              {dueDateStr}
+                            </td>
+                            <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: '#0f172a' }}>
+                              ₱{selectedInstallmentDetails.fin.monthlyAmortization.toLocaleString()}
+                            </td>
+                            <td style={{ padding: '0.75rem 1rem' }}>
+                              {isPaid ? (
+                                <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 9px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <i className="fa-solid fa-circle-check"></i> Paid
+                                </span>
+                              ) : isNextDue ? (
+                                <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 9px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <i className="fa-solid fa-clock"></i> Current Due
+                                </span>
+                              ) : (
+                                <span style={{ background: '#f1f5f9', color: '#64748b', padding: '3px 9px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600 }}>
+                                  Upcoming
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: isPaid ? '#94a3b8' : '#0284c7' }}>
+                              ₱{runningRemaining.toLocaleString()}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Payment Channels Guide */}
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '1rem', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                <i className="fa-solid fa-circle-info" style={{ color: '#16a34a', fontSize: '1.25rem', marginTop: '2px' }}></i>
+                <div style={{ fontSize: '0.82rem', color: '#166534' }}>
+                  <strong style={{ display: 'block', marginBottom: '2px', fontSize: '0.88rem' }}>How to Pay Your Installment Amortization:</strong>
+                  Payments can be settled via <strong>GCash</strong>, <strong>BDO / BPI Bank Transfer</strong>, or in-person at any FrostTech Hub. Please indicate your Application Reference <strong>#{selectedInstallmentDetails.inst?.appId || 'AC-INST'}</strong> in the transfer remarks. Your ledger will update automatically once verified.
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  onClick={() => setSelectedInstallmentDetails(null)}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.65rem 1.5rem' }}
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

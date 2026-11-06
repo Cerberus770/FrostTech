@@ -235,12 +235,12 @@ export default function HomePage() {
   }, []);
 
   const topBrands = [
-    { name: 'Carrier', displayName: 'Carrier', logo: '/brands/Carrier.jpg', alt: 'Carrier' },
-    { name: 'Chiq', displayName: 'CHiQ', logo: '/brands/CHiQ.svg', alt: 'CHiQ' },
-    { name: 'iFFALCON', displayName: 'iFFALCON', logo: '/brands/Iffalcon.png', alt: 'iFFALCON' },
-    { name: 'Midea', displayName: 'Midea', logo: '/brands/midea.jpg', alt: 'Midea' },
-    { name: 'Samsung', displayName: 'Samsung', logo: '/brands/Samsung.jpg', alt: 'Samsung' },
-    { name: 'TCL', displayName: 'TCL', logo: '/brands/TCL.jpg', alt: 'TCL' },
+    { name: 'Carrier', displayName: 'CARRIER' },
+    { name: 'Chiq', displayName: 'CHiQ' },
+    { name: 'iFFALCON', displayName: 'iFFALCON' },
+    { name: 'Midea', displayName: 'MIDEA' },
+    { name: 'Samsung', displayName: 'SAMSUNG' },
+    { name: 'TCL', displayName: 'TCL' },
   ];
 
   const handleBrandTileClick = (brandName: string) => {
@@ -836,11 +836,7 @@ export default function HomePage() {
                 title={`Filter products by ${brand.displayName}`}
                 aria-label={`Filter products by ${brand.displayName}`}
               >
-                <img
-                  src={brand.logo}
-                  alt={brand.alt}
-                  className="brand-tile-img"
-                />
+                <span className="brand-tile-name">{brand.displayName}</span>
               </button>
             );
           })}
