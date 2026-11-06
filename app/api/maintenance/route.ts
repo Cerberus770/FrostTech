@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Self-healing schema migration
+let schemaChecked = false;
+async function ensureSchema() {
+  if (schemaChecked) return;
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "registered_acs" ADD COLUMN IF NOT EXISTS "yearAcquired" TEXT;`).catch(() => {});
+    await prisma.$executeRawUnsafe(`ALTER TABLE "registered_acs" ADD COLUMN IF NOT EXISTS "enrolledAt" TIMESTAMP(3);`).catch(() => {});
+    schemaChecked = true;
+  } catch (e) {
+    console.warn('ensureSchema warning:', e);
+  }
+}
+
 // GET /api/maintenance
 export async function GET(request: NextRequest) {
   try {
+    await ensureSchema();
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
 
@@ -17,7 +31,16 @@ export async function GET(request: NextRequest) {
             lastName: true,
             email: true,
             phone: true,
-            registeredACs: true,
+            registeredACs: {
+              select: {
+                id: true,
+                brandModel: true,
+                location: true,
+                horsepower: true,
+                enrolledAt: true,
+                createdAt: true,
+              },
+            },
           },
         },
         technician: {
