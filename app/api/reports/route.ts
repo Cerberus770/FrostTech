@@ -592,7 +592,7 @@ export async function POST(request: Request) {
     let maintenanceSchedules = Array.isArray(body.maintenance)
       ? body.maintenance
       : [];
-    let invoices = Array.isArray(body.invoices) ? body.invoices : [];
+    const invoices = Array.isArray(body.invoices) ? body.invoices : [];
 
     // Fall back to database if client passed empty arrays
     if (orders.length === 0) {
