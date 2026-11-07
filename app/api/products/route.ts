@@ -93,6 +93,32 @@ export async function GET() {
       });
     }
 
+    // Self-healing: Ensure every product has variants and stock synced from inventory
+    for (const p of prods) {
+      if (!p.variants || p.variants.length === 0) {
+        try {
+          const invItem = await prisma.inventoryItem.findFirst({
+            where: {
+              brand: { equals: p.brand, mode: 'insensitive' },
+              model: { contains: p.name, mode: 'insensitive' },
+            },
+          });
+          const stock = invItem ? invItem.stock : 10;
+          const newVariant = await prisma.productVariant.create({
+            data: {
+              productId: p.id,
+              condition: 'Brand New',
+              price: p.price,
+              stock: stock,
+            },
+          });
+          p.variants = [newVariant];
+        } catch (e) {
+          console.error(`Error backfilling variant for product ${p.id}:`, e);
+        }
+      }
+    }
+
     return NextResponse.json(prods);
   } catch (error: any) {
     console.error('Products fetch error:', error);

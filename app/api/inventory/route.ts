@@ -199,6 +199,35 @@ export async function PATCH(request: NextRequest) {
       where: { id },
       data,
     });
+
+    // If stock or price changed, sync with the corresponding product variant
+    if (data.stock !== undefined || data.price !== undefined) {
+      try {
+        const prod = await prisma.product.findFirst({
+          where: {
+            brand: { equals: item.brand, mode: 'insensitive' },
+            name: { contains: item.model, mode: 'insensitive' },
+          },
+          include: { variants: true },
+        });
+
+        if (prod && prod.variants && prod.variants.length > 0) {
+          const brandNew = prod.variants.find((v) => v.condition === 'Brand New') || prod.variants[0];
+          if (brandNew) {
+            await prisma.productVariant.update({
+              where: { id: brandNew.id },
+              data: {
+                ...(data.stock !== undefined ? { stock: parseInt(data.stock, 10) || 0 } : {}),
+                ...(data.price !== undefined ? { price: parseFloat(data.price) || brandNew.price } : {}),
+              },
+            });
+          }
+        }
+      } catch (syncErr) {
+        console.error('Error syncing inventory stock to product variant:', syncErr);
+      }
+    }
+
     return NextResponse.json(item);
   } catch (error) {
     console.error('Inventory update error:', error);

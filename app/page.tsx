@@ -276,7 +276,7 @@ export default function HomePage() {
         return res.json();
       })
       .then((data: DBProduct[]) => setStoreInventory(data))
-      .catch(() => setStoreInventory(fallbackProducts.map(p => ({ ...p, slug: p.id, originalPrice: p.originalPrice ?? null, badge: p.badge ?? null, description: p.description ?? null, specs: p.specs ?? [] }))));
+      .catch(() => setStoreInventory(fallbackProducts.map(p => ({ ...p, slug: p.id, originalPrice: p.originalPrice ?? null, badge: p.badge ?? null, description: p.description ?? null, specs: p.specs ?? [], variants: [{ id: `var-${p.id}`, condition: 'Brand New', price: p.price, stock: 10 }] }))));
 
     const userId = sessionStorage.getItem('userId');
     if (userId) {
@@ -797,7 +797,9 @@ export default function HomePage() {
                         <span className="sold-count">&bull; {item.sold} sold</span>
                       </div>
                       {(() => {
-                        const totalStock = item.variants ? item.variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) : 0;
+                        const totalStock = item.variants && item.variants.length > 0
+                          ? item.variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0)
+                          : (typeof (item as any).stock === 'number' ? (item as any).stock : 10);
                         if (totalStock > 5) return <div className="product-stock-status in-stock"><i className="fa-solid fa-circle-check"></i> In Stock</div>;
                         if (totalStock > 0) return <div className="product-stock-status low-stock"><i className="fa-solid fa-triangle-exclamation"></i> Only {totalStock} left</div>;
                         return <div className="product-stock-status out-of-stock"><i className="fa-solid fa-circle-xmark"></i> Out of Stock</div>;
