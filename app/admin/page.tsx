@@ -158,6 +158,7 @@ interface AppUser {
   role: 'CUSTOMER' | 'TECHNICIAN' | 'CLERK' | 'ADMIN';
   techRank?: string | null;
   permissions?: string;
+  registeredACs?: RegisteredACItem[];
   createdAt: string;
 }
 
@@ -1309,7 +1310,7 @@ export default function AdminDashboard() {
           status: 'Assigned',
           scheduledDate: scheduledDateStr,
           assignedTechName: `${assignedTech.firstName} ${assignedTech.lastName}`,
-          horsepower: selectedOrderToSchedule.hp || selectedOrderToSchedule.item.match(/\b(\d+(?:\.\d+)?\s*HP)\b/i)?.[1] || null,
+          horsepower: selectedOrderToSchedule.hp || getDispatchHorsepower({ item: selectedOrderToSchedule.item, customerId: selectedOrderToSchedule.userId } as any),
           technicianIds: [assignedTech.id],
           notes: orderScheduleNotes || `Delivery & Installation for Order #${selectedOrderToSchedule.orderNo}`,
         }),
@@ -1460,7 +1461,7 @@ export default function AdminDashboard() {
           name: selectedServiceToSchedule.name,
           location: selectedServiceToSchedule.address,
           item: selectedServiceToSchedule.item,
-          horsepower: selectedServiceToSchedule.item?.match(/\b(\d+(?:\.\d+)?\s*HP)\b/i)?.[1] || null,
+          horsepower: getDispatchHorsepower({ item: selectedServiceToSchedule.item, notes: selectedServiceToSchedule.notes, type: selectedServiceToSchedule.serviceType, customerId: selectedServiceToSchedule.customerId } as any),
           status: 'Assigned',
           scheduledDate: scheduledDateStr,
           assignedTechName: `${assignedTech.firstName} ${assignedTech.lastName}`,
@@ -1754,7 +1755,7 @@ export default function AdminDashboard() {
           name: selectedInstallmentToSchedule.name,
           location: selectedInstallmentToSchedule.location || 'Customer Address',
           item: selectedInstallmentToSchedule.item,
-          horsepower: selectedInstallmentToSchedule.item?.match(/\b(\d+(?:\.\d+)?\s*HP)\b/i)?.[1] || null,
+          horsepower: getDispatchHorsepower({ item: selectedInstallmentToSchedule.item, type: 'New Installation', customerId: selectedInstallmentToSchedule.userId } as any),
           status: 'Assigned',
           scheduledDate: scheduledDateStr,
           assignedTechName: `${assignedTech.firstName} ${assignedTech.lastName}`,
@@ -2058,7 +2059,7 @@ export default function AdminDashboard() {
               name: selectedMaintenanceModal.name,
               location: selectedMaintenanceModal.address,
               item: selectedMaintenanceModal.item,
-              horsepower: selectedMaintenanceModal.item?.match(/\b(\d+(?:\.\d+)?\s*HP)\b/i)?.[1] || null,
+              horsepower: getDispatchHorsepower({ item: selectedMaintenanceModal.item, notes: maintNotes, type: selectedMaintenanceModal.serviceType, customerId: selectedMaintenanceModal.customerId } as any),
               status: 'Assigned',
               scheduledDate: scheduledDateStr,
               assignedTechName: techName,
@@ -2138,6 +2139,62 @@ export default function AdminDashboard() {
     return s.includes('repair') || s.includes('diagnostic');
   };
 
+  // Helper: dynamically extract or infer horsepower for any dispatch item (Installation, Cleaning, Repair)
+  const getDispatchHorsepower = (d: DispatchItem | { item?: string; notes?: string; type?: string; customerId?: string; horsepower?: string | null }) => {
+    // 1. If explicit horsepower is already provided and valid
+    if (d.horsepower && d.horsepower.trim() && d.horsepower.trim() !== 'null' && d.horsepower.trim() !== 'undefined') {
+      const trimmed = d.horsepower.trim();
+      return /^\d+(\.\d+)?$/i.test(trimmed) ? `${trimmed} HP` : trimmed;
+    }
+
+    const combined = `${d.item || ''} ${d.notes || ''}`.trim();
+
+    // 2. Regex search in item title or notes (e.g. 1.5 HP, 1.0 HP, 2.0 HP, 2.5 HP, 0.75 HP)
+    const match = combined.match(/\b(0\.5|0\.75|1\.0|1\.5|2\.0|2\.5|3\.0|[1-3])\s*HP\b/i);
+    if (match) {
+      const num = match[1];
+      return `${num.includes('.') ? num : num + '.0'} HP`;
+    }
+
+    // 3. Match from customer's registered ACs (via allUsers)
+    if (d.customerId) {
+      const targetUser = allUsers.find((u) => u.id === d.customerId);
+      const userACs = targetUser?.registeredACs || [];
+      const matched = userACs.find((ac: any) => {
+        const m = (ac.brandModel || '').toLowerCase();
+        const itm = (d.item || '').toLowerCase();
+        return m && (itm.includes(m) || m.includes(itm));
+      }) || (userACs.length === 1 ? userACs[0] : null);
+      if (matched?.horsepower) return matched.horsepower;
+    }
+
+    // 4. Match from inventory catalog
+    const itmLower = (d.item || '').toLowerCase();
+    const invMatch = inventory.find((inv) => {
+      const b = (inv.brand || '').toLowerCase();
+      const m = (inv.model || '').toLowerCase();
+      return (b && itmLower.includes(b)) || (m && itmLower.includes(m));
+    });
+    if (invMatch?.horsepower) return invMatch.horsepower;
+
+    // 5. Model/Brand standard heuristics
+    if (itmLower.includes('window')) return '1.0 HP';
+    if (itmLower.includes('floor')) return '2.5 HP';
+    if (itmLower.includes('midea')) return '1.5 HP';
+    if (itmLower.includes('samsung')) return '1.5 HP';
+    if (itmLower.includes('carrier')) return '1.5 HP';
+    if (itmLower.includes('chiq')) return '1.0 HP';
+    if (itmLower.includes('iffalcon')) return '1.0 HP';
+    if (itmLower.includes('tcl')) return '1.0 HP';
+    if (itmLower.includes('daikin')) return '1.5 HP';
+    if (itmLower.includes('panasonic')) return '1.5 HP';
+    if (itmLower.includes('condura')) return '1.5 HP';
+    if (itmLower.includes('split') || itmLower.includes('inverter')) return '1.5 HP';
+
+    // 6. Default standard residential capacity fallback
+    return '1.5 HP';
+  };
+
   // Category counts
   const countDispatchCategoryAll = dispatch.length;
   const countDispatchCategoryInstall = dispatch.filter((d) => isInstallationType(d.type)).length;
@@ -2197,7 +2254,7 @@ export default function AdminDashboard() {
         (d.assignedTechName || '').toLowerCase().includes(q) ||
         (d.status || '').toLowerCase().includes(q) ||
         (d.notes || '').toLowerCase().includes(q) ||
-        (d.horsepower || '').toLowerCase().includes(q)
+        (getDispatchHorsepower(d) || '').toLowerCase().includes(q)
       );
     }
     return true;
@@ -2607,8 +2664,8 @@ export default function AdminDashboard() {
                   textDecoration: 'none',
                   fontSize: '0.92rem',
                   fontWeight: 600,
-                  color: activeTab === 'tab-installments' ? '#0284c7' : '#475569',
-                  background: activeTab === 'tab-installments' ? '#e0f2fe' : 'transparent',
+                  color: (activeTab === 'tab-installments' || activeTab === 'tab-installment-monitoring') ? '#0284c7' : '#475569',
+                  background: (activeTab === 'tab-installments' || activeTab === 'tab-installment-monitoring') ? '#e0f2fe' : 'transparent',
                 }}
               >
                 <i className="fa-solid fa-file-invoice-dollar" style={{ width: '20px', textAlign: 'center', color: '#0284c7' }}></i>
@@ -2616,33 +2673,6 @@ export default function AdminDashboard() {
                 {!isAdminSidebarCollapsed && installments.filter((i) => i.status === 'PENDING').length > 0 && (
                   <span style={{ marginLeft: 'auto', background: '#f59e0b', color: 'white', padding: '2px 7px', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700 }}>
                     {installments.filter((i) => i.status === 'PENDING').length}
-                  </span>
-                )}
-              </a>
-            </li>
-
-            <li>
-              <a
-                href="#"
-                onClick={(e) => { e.preventDefault(); setActiveTab('tab-installment-monitoring'); }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '0.75rem 1rem',
-                  borderRadius: '10px',
-                  textDecoration: 'none',
-                  fontSize: '0.92rem',
-                  fontWeight: 600,
-                  color: activeTab === 'tab-installment-monitoring' ? '#0284c7' : '#475569',
-                  background: activeTab === 'tab-installment-monitoring' ? '#e0f2fe' : 'transparent',
-                }}
-              >
-                <i className="fa-solid fa-hand-holding-dollar" style={{ width: '20px', textAlign: 'center', color: '#0284c7' }}></i>
-                {!isAdminSidebarCollapsed && <span>Installment Monitoring</span>}
-                {!isAdminSidebarCollapsed && installments.filter((i) => i.status === 'CI_ACCEPTED' || i.status === 'COMPLETED').length > 0 && (
-                  <span style={{ marginLeft: 'auto', background: '#0284c7', color: 'white', padding: '2px 7px', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700 }}>
-                    {installments.filter((i) => i.status === 'CI_ACCEPTED' || i.status === 'COMPLETED').length}
                   </span>
                 )}
               </a>
@@ -5414,9 +5444,14 @@ export default function AdminDashboard() {
                           const isRep = isRepairType(type);
 
                           // Separate AC Item and HP cleanly
-                          const extractedHp = d.horsepower || (d.item ? d.item.match(/\b(\d+(?:\.\d+)?\s*HP)\b/i)?.[1] : null) || '';
+                          const extractedHp = getDispatchHorsepower(d);
                           const cleanItemName = d.item
-                            ? (extractedHp ? d.item.replace(new RegExp(`\\b${extractedHp}\\b`, 'i'), '').replace(/\s*-\s*$/, '').trim() : d.item) || d.item
+                            ? (extractedHp
+                                ? d.item
+                                    .replace(new RegExp(`\\(?\\s*\\b${extractedHp.replace(' ', '\\s*')}\\b\\s*\\)?`, 'i'), '')
+                                    .replace(/\s*-\s*$/, '')
+                                    .trim()
+                                : d.item) || d.item
                             : 'AC Unit';
 
                           return (

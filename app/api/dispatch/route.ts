@@ -2,6 +2,36 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendPhilSMS } from '@/lib/philsms';
 
+// Helper: infer appropriate horsepower for dispatch items if missing
+function inferHorsepower(itemStr?: string | null, notes?: string | null, type?: string | null): string {
+  const combined = `${itemStr || ''} ${notes || ''}`.trim();
+  
+  // 1. Direct regex match e.g. "1.5 HP", "1.0HP", "2 HP", "0.75 HP", "2.5 HP"
+  const match = combined.match(/\b(0\.5|0\.75|1\.0|1\.5|2\.0|2\.5|3\.0|[1-3])\s*HP\b/i);
+  if (match) {
+    const num = match[1];
+    return `${num.includes('.') ? num : num + '.0'} HP`;
+  }
+  
+  const lower = combined.toLowerCase();
+  // 2. Known brand/model matches
+  if (lower.includes('window')) return '1.0 HP';
+  if (lower.includes('floor')) return '2.5 HP';
+  if (lower.includes('samsung')) return '1.5 HP';
+  if (lower.includes('midea')) return '1.5 HP';
+  if (lower.includes('carrier')) return '1.5 HP';
+  if (lower.includes('chiq')) return '1.0 HP';
+  if (lower.includes('iffalcon')) return '1.0 HP';
+  if (lower.includes('tcl')) return '1.0 HP';
+  if (lower.includes('daikin')) return '1.5 HP';
+  if (lower.includes('panasonic')) return '1.5 HP';
+  if (lower.includes('condura')) return '1.5 HP';
+  if (lower.includes('split') || lower.includes('inverter')) return '1.5 HP';
+
+  // 3. Standard residential capacity fallback for cleaning/repair/installation
+  return '1.5 HP';
+}
+
 // GET /api/dispatch
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +43,21 @@ export async function GET(request: NextRequest) {
       include: { technicians: { select: { id: true, firstName: true, lastName: true } } },
       orderBy: { createdAt: 'desc' },
     });
-    return NextResponse.json(items);
+
+    // Self-healing: if any items are missing horsepower, populate and backfill
+    const enrichedItems = items.map((item) => {
+      if (!item.horsepower || !item.horsepower.trim()) {
+        const hp = inferHorsepower(item.item, item.notes, item.type);
+        prisma.dispatchItem.update({
+          where: { id: item.id },
+          data: { horsepower: hp },
+        }).catch(() => {});
+        return { ...item, horsepower: hp };
+      }
+      return item;
+    });
+
+    return NextResponse.json(enrichedItems);
   } catch (error) {
     console.error('Dispatch fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch dispatch items' }, { status: 500 });
@@ -26,6 +70,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { technicianIds, ...data } = body;
     const createData: any = { ...data };
+    
+    // Ensure horsepower is always populated
+    if (!createData.horsepower || !createData.horsepower.trim()) {
+      createData.horsepower = inferHorsepower(createData.item, createData.notes, createData.type);
+    }
+
     if (technicianIds && Array.isArray(technicianIds) && technicianIds.length > 0) {
       createData.technicians = {
         connect: technicianIds.map((techId: string) => ({ id: techId }))
