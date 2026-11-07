@@ -1520,7 +1520,7 @@ export default function AdminDashboard() {
     setInstallmentMonitoringTab('DOSSIER');
     const fin = getInstallmentFinancials(inst);
     setInstallmentSmsMessage(
-      `Hi ${inst.name}! This is FrostTech regarding your installment application (${inst.appId}) for ${inst.item}. Monthly due: ₱${fin.monthlyAmortization.toLocaleString()}. Please contact us for any assistance.`
+      `Reminder: Hi ${inst.name}, your monthly FrostTech installment of ₱${fin.monthlyAmortization.toLocaleString()} for "${inst.item}" is due soon. Please settle to maintain your active account. Thank you!`
     );
   };
 
@@ -8633,44 +8633,6 @@ export default function AdminDashboard() {
                                 }}
                               >
                                 🔔 Due Date Reminder
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setInstallmentSmsMessage(
-                                    `Update: Hi ${selectedInstallment.name}! Your FrostTech installment application (#${selectedInstallment.appId}) has been accepted for Credit Investigation (CI). Our team will reach out for verification.`
-                                  )
-                                }
-                                style={{
-                                  background: '#ffffff',
-                                  border: '1px solid #cbd5e1',
-                                  borderRadius: '6px',
-                                  padding: '4px 9px',
-                                  fontSize: '0.76rem',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                📋 CI In-Progress Notice
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setInstallmentSmsMessage(
-                                    `Congratulations ${selectedInstallment.name}! Your installment application (#${selectedInstallment.appId}) for "${selectedInstallment.item}" has been APPROVED. Installation schedule is now being arranged.`
-                                  )
-                                }
-                                style={{
-                                  background: '#ffffff',
-                                  border: '1px solid #cbd5e1',
-                                  borderRadius: '6px',
-                                  padding: '4px 9px',
-                                  fontSize: '0.76rem',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                ✅ Approval Notification
                               </button>
                             </div>
                           </div>
