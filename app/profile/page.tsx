@@ -1455,7 +1455,11 @@ export default function ProfilePage() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   {orders.map((order) => {
-                    const dispatchItem = dispatch.find((d) => d.item === order.item);
+                    const dispatchItem = dispatch.find((d) => (d.notes && d.notes.includes(order.orderNo)) || d.item === order.item);
+                    const isDispatchCompleted = dispatchItem?.status?.toUpperCase() === 'COMPLETED';
+                    const isOrderCompleted = order.status?.toLowerCase() === 'completed' || isDispatchCompleted;
+                    const isCashOnArrival = order.payment?.toLowerCase().includes('cash');
+                    const isPaid = order.hasDownpayment || isOrderCompleted;
 
                     return (
                       <div
@@ -1480,21 +1484,26 @@ export default function ProfilePage() {
                                   padding: '4px 10px',
                                   borderRadius: '999px',
                                   fontWeight: 700,
-                                  background: order.status === 'Cancelled' ? '#fee2e2' : order.status === 'Completed' ? '#dcfce7' : '#e0f2fe',
-                                  color: order.status === 'Cancelled' ? '#dc2626' : order.status === 'Completed' ? '#16a34a' : '#0284c7',
+                                  background: order.status === 'Cancelled' ? '#fee2e2' : isOrderCompleted ? '#dcfce7' : '#e0f2fe',
+                                  color: order.status === 'Cancelled' ? '#dc2626' : isOrderCompleted ? '#16a34a' : '#0284c7',
                                 }}
                               >
-                                {order.status}
+                                {isOrderCompleted ? 'COMPLETED' : order.status}
                               </span>
                             </div>
                             <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Date Placed: {order.date}</span>
                           </div>
 
-                          {/* Downpayment status badge */}
+                          {/* Payment status badge */}
                           <div>
-                            {order.hasDownpayment ? (
+                            {isPaid ? (
                               <span style={{ background: '#dcfce7', color: '#16a34a', padding: '6px 14px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700 }}>
-                                <i className="fa-solid fa-check-circle" style={{ marginRight: '6px' }}></i> Downpayment Verified
+                                <i className="fa-solid fa-check-circle" style={{ marginRight: '6px' }}></i>
+                                {isCashOnArrival && isOrderCompleted ? 'Paid on Delivery' : isOrderCompleted ? 'Payment Settled' : 'Downpayment Verified'}
+                              </span>
+                            ) : isCashOnArrival ? (
+                              <span style={{ background: '#fef3c7', color: '#b45309', padding: '6px 14px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700 }}>
+                                <i className="fa-solid fa-money-bill-wave" style={{ marginRight: '6px' }}></i> Pay on Delivery (Cash on Arrival)
                               </span>
                             ) : (
                               <span style={{ background: '#fee2e2', color: '#dc2626', padding: '6px 14px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 700 }}>

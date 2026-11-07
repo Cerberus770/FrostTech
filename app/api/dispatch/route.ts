@@ -169,6 +169,26 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    // If status is changed to COMPLETED, sync and mark linked order as Completed & Settled
+    if (data.status === 'COMPLETED') {
+      try {
+        const orderMatch = item.notes?.match(/Order\s*#?([A-Z0-9-]+)/i);
+        if (orderMatch && orderMatch[1]) {
+          await prisma.order.updateMany({
+            where: { orderNo: orderMatch[1].trim() },
+            data: { status: 'Completed', hasDownpayment: true }
+          });
+        } else if (item.customerId && item.item) {
+          await prisma.order.updateMany({
+            where: { userId: item.customerId, item: item.item },
+            data: { status: 'Completed', hasDownpayment: true }
+          });
+        }
+      } catch (orderSyncErr) {
+        console.error('Failed to sync completed dispatch to order:', orderSyncErr);
+      }
+    }
+
     return NextResponse.json(item);
   } catch (error) {
     console.error('Dispatch update error:', error);

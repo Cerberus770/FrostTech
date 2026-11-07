@@ -7371,7 +7371,7 @@ export default function AdminDashboard() {
               <div><strong>Horsepower:</strong> {selectedOrderDetails.hp || '1.5 HP'}</div>
               <div><strong>Price:</strong> ₱{(selectedOrderDetails.price || 30000).toLocaleString()}</div>
               <div><strong>Payment Type:</strong> {selectedOrderDetails.payment}</div>
-              <div><strong>Downpayment Verified:</strong> {selectedOrderDetails.hasDownpayment ? 'Yes' : 'No Payment Yet'}</div>
+              <div><strong>Payment Status:</strong> {selectedOrderDetails.status === 'Completed' || selectedOrderDetails.hasDownpayment ? (selectedOrderDetails.payment?.toLowerCase().includes('cash') ? 'Paid on Delivery (Completed)' : 'Paid / Verified') : selectedOrderDetails.payment?.toLowerCase().includes('cash') ? 'Cash on Arrival (Upon Delivery)' : 'Pending Verification'}</div>
               <div><strong>Full Location:</strong> {selectedOrderDetails.location}</div>
             </div>
 
