@@ -4440,36 +4440,6 @@ export default function AdminDashboard() {
                   </span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('tab-installment-proofs')}
-                  style={{
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    background: '#f8fafc',
-                    color: '#334155',
-                    fontWeight: 700,
-                    fontSize: '0.86rem',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <i className="fa-solid fa-camera-retro" style={{ color: '#0284c7' }}></i>
-                  Installment Proofs Showcase
-                  <span style={{
-                    background: '#e0f2fe',
-                    color: '#0369a1',
-                    padding: '2px 7px',
-                    borderRadius: '999px',
-                    fontSize: '0.74rem',
-                    fontWeight: 800,
-                  }}>
-                    {installmentProofs.length}
-                  </span>
-                </button>
               </div>
 
               {/* Header */}
