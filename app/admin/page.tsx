@@ -279,7 +279,7 @@ export default function AdminDashboard() {
   const [proofInstallType, setProofInstallType] = useState('Standard Back-to-Back Installation');
   const [proofRating, setProofRating] = useState(5);
   const [proofReview, setProofReview] = useState('');
-  const [proofPhotoUrl, setProofPhotoUrl] = useState('/hero-bg.png');
+  const [proofPhotoUrl, setProofPhotoUrl] = useState('/installed-ac/midea1.jpg');
   const [proofSearchQuery, setProofSearchQuery] = useState('');
   const [proofFilterType, setProofFilterType] = useState<'ALL' | 'Split' | 'Window'>('ALL');
 
@@ -1864,7 +1864,7 @@ export default function AdminDashboard() {
       setProofInstallDate(prefillFromInstallment.scheduledDate?.split(' ')[0] || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }));
       setProofInstallType('Standard Back-to-Back Installation');
       setProofReview(`Verified completed installment AC installation for ${prefillFromInstallment.name}. Vacuum tested and commissioned normal.`);
-      setProofPhotoUrl('/hero-bg.png');
+      setProofPhotoUrl('/installed-ac/midea1.jpg');
     } else {
       setProofCustomerName('');
       setProofCustomerLocation('');
@@ -1875,7 +1875,7 @@ export default function AdminDashboard() {
       setProofInstallDate(new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }));
       setProofInstallType('Standard Back-to-Back Installation');
       setProofReview('Completed and verified AC installment by FrostTech technicians.');
-      setProofPhotoUrl('/hero-bg.png');
+      setProofPhotoUrl('/installed-ac/midea1.jpg');
     }
     setShowPostProofModal(true);
   };
@@ -2769,8 +2769,8 @@ export default function AdminDashboard() {
                   textDecoration: 'none',
                   fontSize: '0.92rem',
                   fontWeight: 600,
-                  color: (activeTab === 'tab-installments' || activeTab === 'tab-installment-monitoring' || activeTab === 'tab-installment-proofs') ? '#0284c7' : '#475569',
-                  background: (activeTab === 'tab-installments' || activeTab === 'tab-installment-monitoring' || activeTab === 'tab-installment-proofs') ? '#e0f2fe' : 'transparent',
+                  color: (activeTab === 'tab-installments' || activeTab === 'tab-installment-monitoring') ? '#0284c7' : '#475569',
+                  background: (activeTab === 'tab-installments' || activeTab === 'tab-installment-monitoring') ? '#e0f2fe' : 'transparent',
                 }}
               >
                 <i className="fa-solid fa-file-invoice-dollar" style={{ width: '20px', textAlign: 'center', color: '#0284c7' }}></i>
@@ -2778,6 +2778,33 @@ export default function AdminDashboard() {
                 {!isAdminSidebarCollapsed && installments.filter((i) => i.status === 'PENDING').length > 0 && (
                   <span style={{ marginLeft: 'auto', background: '#f59e0b', color: 'white', padding: '2px 7px', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700 }}>
                     {installments.filter((i) => i.status === 'PENDING').length}
+                  </span>
+                )}
+              </a>
+            </li>
+
+            <li>
+              <a
+                href="#"
+                onClick={(e) => { e.preventDefault(); setActiveTab('tab-installment-proofs'); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '10px',
+                  textDecoration: 'none',
+                  fontSize: '0.92rem',
+                  fontWeight: 600,
+                  color: activeTab === 'tab-installment-proofs' ? '#0284c7' : '#475569',
+                  background: activeTab === 'tab-installment-proofs' ? '#e0f2fe' : 'transparent',
+                }}
+              >
+                <i className="fa-solid fa-camera-retro" style={{ width: '20px', textAlign: 'center', color: '#0284c7' }}></i>
+                {!isAdminSidebarCollapsed && <span>Installment Proofs</span>}
+                {!isAdminSidebarCollapsed && installmentProofs.length > 0 && (
+                  <span style={{ marginLeft: 'auto', background: '#0284c7', color: 'white', padding: '2px 7px', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700 }}>
+                    {installmentProofs.length}
                   </span>
                 )}
               </a>
@@ -4800,37 +4827,6 @@ export default function AdminDashboard() {
                     {installments.filter((i) => i.status === 'CI_ACCEPTED' || i.status === 'COMPLETED').length}
                   </span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('tab-installment-proofs')}
-                  style={{
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    background: '#f8fafc',
-                    color: '#334155',
-                    fontWeight: 700,
-                    fontSize: '0.86rem',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <i className="fa-solid fa-camera-retro" style={{ color: '#0284c7' }}></i>
-                  Installment Proofs Showcase
-                  <span style={{
-                    background: '#e0f2fe',
-                    color: '#0369a1',
-                    padding: '2px 7px',
-                    borderRadius: '999px',
-                    fontSize: '0.74rem',
-                    fontWeight: 800,
-                  }}>
-                    {installmentProofs.length}
-                  </span>
-                </button>
               </div>
 
               {/* Header */}
@@ -5240,110 +5236,6 @@ export default function AdminDashboard() {
           {/* TAB 4C: INSTALLMENT PROOFS SHOWCASE (PUBLIC PROOF GALLERY MANAGEMENT) */}
           {activeTab === 'tab-installment-proofs' && (
             <div>
-              {/* Sub-Navigation Tabs */}
-              <div style={{
-                display: 'flex',
-                gap: '8px',
-                marginBottom: '1.25rem',
-                borderBottom: '1px solid #e2e8f0',
-                paddingBottom: '0.75rem',
-                flexWrap: 'wrap',
-              }}>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('tab-installments')}
-                  style={{
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    background: '#f8fafc',
-                    color: '#334155',
-                    fontWeight: 700,
-                    fontSize: '0.86rem',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <i className="fa-solid fa-file-invoice-dollar" style={{ color: '#0284c7' }}></i>
-                  Installment Approvals (Applications)
-                  <span style={{
-                    background: '#e0f2fe',
-                    color: '#0369a1',
-                    padding: '2px 7px',
-                    borderRadius: '999px',
-                    fontSize: '0.74rem',
-                    fontWeight: 800,
-                  }}>
-                    {installments.filter((i) => i.status === 'PENDING').length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('tab-installment-monitoring')}
-                  style={{
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    background: '#f8fafc',
-                    color: '#334155',
-                    fontWeight: 700,
-                    fontSize: '0.86rem',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <i className="fa-solid fa-hand-holding-dollar" style={{ color: '#0284c7' }}></i>
-                  Installment Monitoring (Customer Remaining Balances)
-                  <span style={{
-                    background: '#e0f2fe',
-                    color: '#0369a1',
-                    padding: '2px 7px',
-                    borderRadius: '999px',
-                    fontSize: '0.74rem',
-                    fontWeight: 800,
-                  }}>
-                    {installments.filter((i) => i.status === 'CI_ACCEPTED' || i.status === 'COMPLETED').length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('tab-installment-proofs')}
-                  style={{
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: '#0284c7',
-                    color: '#ffffff',
-                    fontWeight: 700,
-                    fontSize: '0.86rem',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
-                  }}
-                >
-                  <i className="fa-solid fa-camera-retro"></i>
-                  Installment Proofs Showcase
-                  <span style={{
-                    background: 'rgba(255,255,255,0.25)',
-                    color: '#ffffff',
-                    padding: '2px 7px',
-                    borderRadius: '999px',
-                    fontSize: '0.74rem',
-                    fontWeight: 800,
-                  }}>
-                    {installmentProofs.length}
-                  </span>
-                </button>
-              </div>
-
               {/* Header */}
               <div style={{
                 display: 'flex',
@@ -10073,14 +9965,14 @@ export default function AdminDashboard() {
                 </div>
 
                 <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Quick Photos:</span>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Quick Installed Photos:</span>
                   {[
-                    { label: 'Carrier Inverter', url: '/Carrier.jpg' },
-                    { label: 'Split Inverter', url: '/Inverter.jpg' },
-                    { label: 'TCL Smart', url: '/TCL.jpg' },
-                    { label: 'Window Type', url: '/Window.jpg' },
-                    { label: 'Hero BG', url: '/hero-bg.png' },
-                    { label: 'Service BG', url: '/service-bg.png' },
+                    { label: 'Installed Midea 1', url: '/installed-ac/midea1.jpg' },
+                    { label: 'Installed Midea 2', url: '/installed-ac/midea2.jpg' },
+                    { label: 'Installed Matrix 1', url: '/installed-ac/Matrix1.jpg' },
+                    { label: 'Installed Matrix 2', url: '/installed-ac/matrix2.jpg' },
+                    { label: 'Carrier Inverter', url: '/products/carrier.jpg' },
+                    { label: 'TCL Split Inverter', url: '/products/TCL1.webp' },
                   ].map((p) => (
                     <button
                       key={p.url}
