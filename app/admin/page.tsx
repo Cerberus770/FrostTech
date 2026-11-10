@@ -1922,7 +1922,7 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteInstallmentProof = async (id: string) => {
-    const ok = await confirm({ title: 'Delete Proof', message: 'Are you sure you want to delete this installment proof from the showcase?', type: 'danger' });
+    const ok = await confirm({ title: 'Delete Proof', message: 'Are you sure you want to delete this installment proof from the showcase?', confirmText: 'Delete Proof' });
     if (!ok) return;
     try {
       const res = await fetch(`/api/installment-proofs?id=${id}`, { method: 'DELETE' });
@@ -4447,8 +4447,8 @@ export default function AdminDashboard() {
                     padding: '0.55rem 1.15rem',
                     borderRadius: '8px',
                     border: '1px solid #cbd5e1',
-                    background: activeTab === 'tab-installment-proofs' ? '#0284c7' : '#f8fafc',
-                    color: activeTab === 'tab-installment-proofs' ? '#ffffff' : '#334155',
+                    background: '#f8fafc',
+                    color: '#334155',
                     fontWeight: 700,
                     fontSize: '0.86rem',
                     cursor: 'pointer',
@@ -4457,11 +4457,11 @@ export default function AdminDashboard() {
                     gap: '8px',
                   }}
                 >
-                  <i className="fa-solid fa-camera-retro" style={{ color: activeTab === 'tab-installment-proofs' ? '#ffffff' : '#0284c7' }}></i>
+                  <i className="fa-solid fa-camera-retro" style={{ color: '#0284c7' }}></i>
                   Installment Proofs Showcase
                   <span style={{
-                    background: activeTab === 'tab-installment-proofs' ? 'rgba(255,255,255,0.25)' : '#e0f2fe',
-                    color: activeTab === 'tab-installment-proofs' ? '#ffffff' : '#0369a1',
+                    background: '#e0f2fe',
+                    color: '#0369a1',
                     padding: '2px 7px',
                     borderRadius: '999px',
                     fontSize: '0.74rem',
@@ -4838,8 +4838,8 @@ export default function AdminDashboard() {
                     padding: '0.55rem 1.15rem',
                     borderRadius: '8px',
                     border: '1px solid #cbd5e1',
-                    background: activeTab === 'tab-installment-proofs' ? '#0284c7' : '#f8fafc',
-                    color: activeTab === 'tab-installment-proofs' ? '#ffffff' : '#334155',
+                    background: '#f8fafc',
+                    color: '#334155',
                     fontWeight: 700,
                     fontSize: '0.86rem',
                     cursor: 'pointer',
@@ -4848,11 +4848,11 @@ export default function AdminDashboard() {
                     gap: '8px',
                   }}
                 >
-                  <i className="fa-solid fa-camera-retro" style={{ color: activeTab === 'tab-installment-proofs' ? '#ffffff' : '#0284c7' }}></i>
+                  <i className="fa-solid fa-camera-retro" style={{ color: '#0284c7' }}></i>
                   Installment Proofs Showcase
                   <span style={{
-                    background: activeTab === 'tab-installment-proofs' ? 'rgba(255,255,255,0.25)' : '#e0f2fe',
-                    color: activeTab === 'tab-installment-proofs' ? '#ffffff' : '#0369a1',
+                    background: '#e0f2fe',
+                    color: '#0369a1',
                     padding: '2px 7px',
                     borderRadius: '999px',
                     fontSize: '0.74rem',
