@@ -520,44 +520,43 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
                   SAVE ₱{(product.originalPrice - product.price).toLocaleString()}
                 </span>
               )}
+              {(() => {
+                const stock = (product as any).variants?.[0]?.stock ?? (product as any).stock ?? 10;
+                return stock > 0 ? (
+                  <span style={{
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    color: '#059669',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    padding: '3px 10px',
+                    borderRadius: '4px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                  }}>
+                    <i className="fa-solid fa-circle-check" style={{ fontSize: '0.7rem' }}></i>
+                    {stock} in stock
+                  </span>
+                ) : (
+                  <span style={{
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    color: '#dc2626',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    padding: '3px 10px',
+                    borderRadius: '4px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                  }}>
+                    <i className="fa-solid fa-circle-xmark" style={{ fontSize: '0.7rem' }}></i>
+                    Out of stock
+                  </span>
+                );
+              })()}
             </div>
-
-            {/* Condition Variant Tabs */}
-            {(product as any).variants && (product as any).variants.length > 0 && (
-              <div style={{ marginBottom: '1.5rem' }}>
-                <h3 style={{ fontWeight: 700, marginBottom: '0.8rem', fontSize: '0.95rem' }}>Condition</h3>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {(product as any).variants.map((variant: any) => {
-                    const isSelected = selectedCondition === variant.condition;
-                    const condIcon = variant.condition === 'Brand New' ? 'fa-sparkles' : variant.condition === 'Second Hand' ? 'fa-recycle' : 'fa-warehouse';
-                    return (
-                      <button
-                        key={variant.id}
-                        onClick={() => setSelectedCondition(variant.condition)}
-                        style={{
-                          flex: 1, minWidth: '120px', padding: '0.8rem 1rem',
-                          background: isSelected ? 'rgba(0,155,213,0.08)' : 'transparent',
-                          border: `2px solid ${isSelected ? 'var(--primary)' : 'var(--border-color)'}`,
-                          borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s',
-                          textAlign: 'center', color: 'var(--text-dark)',
-                        }}
-                      >
-                        <i className={`fa-solid ${condIcon}`} style={{ color: isSelected ? 'var(--primary)' : 'var(--text-light)', marginBottom: '4px', fontSize: '1rem', display: 'block' }}></i>
-                        <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{variant.condition}</div>
-                        <div style={{ fontWeight: 800, color: 'var(--accent-red)', fontSize: '1rem', marginTop: '2px' }}>
-                          ₱{variant.price.toLocaleString()}
-                        </div>
-                        {variant.stock > 0 ? (
-                          <div style={{ fontSize: '0.7rem', color: 'var(--accent-green)', marginTop: '2px' }}>{variant.stock} in stock</div>
-                        ) : (
-                          <div style={{ fontSize: '0.7rem', color: 'var(--accent-red)', marginTop: '2px' }}>Out of stock</div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* Trust badges */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
