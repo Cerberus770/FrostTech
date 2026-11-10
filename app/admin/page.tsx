@@ -264,6 +264,25 @@ export default function AdminDashboard() {
   const [installmentMonitoringTermFilter, setInstallmentMonitoringTermFilter] = useState<'ALL' | '6' | '12' | '24'>('ALL');
   const [installmentMonitoringBalanceFilter, setInstallmentMonitoringBalanceFilter] = useState<'ALL' | 'ACTIVE' | 'PAID'>('ALL');
 
+  // Installment Proofs Showcase State
+  const [installmentProofs, setInstallmentProofs] = useState<any[]>([]);
+  const [showPostProofModal, setShowPostProofModal] = useState(false);
+  const [isPostingProof, setIsPostingProof] = useState(false);
+  const [proofCustomerName, setProofCustomerName] = useState('');
+  const [proofCustomerLocation, setProofCustomerLocation] = useState('');
+  const [proofUnitModel, setProofUnitModel] = useState('');
+  const [proofUnitType, setProofUnitType] = useState<'Split' | 'Window'>('Split');
+  const [proofHorsepower, setProofHorsepower] = useState('1.5 HP');
+  const [proofTechnicianName, setProofTechnicianName] = useState('');
+  const [proofJobOrderNo, setProofJobOrderNo] = useState('');
+  const [proofInstallDate, setProofInstallDate] = useState('');
+  const [proofInstallType, setProofInstallType] = useState('Standard Back-to-Back Installation');
+  const [proofRating, setProofRating] = useState(5);
+  const [proofReview, setProofReview] = useState('');
+  const [proofPhotoUrl, setProofPhotoUrl] = useState('/hero-bg.png');
+  const [proofSearchQuery, setProofSearchQuery] = useState('');
+  const [proofFilterType, setProofFilterType] = useState<'ALL' | 'Split' | 'Window'>('ALL');
+
   // Dispatch Filters & Pagination State (10 items per page)
   const [dispatchStatusFilter, setDispatchStatusFilter] = useState<'All' | 'Assigned' | 'Pending' | 'Completed'>('All');
   const [dispatchCategoryFilter, setDispatchCategoryFilter] = useState<'ALL' | 'INSTALLATION' | 'CLEANING' | 'REPAIR'>('INSTALLATION');
@@ -428,6 +447,7 @@ export default function AdminDashboard() {
     fetch('/api/inventory').then((r) => r.json()).then((data) => { if (Array.isArray(data)) setInventory(data); }).catch(console.error);
     fetch('/api/orders').then((r) => r.json()).then((data) => { if (Array.isArray(data)) setOrders(data); }).catch(console.error);
     fetch('/api/installments').then((r) => r.json()).then((data) => { if (Array.isArray(data)) setInstallments(data); }).catch(console.error);
+    fetch('/api/installment-proofs').then((r) => r.json()).then((data) => { if (Array.isArray(data)) setInstallmentProofs(data); }).catch(console.error);
     fetch('/api/dispatch').then((r) => r.json()).then((data) => { if (Array.isArray(data)) setDispatch(data); }).catch(console.error);
     fetch('/api/maintenance').then((r) => r.json()).then((data) => { if (Array.isArray(data)) setMaintenance(data); }).catch(console.error);
     fetch('/api/users/technicians').then((r) => r.json()).then((data) => { if (Array.isArray(data)) setTechnicians(data); }).catch(console.error);
@@ -1831,6 +1851,91 @@ export default function AdminDashboard() {
   };
 
   // ==========================================
+  // INSTALLMENT PROOFS ACTIONS
+  // ==========================================
+  const handleOpenPostProofModal = (prefillFromInstallment?: Installment) => {
+    if (prefillFromInstallment) {
+      setProofCustomerName(prefillFromInstallment.name || '');
+      setProofCustomerLocation(prefillFromInstallment.location ? prefillFromInstallment.location.split('|')[0].trim() : 'Philippines');
+      setProofUnitModel(prefillFromInstallment.item || '');
+      setProofHorsepower(getDispatchHorsepower({ item: prefillFromInstallment.item, customerId: prefillFromInstallment.userId } as any));
+      setProofJobOrderNo(prefillFromInstallment.appId || `INST-${Math.floor(1000 + Math.random() * 9000)}`);
+      setProofTechnicianName(prefillFromInstallment.assignedTech || (technicians[0] ? `${technicians[0].firstName} ${technicians[0].lastName}` : 'Carlos Rivera'));
+      setProofInstallDate(prefillFromInstallment.scheduledDate?.split(' ')[0] || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }));
+      setProofInstallType('Standard Back-to-Back Installation');
+      setProofReview(`Verified completed installment AC installation for ${prefillFromInstallment.name}. Vacuum tested and commissioned normal.`);
+      setProofPhotoUrl('/hero-bg.png');
+    } else {
+      setProofCustomerName('');
+      setProofCustomerLocation('');
+      setProofUnitModel('');
+      setProofHorsepower('1.5 HP');
+      setProofJobOrderNo(`INST-${Math.floor(1000 + Math.random() * 9000)}`);
+      setProofTechnicianName(technicians[0] ? `${technicians[0].firstName} ${technicians[0].lastName}` : 'Carlos Rivera');
+      setProofInstallDate(new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }));
+      setProofInstallType('Standard Back-to-Back Installation');
+      setProofReview('Completed and verified AC installment by FrostTech technicians.');
+      setProofPhotoUrl('/hero-bg.png');
+    }
+    setShowPostProofModal(true);
+  };
+
+  const handlePostInstallmentProof = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!proofCustomerName.trim() || !proofUnitModel.trim()) return;
+
+    setIsPostingProof(true);
+    try {
+      const res = await fetch('/api/installment-proofs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: proofCustomerName,
+          customerLocation: proofCustomerLocation || 'Philippines',
+          unitModel: proofUnitModel,
+          unitType: proofUnitType,
+          horsepower: proofHorsepower,
+          technicianName: proofTechnicianName || 'Certified Technician',
+          jobOrderNo: proofJobOrderNo || `INST-${Math.floor(1000 + Math.random() * 9000)}`,
+          installDate: proofInstallDate || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+          installType: proofInstallType,
+          rating: proofRating,
+          review: proofReview,
+          photoUrl: proofPhotoUrl,
+        }),
+      });
+
+      if (res.ok) {
+        const created = await res.json();
+        setInstallmentProofs([created, ...installmentProofs]);
+        setShowPostProofModal(false);
+        showAlert({ title: 'Proof Published', message: 'Installment proof has been published to the public showcase!' });
+      } else {
+        showAlert({ title: 'Error', message: 'Failed to publish installment proof.', type: 'error' });
+      }
+    } catch (err) {
+      console.error('Error posting proof:', err);
+      showAlert({ title: 'Error', message: 'Error posting installment proof.', type: 'error' });
+    } finally {
+      setIsPostingProof(false);
+    }
+  };
+
+  const handleDeleteInstallmentProof = async (id: string) => {
+    const ok = await confirm({ title: 'Delete Proof', message: 'Are you sure you want to delete this installment proof from the showcase?', type: 'danger' });
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/installment-proofs?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setInstallmentProofs(installmentProofs.filter((p) => p.id !== id));
+        showAlert({ title: 'Deleted', message: 'Installment proof deleted.' });
+      }
+    } catch (err) {
+      console.error('Delete proof error:', err);
+    }
+  };
+
+  // ==========================================
   // USER DIRECTORY ACTIONS
   // ==========================================
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -2664,8 +2769,8 @@ export default function AdminDashboard() {
                   textDecoration: 'none',
                   fontSize: '0.92rem',
                   fontWeight: 600,
-                  color: (activeTab === 'tab-installments' || activeTab === 'tab-installment-monitoring') ? '#0284c7' : '#475569',
-                  background: (activeTab === 'tab-installments' || activeTab === 'tab-installment-monitoring') ? '#e0f2fe' : 'transparent',
+                  color: (activeTab === 'tab-installments' || activeTab === 'tab-installment-monitoring' || activeTab === 'tab-installment-proofs') ? '#0284c7' : '#475569',
+                  background: (activeTab === 'tab-installments' || activeTab === 'tab-installment-monitoring' || activeTab === 'tab-installment-proofs') ? '#e0f2fe' : 'transparent',
                 }}
               >
                 <i className="fa-solid fa-file-invoice-dollar" style={{ width: '20px', textAlign: 'center', color: '#0284c7' }}></i>
@@ -3034,6 +3139,7 @@ export default function AdminDashboard() {
                         activeTab === 'tab-installations' ? (orderServiceFilter === 'ORDERS' ? 'Orders & Cart Holds' : 'Services') :
                           activeTab === 'tab-installments' ? 'Installment Applications' :
                             activeTab === 'tab-installment-monitoring' ? 'Installment Remaining Balances' :
+                              activeTab === 'tab-installment-proofs' ? 'Installment Proofs' :
                               activeTab === 'tab-dispatch' ? 'Dispatches' :
                                 activeTab === 'tab-maintenance' ? 'Maintenance Schedules' :
                                   activeTab === 'tab-users' ? 'Users' :
@@ -4333,6 +4439,37 @@ export default function AdminDashboard() {
                     {installments.filter((i) => i.status === 'CI_ACCEPTED' || i.status === 'COMPLETED').length}
                   </span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tab-installment-proofs')}
+                  style={{
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: activeTab === 'tab-installment-proofs' ? '#0284c7' : '#f8fafc',
+                    color: activeTab === 'tab-installment-proofs' ? '#ffffff' : '#334155',
+                    fontWeight: 700,
+                    fontSize: '0.86rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <i className="fa-solid fa-camera-retro" style={{ color: activeTab === 'tab-installment-proofs' ? '#ffffff' : '#0284c7' }}></i>
+                  Installment Proofs Showcase
+                  <span style={{
+                    background: activeTab === 'tab-installment-proofs' ? 'rgba(255,255,255,0.25)' : '#e0f2fe',
+                    color: activeTab === 'tab-installment-proofs' ? '#ffffff' : '#0369a1',
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                  }}>
+                    {installmentProofs.length}
+                  </span>
+                </button>
               </div>
 
               {/* Header */}
@@ -4691,6 +4828,37 @@ export default function AdminDashboard() {
                     fontWeight: 800,
                   }}>
                     {installments.filter((i) => i.status === 'CI_ACCEPTED' || i.status === 'COMPLETED').length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tab-installment-proofs')}
+                  style={{
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: activeTab === 'tab-installment-proofs' ? '#0284c7' : '#f8fafc',
+                    color: activeTab === 'tab-installment-proofs' ? '#ffffff' : '#334155',
+                    fontWeight: 700,
+                    fontSize: '0.86rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <i className="fa-solid fa-camera-retro" style={{ color: activeTab === 'tab-installment-proofs' ? '#ffffff' : '#0284c7' }}></i>
+                  Installment Proofs Showcase
+                  <span style={{
+                    background: activeTab === 'tab-installment-proofs' ? 'rgba(255,255,255,0.25)' : '#e0f2fe',
+                    color: activeTab === 'tab-installment-proofs' ? '#ffffff' : '#0369a1',
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                  }}>
+                    {installmentProofs.length}
                   </span>
                 </button>
               </div>
@@ -5063,6 +5231,28 @@ export default function AdminDashboard() {
                                       <i className="fa-solid fa-paper-plane"></i>
                                       SMS
                                     </button>
+
+                                    {/* Post Installation Proof Showcase */}
+                                    <button
+                                      onClick={() => handleOpenPostProofModal(inst)}
+                                      style={{
+                                        padding: '6px 9px',
+                                        borderRadius: '8px',
+                                        background: '#ecfdf5',
+                                        color: '#059669',
+                                        border: '1px solid #a7f3d0',
+                                        fontWeight: 700,
+                                        fontSize: '0.8rem',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                      }}
+                                      title="Post completed installation proof showcase for customer feedback page"
+                                    >
+                                      <i className="fa-solid fa-camera"></i>
+                                      Proof
+                                    </button>
                                   </div>
                                 </td>
                               </tr>
@@ -5074,6 +5264,655 @@ export default function AdminDashboard() {
                 </table>
               </div>
               {renderTablePagination(installmentMonitoringPage, monitoredInstallments.length, setInstallmentMonitoringPage, 8)}
+            </div>
+          )}
+
+          {/* TAB 4C: INSTALLMENT PROOFS SHOWCASE (PUBLIC PROOF GALLERY MANAGEMENT) */}
+          {activeTab === 'tab-installment-proofs' && (
+            <div>
+              {/* Sub-Navigation Tabs */}
+              <div style={{
+                display: 'flex',
+                gap: '8px',
+                marginBottom: '1.25rem',
+                borderBottom: '1px solid #e2e8f0',
+                paddingBottom: '0.75rem',
+                flexWrap: 'wrap',
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tab-installments')}
+                  style={{
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    color: '#334155',
+                    fontWeight: 700,
+                    fontSize: '0.86rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <i className="fa-solid fa-file-invoice-dollar" style={{ color: '#0284c7' }}></i>
+                  Installment Approvals (Applications)
+                  <span style={{
+                    background: '#e0f2fe',
+                    color: '#0369a1',
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                  }}>
+                    {installments.filter((i) => i.status === 'PENDING').length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tab-installment-monitoring')}
+                  style={{
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    color: '#334155',
+                    fontWeight: 700,
+                    fontSize: '0.86rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <i className="fa-solid fa-hand-holding-dollar" style={{ color: '#0284c7' }}></i>
+                  Installment Monitoring (Customer Remaining Balances)
+                  <span style={{
+                    background: '#e0f2fe',
+                    color: '#0369a1',
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                  }}>
+                    {installments.filter((i) => i.status === 'CI_ACCEPTED' || i.status === 'COMPLETED').length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tab-installment-proofs')}
+                  style={{
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '0.86rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
+                  }}
+                >
+                  <i className="fa-solid fa-camera-retro"></i>
+                  Installment Proofs Showcase
+                  <span style={{
+                    background: 'rgba(255,255,255,0.25)',
+                    color: '#ffffff',
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                  }}>
+                    {installmentProofs.length}
+                  </span>
+                </button>
+              </div>
+
+              {/* Header */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.5rem',
+                borderBottom: '1px solid #e2e8f0',
+                paddingBottom: '1rem',
+                flexWrap: 'wrap',
+                gap: '1rem',
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <h2 style={{ margin: 0, fontSize: '1.6rem', color: '#0f172a', fontWeight: 800 }}>
+                      Installment Completion Proofs Showcase
+                    </h2>
+                    <span style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      color: '#0369a1',
+                      background: '#e0f2fe',
+                      padding: '3px 10px',
+                      borderRadius: '999px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}>
+                      <i className="fa-solid fa-shield-halved"></i>
+                      Verified Work Gallery
+                    </span>
+                  </div>
+                  <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.88rem' }}>
+                    Document and publish official AC installment completions as live proof for potential clients on the Customer Feedback page.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <a
+                    href="/feedback?tab=proofs"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      padding: '0.65rem 1.15rem',
+                      borderRadius: '10px',
+                      border: '1px solid #cbd5e1',
+                      background: '#ffffff',
+                      color: '#0284c7',
+                      fontSize: '0.88rem',
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '7px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                    }}
+                  >
+                    <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                    View Public Showcase
+                  </a>
+
+                  <button
+                    onClick={() => handleOpenPostProofModal()}
+                    style={{
+                      padding: '0.65rem 1.25rem',
+                      borderRadius: '10px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                      color: '#ffffff',
+                      fontSize: '0.88rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
+                    }}
+                  >
+                    <i className="fa-solid fa-plus"></i>
+                    Post New Proof
+                  </button>
+                </div>
+              </div>
+
+              {/* Stats Summary Row */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '1rem',
+                marginBottom: '1.5rem',
+              }}>
+                <div style={{ background: '#ffffff', borderRadius: '12px', padding: '1.1rem 1.3rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Total Published Proofs
+                  </div>
+                  <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
+                    {installmentProofs.length}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#16a34a', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                    <i className="fa-solid fa-circle-check"></i> Live on storefront feedback
+                  </div>
+                </div>
+
+                <div style={{ background: '#ffffff', borderRadius: '12px', padding: '1.1rem 1.3rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Split Inverters
+                  </div>
+                  <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0284c7', marginTop: '4px' }}>
+                    {installmentProofs.filter((p) => (p.unitType || p.unit_type || '').toLowerCase().includes('split')).length}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
+                    High-efficiency residential & commercial
+                  </div>
+                </div>
+
+                <div style={{ background: '#ffffff', borderRadius: '12px', padding: '1.1rem 1.3rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Window Inverter / Standard
+                  </div>
+                  <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f59e0b', marginTop: '4px' }}>
+                    {installmentProofs.filter((p) => (p.unitType || p.unit_type || '').toLowerCase().includes('window')).length}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
+                    Compact and budget installations
+                  </div>
+                </div>
+
+                <div style={{ background: '#ffffff', borderRadius: '12px', padding: '1.1rem 1.3rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Quality Assurance
+                  </div>
+                  <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#10b981', marginTop: '4px' }}>
+                    100%
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#16a34a', marginTop: '4px', fontWeight: 600 }}>
+                    Vacuum test & flaring certified
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters Bar */}
+              <div style={{
+                background: '#ffffff',
+                borderRadius: '12px',
+                padding: '0.9rem 1.2rem',
+                border: '1px solid #e2e8f0',
+                marginBottom: '1.5rem',
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                justifyContent: 'space-between',
+              }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#64748b', marginRight: '4px' }}>
+                    Unit Type:
+                  </span>
+                  {(['ALL', 'Split', 'Window'] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setProofFilterType(t)}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: '20px',
+                        border: proofFilterType === t ? '1px solid #0284c7' : '1px solid #e2e8f0',
+                        background: proofFilterType === t ? '#0284c7' : '#f8fafc',
+                        color: proofFilterType === t ? '#ffffff' : '#475569',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {t === 'ALL' ? 'All Types' : `${t} Inverter`}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ position: 'relative', minWidth: '260px' }}>
+                  <i className="fa-solid fa-magnifying-glass" style={{
+                    position: 'absolute',
+                    left: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#94a3b8',
+                    fontSize: '0.85rem',
+                  }}></i>
+                  <input
+                    type="text"
+                    value={proofSearchQuery}
+                    onChange={(e) => setProofSearchQuery(e.target.value)}
+                    placeholder="Search customer, model, technician, JO..."
+                    style={{
+                      width: '100%',
+                      padding: '7px 12px 7px 34px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                    }}
+                  />
+                  {proofSearchQuery && (
+                    <button
+                      onClick={() => setProofSearchQuery('')}
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                      }}
+                    >
+                      &times;
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Proofs Grid */}
+              {(() => {
+                const filtered = installmentProofs.filter((proof) => {
+                  const type = proof.unitType || proof.unit_type || '';
+                  if (proofFilterType !== 'ALL' && !type.toLowerCase().includes(proofFilterType.toLowerCase())) {
+                    return false;
+                  }
+                  if (!proofSearchQuery.trim()) return true;
+                  const q = proofSearchQuery.toLowerCase();
+                  const cName = (proof.customerName || proof.customername || '').toLowerCase();
+                  const loc = (proof.customerLocation || proof.customerlocation || '').toLowerCase();
+                  const uMod = (proof.unitModel || proof.unitmodel || '').toLowerCase();
+                  const tech = (proof.technicianName || proof.technicianname || '').toLowerCase();
+                  const jo = (proof.jobOrderNo || proof.joborderno || '').toLowerCase();
+                  return cName.includes(q) || loc.includes(q) || uMod.includes(q) || tech.includes(q) || jo.includes(q);
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div style={{
+                      background: '#ffffff',
+                      borderRadius: '16px',
+                      padding: '3rem 2rem',
+                      textAlign: 'center',
+                      border: '1px dashed #cbd5e1',
+                    }}>
+                      <div style={{
+                        width: '64px',
+                        height: '64px',
+                        background: '#e0f2fe',
+                        color: '#0284c7',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 1rem',
+                        fontSize: '1.5rem',
+                      }}>
+                        <i className="fa-solid fa-camera"></i>
+                      </div>
+                      <h3 style={{ margin: '0 0 6px 0', fontSize: '1.1rem', color: '#0f172a' }}>
+                        No Installment Proofs Found
+                      </h3>
+                      <p style={{ margin: '0 0 1.25rem 0', color: '#64748b', fontSize: '0.88rem', maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
+                        {proofSearchQuery || proofFilterType !== 'ALL'
+                          ? 'No installment proofs match your current filters. Try resetting the search or filter.'
+                          : 'You haven\'t posted any installment proofs yet. Click the button below to add your first completed job proof!'}
+                      </p>
+                      <button
+                        onClick={() => handleOpenPostProofModal()}
+                        style={{
+                          padding: '0.65rem 1.4rem',
+                          borderRadius: '10px',
+                          border: 'none',
+                          background: '#0284c7',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          fontSize: '0.88rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <i className="fa-solid fa-plus" style={{ marginRight: '6px' }}></i>
+                        Post Installment Proof
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+                    gap: '1.25rem',
+                  }}>
+                    {filtered.map((proof: any) => {
+                      const id = proof.id;
+                      const cName = proof.customerName || proof.customername || 'FrostTech Client';
+                      const cLoc = proof.customerLocation || proof.customerlocation || 'Philippines';
+                      const uModel = proof.unitModel || proof.unitmodel || 'Inverter AC Unit';
+                      const uType = proof.unitType || proof.unit_type || 'Split';
+                      const hp = proof.horsepower || '1.5 HP';
+                      const tech = proof.technicianName || proof.technicianname || 'Carlos Rivera';
+                      const jo = proof.jobOrderNo || proof.joborderno || 'JO-0000';
+                      const date = proof.installDate || proof.installdate || 'Recently Installed';
+                      const installType = proof.installType || proof.installtype || 'Standard Installation';
+                      const rating = proof.rating || 5;
+                      const review = proof.review || '';
+                      const photo = proof.photoUrl || proof.photourl || '/hero-bg.png';
+                      const checklist = Array.isArray(proof.checklist) ? proof.checklist : [
+                        'Vacuum Pressure Tested (-30 inHg)',
+                        'Flare Nuts Torqued to Spec',
+                        'Condensate Gravity Drain Flow Verified',
+                        'Dedicated Circuit Breaker Verified',
+                      ];
+
+                      return (
+                        <div
+                          key={id}
+                          style={{
+                            background: '#ffffff',
+                            borderRadius: '14px',
+                            border: '1px solid #e2e8f0',
+                            overflow: 'hidden',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                          }}
+                        >
+                          {/* Image Header */}
+                          <div style={{ position: 'relative', height: '170px', background: '#0f172a' }}>
+                            <img
+                              src={photo}
+                              alt={uModel}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.88 }}
+                              onError={(e: any) => { e.currentTarget.src = '/hero-bg.png'; }}
+                            />
+                            <div style={{
+                              position: 'absolute',
+                              top: '10px',
+                              left: '10px',
+                              background: 'rgba(15, 23, 42, 0.8)',
+                              backdropFilter: 'blur(4px)',
+                              color: '#38bdf8',
+                              padding: '3px 9px',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                            }}>
+                              <i className="fa-solid fa-hashtag"></i>
+                              {jo}
+                            </div>
+
+                            <div style={{
+                              position: 'absolute',
+                              top: '10px',
+                              right: '10px',
+                              background: '#10b981',
+                              color: '#ffffff',
+                              padding: '3px 9px',
+                              borderRadius: '6px',
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                            }}>
+                              <i className="fa-solid fa-circle-check"></i>
+                              VERIFIED
+                            </div>
+
+                            <div style={{
+                              position: 'absolute',
+                              bottom: '8px',
+                              left: '10px',
+                              right: '10px',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              color: '#ffffff',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+                            }}>
+                              <span><i className="fa-solid fa-calendar-day" style={{ marginRight: '4px' }}></i>{date}</span>
+                              <span style={{
+                                background: 'rgba(255, 255, 255, 0.25)',
+                                backdropFilter: 'blur(4px)',
+                                padding: '2px 7px',
+                                borderRadius: '4px',
+                              }}>{uType} &bull; {hp}</span>
+                            </div>
+                          </div>
+
+                          {/* Body */}
+                          <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                            {/* Unit Model & Scope */}
+                            <div style={{ marginBottom: '8px' }}>
+                              <h4 style={{ margin: '0 0 2px 0', fontSize: '1rem', color: '#0f172a', fontWeight: 700, lineHeight: 1.3 }}>
+                                {uModel}
+                              </h4>
+                              <div style={{ fontSize: '0.78rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <i className="fa-solid fa-wrench" style={{ color: '#0284c7' }}></i>
+                                {installType}
+                              </div>
+                            </div>
+
+                            {/* Customer & Location */}
+                            <div style={{
+                              background: '#f8fafc',
+                              borderRadius: '8px',
+                              padding: '8px 10px',
+                              marginBottom: '10px',
+                              fontSize: '0.8rem',
+                              border: '1px solid #f1f5f9',
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ fontWeight: 700, color: '#1e293b' }}>
+                                  <i className="fa-solid fa-user-check" style={{ color: '#10b981', marginRight: '6px' }}></i>
+                                  {cName}
+                                </div>
+                                <div style={{ display: 'flex', color: '#f59e0b', fontSize: '0.75rem' }}>
+                                  {[...Array(5)].map((_, i) => (
+                                    <i key={i} className={`fa-solid fa-star ${i < rating ? '' : 'fa-star-half'}`}></i>
+                                  ))}
+                                </div>
+                              </div>
+                              <div style={{ color: '#64748b', fontSize: '0.74rem', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <i className="fa-solid fa-location-dot" style={{ color: '#ef4444' }}></i>
+                                {cLoc}
+                              </div>
+                            </div>
+
+                            {/* Technician attribution */}
+                            <div style={{ fontSize: '0.78rem', color: '#334155', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <i className="fa-solid fa-id-badge" style={{ color: '#0284c7' }}></i>
+                              <span>Lead Installer: <strong>{tech}</strong></span>
+                            </div>
+
+                            {/* Checklist Pills */}
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '12px' }}>
+                              {checklist.slice(0, 3).map((item: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  style={{
+                                    fontSize: '0.7rem',
+                                    background: '#ecfdf5',
+                                    color: '#065f46',
+                                    border: '1px solid #a7f3d0',
+                                    borderRadius: '4px',
+                                    padding: '2px 6px',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  &bull; {item}
+                                </span>
+                              ))}
+                              {checklist.length > 3 && (
+                                <span style={{ fontSize: '0.7rem', color: '#94a3b8', padding: '2px 4px' }}>
+                                  +{checklist.length - 3} more checks
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Review excerpt */}
+                            {review && (
+                              <div style={{
+                                fontSize: '0.78rem',
+                                fontStyle: 'italic',
+                                color: '#475569',
+                                background: '#f8fafc',
+                                borderLeft: '3px solid #0284c7',
+                                padding: '6px 8px',
+                                borderRadius: '0 6px 6px 0',
+                                marginBottom: '12px',
+                                lineHeight: 1.4,
+                              }}>
+                                &ldquo;{review}&rdquo;
+                              </div>
+                            )}
+
+                            {/* Card Footer Actions */}
+                            <div style={{
+                              marginTop: 'auto',
+                              paddingTop: '10px',
+                              borderTop: '1px solid #f1f5f9',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                            }}>
+                              <a
+                                href="/feedback?tab=proofs"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  fontSize: '0.78rem',
+                                  color: '#0284c7',
+                                  fontWeight: 600,
+                                  textDecoration: 'none',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                View Live <i className="fa-solid fa-external-link" style={{ fontSize: '0.7rem' }}></i>
+                              </a>
+
+                              <button
+                                onClick={() => handleDeleteInstallmentProof(id)}
+                                style={{
+                                  padding: '5px 10px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #fecaca',
+                                  background: '#fff1f2',
+                                  color: '#e11d48',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                                title="Remove proof from showcase"
+                              >
+                                <i className="fa-solid fa-trash-can"></i>
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -8926,6 +9765,455 @@ export default function AdminDashboard() {
                 >
                   <i className={`fa-solid ${isSubmittingInstallmentSchedule ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
                   {isSubmittingInstallmentSchedule ? 'Dispatching...' : 'Confirm & Dispatch to Schedule'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: POST INSTALLMENT PROOF SHOWCASE */}
+      {showPostProofModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '1rem',
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '750px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              border: '1px solid #e2e8f0',
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '1.25rem 1.5rem',
+                borderBottom: '1px solid #e2e8f0',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                color: '#ffffff',
+                borderTopLeftRadius: '15px',
+                borderTopRightRadius: '15px',
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="fa-solid fa-camera-retro" style={{ color: '#38bdf8', fontSize: '1.2rem' }}></i>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#ffffff' }}>
+                    Publish Installment Proof Showcase
+                  </h3>
+                </div>
+                <p style={{ margin: '4px 0 0 0', color: '#94a3b8', fontSize: '0.8rem' }}>
+                  Add this completed installment installation to the public Customer Feedback page as verified proof.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPostProofModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.4rem',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handlePostInstallmentProof} style={{ padding: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.25rem' }}>
+                {/* Customer Details */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Customer Full Name <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={proofCustomerName}
+                    onChange={(e) => setProofCustomerName(e.target.value)}
+                    placeholder="e.g. Maria Clara Santos"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                      marginBottom: '12px',
+                    }}
+                  />
+
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Installation Location / Address
+                  </label>
+                  <input
+                    type="text"
+                    value={proofCustomerLocation}
+                    onChange={(e) => setProofCustomerLocation(e.target.value)}
+                    placeholder="e.g. BGC, Taguig City"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                      marginBottom: '12px',
+                    }}
+                  />
+
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    AC Unit Model <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={proofUnitModel}
+                    onChange={(e) => setProofUnitModel(e.target.value)}
+                    placeholder="e.g. Carrier Aura Inverter 1.5 HP Split Type"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                      marginBottom: '12px',
+                    }}
+                  />
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                        Unit Type
+                      </label>
+                      <select
+                        value={proofUnitType}
+                        onChange={(e: any) => setProofUnitType(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '0.85rem',
+                          background: '#ffffff',
+                        }}
+                      >
+                        <option value="Split">Split Type</option>
+                        <option value="Window">Window Type</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                        Horsepower
+                      </label>
+                      <select
+                        value={proofHorsepower}
+                        onChange={(e) => setProofHorsepower(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '0.85rem',
+                          background: '#ffffff',
+                        }}
+                      >
+                        <option value="0.75 HP">0.75 HP</option>
+                        <option value="1.0 HP">1.0 HP</option>
+                        <option value="1.5 HP">1.5 HP</option>
+                        <option value="2.0 HP">2.0 HP</option>
+                        <option value="2.5 HP">2.5 HP</option>
+                        <option value="3.0 HP">3.0 HP</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Job & Tech Details */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Job Order / App Reference No.
+                  </label>
+                  <input
+                    type="text"
+                    value={proofJobOrderNo}
+                    onChange={(e) => setProofJobOrderNo(e.target.value)}
+                    placeholder="e.g. JO-2026-4891"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                      marginBottom: '12px',
+                    }}
+                  />
+
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Lead Installer / Technician
+                  </label>
+                  <input
+                    type="text"
+                    value={proofTechnicianName}
+                    onChange={(e) => setProofTechnicianName(e.target.value)}
+                    placeholder="e.g. Carlos Rivera"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                      marginBottom: '12px',
+                    }}
+                  />
+
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Installation Date
+                  </label>
+                  <input
+                    type="text"
+                    value={proofInstallDate}
+                    onChange={(e) => setProofInstallDate(e.target.value)}
+                    placeholder="e.g. November 2, 2026"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                      marginBottom: '12px',
+                    }}
+                  />
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                        Installation Scope
+                      </label>
+                      <select
+                        value={proofInstallType}
+                        onChange={(e) => setProofInstallType(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '0.85rem',
+                          background: '#ffffff',
+                        }}
+                      >
+                        <option value="Standard Back-to-Back Installation">Back-to-Back</option>
+                        <option value="High-Rise Bracket Mount">Bracket Mount</option>
+                        <option value="Window Wall Opening Standard">Window Opening</option>
+                        <option value="Commercial Concealed Line">Concealed Line</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                        Rating Stars
+                      </label>
+                      <select
+                        value={proofRating}
+                        onChange={(e) => setProofRating(Number(e.target.value))}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '0.85rem',
+                          background: '#ffffff',
+                        }}
+                      >
+                        <option value={5}>⭐⭐⭐⭐⭐ (5 Stars)</option>
+                        <option value={4}>⭐⭐⭐⭐ (4 Stars)</option>
+                        <option value={3}>⭐⭐⭐ (3 Stars)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Photo URL & Quick Select */}
+              <div style={{ marginTop: '4px', marginBottom: '12px' }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                  Commissioning / Installation Photo URL
+                </label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    value={proofPhotoUrl}
+                    onChange={(e) => setProofPhotoUrl(e.target.value)}
+                    placeholder="/hero-bg.png or https://..."
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                    }}
+                  />
+                  <div style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    border: '1px solid #cbd5e1',
+                    background: '#0f172a',
+                    flexShrink: 0,
+                  }}>
+                    <img
+                      src={proofPhotoUrl}
+                      alt="Preview"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={(e: any) => { e.currentTarget.src = '/hero-bg.png'; }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Quick Photos:</span>
+                  {[
+                    { label: 'Carrier Inverter', url: '/Carrier.jpg' },
+                    { label: 'Split Inverter', url: '/Inverter.jpg' },
+                    { label: 'TCL Smart', url: '/TCL.jpg' },
+                    { label: 'Window Type', url: '/Window.jpg' },
+                    { label: 'Hero BG', url: '/hero-bg.png' },
+                    { label: 'Service BG', url: '/service-bg.png' },
+                  ].map((p) => (
+                    <button
+                      key={p.url}
+                      type="button"
+                      onClick={() => setProofPhotoUrl(p.url)}
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        border: proofPhotoUrl === p.url ? '1px solid #0284c7' : '1px solid #e2e8f0',
+                        background: proofPhotoUrl === p.url ? '#e0f2fe' : '#f8fafc',
+                        color: proofPhotoUrl === p.url ? '#0369a1' : '#475569',
+                        fontSize: '0.72rem',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Commissioning Remarks / Review Text */}
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                  Technician Sign-off & Commissioning Notes / Customer Feedback Excerpt
+                </label>
+                <textarea
+                  rows={3}
+                  value={proofReview}
+                  onChange={(e) => setProofReview(e.target.value)}
+                  placeholder="e.g. Unit mounted on anti-vibration rubber pads. Vacuum tested to -30 inHg for 20 mins. Cold airflow recorded at 15.8°C with normal operating current."
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.88rem',
+                    outline: 'none',
+                    resize: 'vertical',
+                  }}
+                />
+              </div>
+
+              {/* Quality Checklist Summary Tag */}
+              <div style={{
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                marginBottom: '1.25rem',
+                fontSize: '0.78rem',
+                color: '#166534',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}>
+                <i className="fa-solid fa-circle-check" style={{ color: '#16a34a', fontSize: '1rem' }}></i>
+                <span>
+                  <strong>Standard QA Checklist Applied:</strong> Vacuum Pressure Tested (-30 inHg), Flare Nuts Calibrated, Condensate Gravity Flow Cleared, Dedicated Breaker Verified.
+                </span>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowPostProofModal(false)}
+                  style={{
+                    padding: '0.65rem 1.25rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#475569',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isPostingProof}
+                  style={{
+                    padding: '0.65rem 1.4rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    color: '#ffffff',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
+                    opacity: isPostingProof ? 0.7 : 1,
+                  }}
+                >
+                  <i className={`fa-solid ${isPostingProof ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`}></i>
+                  {isPostingProof ? 'Publishing Proof...' : 'Publish to Showcase'}
                 </button>
               </div>
             </form>
