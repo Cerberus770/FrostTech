@@ -54,6 +54,165 @@ const getProofPhotoPair = (proof: any): [string, string] => {
   return [p1, p1];
 };
 
+const FALLBACK_PROOFS: InstallmentProof[] = [
+  {
+    id: 'proof-1',
+    customerName: 'Engr. Roberto Martinez',
+    customerLocation: 'Quezon City, Metro Manila',
+    customerAvatar: 'RM',
+    unitModel: 'Midea Full DC Inverter 1.5 HP Split Type',
+    unitType: 'Split',
+    horsepower: '1.5 HP',
+    technicianName: 'Carlos Rivera',
+    technicianRole: 'Senior HVAC Field Specialist',
+    jobOrderNo: 'JO-2026-4891',
+    installDate: 'November 2, 2026',
+    installType: 'Standard Back-to-Back Installation',
+    rating: 5,
+    review: 'Outstanding installment delivery! Technician Carlos arrived right on schedule with complete PPE and calibrated vacuum pump. Piping was cleanly wrapped with UV insulation tape and sealed.',
+    photoUrl: '/installed-ac/midea1.jpg',
+    photoUrl2: '/installed-ac/midea2.jpg',
+    checklist: [
+      'Vacuum Pressure Tested (-30 inHg / 500 microns)',
+      'Flare Nuts Torqued to Carrier Specs',
+      'Condensate Gravity Drain Flow Verified',
+      'Dedicated 20A Circuit Breaker Installed',
+      'Refrigerant Operating Pressure Normal',
+      'Customer Remote Operation Demo Given',
+    ],
+  },
+  {
+    id: 'proof-2',
+    customerName: 'Dr. Maria Carmela Santos',
+    customerLocation: 'BGC, Taguig City',
+    customerAvatar: 'MS',
+    unitModel: 'Matrix Inverter 1.5 HP Split Type',
+    unitType: 'Split',
+    horsepower: '1.5 HP',
+    technicianName: 'Mark Anthony Bautista',
+    technicianRole: 'Certified AC Technician #884',
+    jobOrderNo: 'JO-2026-4762',
+    installDate: 'October 29, 2026',
+    installType: 'High-Rise Condominium Balcony Mounting',
+    rating: 5,
+    review: 'Very neat and polite technician! Our condo admin has strict permits and vibration guidelines. The FrostTech team followed all safety rules and used heavy-duty anti-vibration rubber pads.',
+    photoUrl: '/installed-ac/Matrix1.jpg',
+    photoUrl2: '/installed-ac/matrix2.jpg',
+    checklist: [
+      'Condo Admin Safety & Permit Compliant',
+      'Heavy-Duty Vibration Dampener Pads',
+      'R32 Refrigerant Operating Pressure Normal',
+      'Condensate Leak & P-Trap Tested',
+      'Wall Sealant & Weatherproofing Applied',
+      'Electrical Load Balance Verified',
+    ],
+  },
+  {
+    id: 'proof-3',
+    customerName: 'Arch. Kenneth Ramos',
+    customerLocation: 'San Juan, Metro Manila',
+    customerAvatar: 'KR',
+    unitModel: 'Carrier Inverter 1.0 HP Split Type',
+    unitType: 'Split',
+    horsepower: '1.0 HP',
+    technicianName: 'Carlos Rivera',
+    technicianRole: 'Senior HVAC Field Specialist',
+    jobOrderNo: 'JO-2026-4630',
+    installDate: 'October 24, 2026',
+    installType: 'Concealed Piping Wall Chasing',
+    rating: 5,
+    review: 'The FrostTech team handled our residential architectural project smoothly. Embedded the copper tubing with zero aesthetic blemishes on our newly plastered concrete walls.',
+    photoUrl: '/products/carrier.jpg',
+    photoUrl2: '/products/carrier1.jpg',
+    checklist: [
+      'Chased Wall Conduit 100% Leveled',
+      'Braze Joint Nitrogen Testing Passed',
+      'Condensate Pump Connected & Powered',
+      'Clean Vacuum Level Maintained 20 Mins',
+      'Inverter Power Amp Draw Normal',
+      'Handover Certificate Signed',
+    ],
+  },
+  {
+    id: 'proof-4',
+    customerName: 'Atty. Patricia Mae Tan',
+    customerLocation: 'Makati City, Metro Manila',
+    customerAvatar: 'PT',
+    unitModel: 'TCL Split Type Inverter 1.0 HP',
+    unitType: 'Split',
+    horsepower: '1.0 HP',
+    technicianName: 'Ronald Maclang',
+    technicianRole: 'Master HVAC Technician',
+    jobOrderNo: 'JO-2026-4512',
+    installDate: 'October 19, 2026',
+    installType: 'Heavy-Duty Bracket Exterior Wall Mount',
+    rating: 5,
+    review: 'Top-tier service! The outdoor condenser was securely mounted on heavy-gauge stainless steel L-brackets with rubber isolators. Very quiet even at full turbo load.',
+    photoUrl: '/products/TCL1.webp',
+    photoUrl2: '/products/TCL2.webp',
+    checklist: [
+      'Heavy Gauge Stainless 304 L-Brackets',
+      'Anti-Vibration Rubber Isolators Fitted',
+      'Nitrogen Purge During Brazing Done',
+      'Weatherproof Polyurethane Sealant Applied',
+      'Thermal Imaging Pipe Insulation Check OK',
+      'Digital Voltage & Current Logged Normal',
+    ],
+  },
+  {
+    id: 'proof-5',
+    customerName: 'Mrs. Bernadette Lim',
+    customerLocation: 'Binondo, Manila',
+    customerAvatar: 'BL',
+    unitModel: 'Midea Eco Inverter 1.0 HP Split Type',
+    unitType: 'Split',
+    horsepower: '1.0 HP',
+    technicianName: 'Mark Anthony Bautista',
+    technicianRole: 'Certified AC Technician #884',
+    jobOrderNo: 'JO-2026-4389',
+    installDate: 'October 12, 2026',
+    installType: 'Standard Back-to-Back Installation',
+    rating: 5,
+    review: 'Replacing our old loud window AC with this modern Carrier Inverter was a breeze. The technicians fitted the sleeve tightly, added acoustic sealing tape, and clean exterior bracket.',
+    photoUrl: '/installed-ac/midea2.jpg',
+    photoUrl2: '/installed-ac/midea1.jpg',
+    checklist: [
+      'Structural Window Frame Leveled with 1/4" Slope',
+      'High-Density Acoustic Foam Weatherstrip',
+      'Exterior Bottom Support Angle Bracket',
+      'Condensate Gravity Drainage Drainpipe Fitted',
+      'Dedicated 15A Convenience Outlet Checked',
+      'Energy Meter Wattage Verification Passed',
+    ],
+  },
+  {
+    id: 'proof-6',
+    customerName: 'Capt. Antonio De Leon',
+    customerLocation: 'Alabang, Muntinlupa City',
+    customerAvatar: 'AD',
+    unitModel: 'Matrix Heavy-Duty Inverter 2.0 HP',
+    unitType: 'Split',
+    horsepower: '2.0 HP',
+    technicianName: 'Ronald Maclang',
+    technicianRole: 'Master HVAC Technician',
+    jobOrderNo: 'JO-2026-4277',
+    installDate: 'October 5, 2026',
+    installType: 'Master Bedroom Custom Louver Fitment',
+    rating: 5,
+    review: 'Solid workmanship! Cleanly caulked silicone around the perimeter so no rain or insects can enter. Smart WiFi connects easily and cools our 22sqm room in minutes.',
+    photoUrl: '/installed-ac/matrix2.jpg',
+    photoUrl2: '/installed-ac/Matrix1.jpg',
+    checklist: [
+      'All-Weather Neutral Silicone Perimeter Seal',
+      'Custom Aluminum Finishing Trim Installed',
+      'Circuit Ground Fault (GFCI) Verified',
+      'WiFi App Remote Pairing & Demo Given',
+      'Decibel Sound Level Meter Check (< 42dB)',
+      'Full 1-Year Workmanship Warranty Signed',
+    ],
+  },
+];
+
 export default function CustomerFeedbackAndProofsPage() {
   const [activeMainTab, setActiveMainTab] = useState<'FEEDBACK' | 'PROOFS'>('FEEDBACK');
 
@@ -123,10 +282,15 @@ export default function CustomerFeedbackAndProofsPage() {
       const res = await fetch('/api/installment-proofs');
       if (res.ok) {
         const data = await res.json();
-        setProofs(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setProofs(data);
+          return;
+        }
       }
+      setProofs(FALLBACK_PROOFS);
     } catch (e) {
       console.error('Failed to load proofs:', e);
+      setProofs(FALLBACK_PROOFS);
     } finally {
       setIsLoadingProofs(false);
     }

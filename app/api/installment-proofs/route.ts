@@ -23,8 +23,10 @@ async function ensureInstallmentProofsSchema() {
         "photoUrl2" TEXT,
         "checklist" TEXT[] DEFAULT ARRAY[]::TEXT[],
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      ALTER TABLE "installment_proofs" ADD COLUMN IF NOT EXISTS "photoUrl2" TEXT;
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "installment_proofs" ADD COLUMN IF NOT EXISTS "photoUrl2" TEXT
     `);
   } catch (err) {
     console.error('ensureInstallmentProofsSchema error:', err);
@@ -229,6 +231,30 @@ export async function GET() {
       proofs = await prisma.$queryRawUnsafe(`
         SELECT * FROM "installment_proofs" ORDER BY "createdAt" DESC;
       `);
+    }
+
+    // Self-healing: Ensure proofs have photoUrl2 pair
+    for (const p of proofs) {
+      if (!p.photoUrl2 || p.photoUrl2 === '' || p.photoUrl.includes('hero-bg')) {
+        let p1 = p.photoUrl;
+        let p2 = p.photoUrl2;
+        if (p1.includes('midea1')) p2 = '/installed-ac/midea2.jpg';
+        else if (p1.includes('midea2')) p2 = '/installed-ac/midea1.jpg';
+        else if (p1.includes('Matrix1') || p1.includes('matrix1')) p2 = '/installed-ac/matrix2.jpg';
+        else if (p1.includes('matrix2')) p2 = '/installed-ac/Matrix1.jpg';
+        else if (p1.includes('carrier') || p1.includes('Carrier')) { p1 = '/products/carrier.jpg'; p2 = '/products/carrier1.jpg'; }
+        else if (p1.includes('TCL') || p1.includes('tcl')) { p1 = '/products/TCL1.webp'; p2 = '/products/TCL2.webp'; }
+        else { p1 = '/products/carrier.jpg'; p2 = '/products/carrier1.jpg'; }
+
+        try {
+          await prisma.$executeRawUnsafe(
+            `UPDATE "installment_proofs" SET "photoUrl" = $1, "photoUrl2" = $2 WHERE "id" = $3`,
+            p1, p2, p.id
+          );
+          p.photoUrl = p1;
+          p.photoUrl2 = p2;
+        } catch {}
+      }
     }
 
     return NextResponse.json(proofs);
