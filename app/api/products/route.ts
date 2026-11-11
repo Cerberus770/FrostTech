@@ -78,9 +78,11 @@ export async function GET() {
               specs: p.specs || [],
               description: p.description ?? null,
               variants: {
-                create: [
-                  { condition: 'Brand New', price: p.price, stock: 10 }
-                ]
+                create: p.variants && p.variants.length > 0
+                  ? p.variants.map((v: any) => ({ condition: v.condition, price: v.price, stock: v.stock }))
+                  : [
+                      { condition: p.badge === 'Used' ? 'Second Hand' : 'Brand New', price: p.price, stock: 10 }
+                    ]
               }
             }
           });

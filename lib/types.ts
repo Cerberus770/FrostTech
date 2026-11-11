@@ -122,6 +122,7 @@ export interface TechRequest {
 // ===== Product (for storefront) =====
 export interface Product {
   id: string;
+  slug?: string;
   name: string;
   brand: string;
   category: string;
@@ -134,4 +135,10 @@ export interface Product {
   specs?: string[];
   description?: string;
   badge?: string;
+  variants?: {
+    id: string;
+    condition: string;
+    price: number;
+    stock: number;
+  }[];
 }

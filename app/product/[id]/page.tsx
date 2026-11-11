@@ -66,7 +66,7 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
   const { id } = resolvedParams;
 
   useEffect(() => {
-    const p = products.find((p) => p.id === id);
+    const p = products.find((p) => p.id === id || p.slug === id);
     if (p) {
       setProduct(p);
     }

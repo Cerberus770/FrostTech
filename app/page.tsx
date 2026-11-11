@@ -276,7 +276,17 @@ export default function HomePage() {
         return res.json();
       })
       .then((data: DBProduct[]) => setStoreInventory(data))
-      .catch(() => setStoreInventory(fallbackProducts.map(p => ({ ...p, slug: p.id, originalPrice: p.originalPrice ?? null, badge: p.badge ?? null, description: p.description ?? null, specs: p.specs ?? [], variants: [{ id: `var-${p.id}`, condition: 'Brand New', price: p.price, stock: 10 }] }))));
+      .catch(() => setStoreInventory(fallbackProducts.map(p => ({
+        ...p,
+        slug: p.slug || p.id,
+        originalPrice: p.originalPrice ?? null,
+        badge: p.badge ?? null,
+        description: p.description ?? null,
+        specs: p.specs ?? [],
+        variants: p.variants && p.variants.length > 0
+          ? p.variants
+          : [{ id: `var-${p.id}`, condition: p.badge === 'Used' ? 'Second Hand' : 'Brand New', price: p.price, stock: 10 }]
+      }))));
 
     const userId = sessionStorage.getItem('userId');
     if (userId) {
