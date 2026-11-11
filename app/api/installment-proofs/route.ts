@@ -20,9 +20,11 @@ async function ensureInstallmentProofsSchema() {
         "rating" INTEGER NOT NULL DEFAULT 5,
         "review" TEXT,
         "photoUrl" TEXT NOT NULL,
+        "photoUrl2" TEXT,
         "checklist" TEXT[] DEFAULT ARRAY[]::TEXT[],
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
+      ALTER TABLE "installment_proofs" ADD COLUMN IF NOT EXISTS "photoUrl2" TEXT;
     `);
   } catch (err) {
     console.error('ensureInstallmentProofsSchema error:', err);
@@ -57,6 +59,7 @@ export async function GET() {
           rating: 5,
           review: 'Outstanding installment delivery! Technician Carlos arrived right on schedule with complete PPE and calibrated vacuum pump. Piping was cleanly wrapped with UV insulation tape and sealed.',
           photoUrl: '/installed-ac/midea1.jpg',
+          photoUrl2: '/installed-ac/midea2.jpg',
           checklist: [
             'Vacuum Pressure Tested (-30 inHg / 500 microns)',
             'Flare Nuts Torqued to Carrier Specs',
@@ -71,9 +74,9 @@ export async function GET() {
           customerName: 'Dr. Maria Carmela Santos',
           customerLocation: 'BGC, Taguig City',
           customerAvatar: 'MS',
-          unitModel: 'Midea Inverter 1.0 HP Split Type (Installed)',
+          unitModel: 'Matrix Inverter 1.5 HP Split Type',
           unitType: 'Split',
-          horsepower: '1.0 HP',
+          horsepower: '1.5 HP',
           technicianName: 'Mark Anthony Bautista',
           technicianRole: 'Certified AC Technician #884',
           jobOrderNo: 'JO-2026-4762',
@@ -81,7 +84,8 @@ export async function GET() {
           installType: 'High-Rise Condominium Balcony Mounting',
           rating: 5,
           review: 'Very neat and polite technician! Our condo admin has strict permits and vibration guidelines. The FrostTech team followed all safety rules and used heavy-duty anti-vibration rubber pads.',
-          photoUrl: '/installed-ac/midea2.jpg',
+          photoUrl: '/installed-ac/Matrix1.jpg',
+          photoUrl2: '/installed-ac/matrix2.jpg',
           checklist: [
             'Condo Admin Safety & Permit Compliant',
             'Heavy-Duty Vibration Dampener Pads',
@@ -96,9 +100,9 @@ export async function GET() {
           customerName: 'Arch. Kenneth Ramos',
           customerLocation: 'Ortigas, Pasig City',
           customerAvatar: 'KR',
-          unitModel: 'Matrix Inverter 1.5 HP Split Type',
+          unitModel: 'Carrier Inverter Split Type (Brand New)',
           unitType: 'Split',
-          horsepower: '1.5 HP',
+          horsepower: '1.0 HP',
           technicianName: 'Carlos Rivera',
           technicianRole: 'Senior HVAC Field Specialist',
           jobOrderNo: 'JO-2026-4630',
@@ -106,7 +110,8 @@ export async function GET() {
           installType: 'Living Room Concealed Trunking Setup',
           rating: 5,
           review: 'The FrostTech technicians routed the copper tubings and drainage seamlessly along the molding with clean white trunking. Unit looks sleek and operates whisper quiet!',
-          photoUrl: '/installed-ac/Matrix1.jpg',
+          photoUrl: '/products/carrier.jpg',
+          photoUrl2: '/products/carrier1.jpg',
           checklist: [
             'Precision Tube Bending Without Kinks',
             'Aesthetic Wall Trunking Installed',
@@ -121,9 +126,9 @@ export async function GET() {
           customerName: 'Atty. Victor Consunji',
           customerLocation: 'New Manila, Quezon City',
           customerAvatar: 'VC',
-          unitModel: 'Matrix Heavy-Duty Inverter 2.0 HP Split Type',
+          unitModel: 'TCL Split type Inverter 1.0 HP (Installed)',
           unitType: 'Split',
-          horsepower: '2.0 HP',
+          horsepower: '1.0 HP',
           technicianName: 'Ronald Maclang',
           technicianRole: 'Master HVAC Technician',
           jobOrderNo: 'JO-2026-4512',
@@ -131,7 +136,8 @@ export async function GET() {
           installType: 'Heavy-Duty Bracket Exterior Wall Mount',
           rating: 5,
           review: 'Top-tier service! The outdoor condenser was securely mounted on heavy-gauge stainless steel L-brackets with rubber isolators. Very quiet even at full turbo load.',
-          photoUrl: '/installed-ac/matrix2.jpg',
+          photoUrl: '/products/TCL1.webp',
+          photoUrl2: '/products/TCL2.webp',
           checklist: [
             'Heavy Gauge Stainless 304 L-Brackets',
             'Anti-Vibration Rubber Isolators Fitted',
@@ -146,7 +152,7 @@ export async function GET() {
           customerName: 'Mrs. Bernadette Lim',
           customerLocation: 'Binondo, Manila',
           customerAvatar: 'BL',
-          unitModel: 'Carrier Inverter Split Type (Brand New)',
+          unitModel: 'Midea Eco Inverter 1.0 HP Split Type',
           unitType: 'Split',
           horsepower: '1.0 HP',
           technicianName: 'Mark Anthony Bautista',
@@ -156,7 +162,8 @@ export async function GET() {
           installType: 'Reinforced Window Opening Installation',
           rating: 5,
           review: 'Replacing our old loud window AC with this modern Carrier Inverter was a breeze. The technicians fitted the sleeve tightly, added acoustic sealing tape, and clean exterior bracket.',
-          photoUrl: '/products/carrier.jpg',
+          photoUrl: '/installed-ac/midea2.jpg',
+          photoUrl2: '/installed-ac/midea1.jpg',
           checklist: [
             'Structural Window Frame Leveled with 1/4" Slope',
             'High-Density Acoustic Foam Weatherstrip',
@@ -171,9 +178,9 @@ export async function GET() {
           customerName: 'Capt. Antonio De Leon',
           customerLocation: 'Alabang, Muntinlupa City',
           customerAvatar: 'AD',
-          unitModel: 'TCL Split type Inverter 1.0 HP (Installed)',
+          unitModel: 'Matrix Heavy-Duty Inverter 2.0 HP',
           unitType: 'Split',
-          horsepower: '1.0 HP',
+          horsepower: '2.0 HP',
           technicianName: 'Ronald Maclang',
           technicianRole: 'Master HVAC Technician',
           jobOrderNo: 'JO-2026-4277',
@@ -181,7 +188,8 @@ export async function GET() {
           installType: 'Master Bedroom Custom Louver Fitment',
           rating: 5,
           review: 'Solid workmanship! Cleanly caulked silicone around the perimeter so no rain or insects can enter. Smart WiFi connects easily and cools our 22sqm room in minutes.',
-          photoUrl: '/products/TCL1.webp',
+          photoUrl: '/installed-ac/matrix2.jpg',
+          photoUrl2: '/installed-ac/Matrix1.jpg',
           checklist: [
             'All-Weather Neutral Silicone Perimeter Seal',
             'Custom Aluminum Finishing Trim Installed',
@@ -195,8 +203,8 @@ export async function GET() {
 
       for (const p of seedProofs) {
         await prisma.$executeRawUnsafe(
-          `INSERT INTO "installment_proofs" ("id", "customerName", "customerLocation", "customerAvatar", "unitModel", "unitType", "horsepower", "technicianName", "technicianRole", "jobOrderNo", "installDate", "installType", "rating", "review", "photoUrl", "checklist")
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+          `INSERT INTO "installment_proofs" ("id", "customerName", "customerLocation", "customerAvatar", "unitModel", "unitType", "horsepower", "technicianName", "technicianRole", "jobOrderNo", "installDate", "installType", "rating", "review", "photoUrl", "photoUrl2", "checklist")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
            ON CONFLICT ("id") DO NOTHING;`,
           p.id,
           p.customerName,
@@ -213,6 +221,7 @@ export async function GET() {
           p.rating,
           p.review,
           p.photoUrl,
+          p.photoUrl2,
           p.checklist
         );
       }
@@ -247,7 +256,8 @@ export async function POST(request: NextRequest) {
     const installType = body.installType || 'Standard Back-to-Back Installation';
     const rating = Math.min(5, Math.max(1, parseInt(body.rating, 10) || 5));
     const review = body.review || 'Completed and verified AC installment by FrostTech technicians. Cooling and electrical parameters tested normal.';
-    const photoUrl = body.photoUrl || '/hero-bg.png';
+    const photoUrl = body.photoUrl || '/installed-ac/midea1.jpg';
+    const photoUrl2 = body.photoUrl2 || '';
     const checklist = Array.isArray(body.checklist) && body.checklist.length > 0
       ? body.checklist
       : [
@@ -267,8 +277,8 @@ export async function POST(request: NextRequest) {
       .join('') || 'FT';
 
     await prisma.$executeRawUnsafe(
-      `INSERT INTO "installment_proofs" ("id", "customerName", "customerLocation", "customerAvatar", "unitModel", "unitType", "horsepower", "technicianName", "technicianRole", "jobOrderNo", "installDate", "installType", "rating", "review", "photoUrl", "checklist")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);`,
+      `INSERT INTO "installment_proofs" ("id", "customerName", "customerLocation", "customerAvatar", "unitModel", "unitType", "horsepower", "technicianName", "technicianRole", "jobOrderNo", "installDate", "installType", "rating", "review", "photoUrl", "photoUrl2", "checklist")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);`,
       id,
       customerName,
       customerLocation,
@@ -284,6 +294,7 @@ export async function POST(request: NextRequest) {
       rating,
       review,
       photoUrl,
+      photoUrl2,
       checklist
     );
 
@@ -303,6 +314,7 @@ export async function POST(request: NextRequest) {
       rating,
       review,
       photoUrl,
+      photoUrl2,
       checklist,
       createdAt: new Date(),
     };

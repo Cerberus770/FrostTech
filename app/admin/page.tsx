@@ -280,6 +280,7 @@ export default function AdminDashboard() {
   const [proofRating, setProofRating] = useState(5);
   const [proofReview, setProofReview] = useState('');
   const [proofPhotoUrl, setProofPhotoUrl] = useState('/installed-ac/midea1.jpg');
+  const [proofPhotoUrl2, setProofPhotoUrl2] = useState('/installed-ac/midea2.jpg');
   const [proofSearchQuery, setProofSearchQuery] = useState('');
   const [proofFilterType, setProofFilterType] = useState<'ALL' | 'Split' | 'Window'>('ALL');
 
@@ -1865,6 +1866,7 @@ export default function AdminDashboard() {
       setProofInstallType('Standard Back-to-Back Installation');
       setProofReview(`Verified completed installment AC installation for ${prefillFromInstallment.name}. Vacuum tested and commissioned normal.`);
       setProofPhotoUrl('/installed-ac/midea1.jpg');
+      setProofPhotoUrl2('/installed-ac/midea2.jpg');
     } else {
       setProofCustomerName('');
       setProofCustomerLocation('');
@@ -1876,6 +1878,7 @@ export default function AdminDashboard() {
       setProofInstallType('Standard Back-to-Back Installation');
       setProofReview('Completed and verified AC installment by FrostTech technicians.');
       setProofPhotoUrl('/installed-ac/midea1.jpg');
+      setProofPhotoUrl2('/installed-ac/midea2.jpg');
     }
     setShowPostProofModal(true);
   };
@@ -1902,6 +1905,7 @@ export default function AdminDashboard() {
           rating: proofRating,
           review: proofReview,
           photoUrl: proofPhotoUrl,
+          photoUrl2: proofPhotoUrl2,
         }),
       });
 
@@ -5543,7 +5547,17 @@ export default function AdminDashboard() {
                       const installType = proof.installType || proof.installtype || 'Standard Installation';
                       const rating = proof.rating || 5;
                       const review = proof.review || '';
-                      const photo = proof.photoUrl || proof.photourl || '/hero-bg.png';
+                      const photo = proof.photoUrl || proof.photourl || '/installed-ac/midea1.jpg';
+                      const photo2 = proof.photoUrl2 || proof.photourl2 || (
+                        photo.includes('midea1') ? '/installed-ac/midea2.jpg' :
+                        photo.includes('midea2') ? '/installed-ac/midea1.jpg' :
+                        photo.toLowerCase().includes('matrix1') ? '/installed-ac/matrix2.jpg' :
+                        photo.toLowerCase().includes('matrix2') ? '/installed-ac/Matrix1.jpg' :
+                        photo.includes('carrier.jpg') ? '/products/carrier1.jpg' :
+                        photo.includes('carrier1') ? '/products/carrier.jpg' :
+                        photo.includes('TCL1') ? '/products/TCL2.webp' :
+                        photo.includes('TCL2') ? '/products/TCL1.webp' : photo
+                      );
                       const checklist = Array.isArray(proof.checklist) ? proof.checklist : [
                         'Vacuum Pressure Tested (-30 inHg)',
                         'Flare Nuts Torqued to Spec',
@@ -5565,14 +5579,26 @@ export default function AdminDashboard() {
                             transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                           }}
                         >
-                          {/* Image Header */}
+                          {/* Image Header - Paired Photos */}
                           <div style={{ position: 'relative', height: '170px', background: '#0f172a' }}>
-                            <img
-                              src={photo}
-                              alt={uModel}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.88 }}
-                              onError={(e: any) => { e.currentTarget.src = '/hero-bg.png'; }}
-                            />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', height: '100%', gap: '2px' }}>
+                              <div style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>
+                                <img
+                                  src={photo}
+                                  alt={`${uModel} 1`}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                                <span style={{ position: 'absolute', bottom: '6px', left: '6px', background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '0.62rem', padding: '1px 5px', borderRadius: '3px', fontWeight: 700 }}>Photo 1</span>
+                              </div>
+                              <div style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>
+                                <img
+                                  src={photo2}
+                                  alt={`${uModel} 2`}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                                <span style={{ position: 'absolute', bottom: '6px', right: '6px', background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '0.62rem', padding: '1px 5px', borderRadius: '3px', fontWeight: 700 }}>Photo 2</span>
+                              </div>
+                            </div>
                             <div style={{
                               position: 'absolute',
                               top: '10px',
@@ -9926,70 +9952,75 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Photo URL & Quick Select */}
-              <div style={{ marginTop: '4px', marginBottom: '12px' }}>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                  Commissioning / Installation Photo URL
-                </label>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <input
-                    type="text"
-                    value={proofPhotoUrl}
-                    onChange={(e) => setProofPhotoUrl(e.target.value)}
-                    placeholder="/hero-bg.png or https://..."
-                    style={{
-                      flex: 1,
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '0.88rem',
-                      outline: 'none',
-                    }}
-                  />
-                  <div style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '8px',
-                    overflow: 'hidden',
-                    border: '1px solid #cbd5e1',
-                    background: '#0f172a',
-                    flexShrink: 0,
-                  }}>
-                    <img
-                      src={proofPhotoUrl}
-                      alt="Preview"
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={(e: any) => { e.currentTarget.src = '/hero-bg.png'; }}
-                    />
+              {/* Paired Photo URLs & Quick Select */}
+              <div style={{ marginTop: '4px', marginBottom: '14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a' }}>
+                    <i className="fa-solid fa-camera-retro" style={{ color: '#0284c7', marginRight: '6px' }}></i>
+                    Installation Photos (Paired Set)
+                  </label>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>2 Photos (Indoor &amp; Outdoor / Angles)</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#475569', marginBottom: '3px' }}>Photo 1 (Primary/Indoor)</label>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        value={proofPhotoUrl}
+                        onChange={(e) => setProofPhotoUrl(e.target.value)}
+                        placeholder="/installed-ac/midea1.jpg"
+                        style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.82rem', outline: 'none' }}
+                      />
+                      <div style={{ width: '36px', height: '36px', borderRadius: '6px', overflow: 'hidden', border: '1px solid #cbd5e1', background: '#0f172a', flexShrink: 0 }}>
+                        <img src={proofPhotoUrl} alt="P1" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e: any) => { e.currentTarget.src = '/hero-bg.png'; }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#475569', marginBottom: '3px' }}>Photo 2 (Paired/Outdoor)</label>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        value={proofPhotoUrl2}
+                        onChange={(e) => setProofPhotoUrl2(e.target.value)}
+                        placeholder="/installed-ac/midea2.jpg"
+                        style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.82rem', outline: 'none' }}
+                      />
+                      <div style={{ width: '36px', height: '36px', borderRadius: '6px', overflow: 'hidden', border: '1px solid #cbd5e1', background: '#0f172a', flexShrink: 0 }}>
+                        <img src={proofPhotoUrl2} alt="P2" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e: any) => { e.currentTarget.src = '/hero-bg.png'; }} />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Quick Installed Photos:</span>
+                {/* Quick Paired Presets */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Quick Pairs:</span>
                   {[
-                    { label: 'Installed Midea 1', url: '/installed-ac/midea1.jpg' },
-                    { label: 'Installed Midea 2', url: '/installed-ac/midea2.jpg' },
-                    { label: 'Installed Matrix 1', url: '/installed-ac/Matrix1.jpg' },
-                    { label: 'Installed Matrix 2', url: '/installed-ac/matrix2.jpg' },
-                    { label: 'Carrier Inverter', url: '/products/carrier.jpg' },
-                    { label: 'TCL Split Inverter', url: '/products/TCL1.webp' },
-                  ].map((p) => (
+                    { label: 'Pair: Installed Midea (1 & 2)', p1: '/installed-ac/midea1.jpg', p2: '/installed-ac/midea2.jpg' },
+                    { label: 'Pair: Installed Matrix (1 & 2)', p1: '/installed-ac/Matrix1.jpg', p2: '/installed-ac/matrix2.jpg' },
+                    { label: 'Pair: Carrier Inverter', p1: '/products/carrier.jpg', p2: '/products/carrier1.jpg' },
+                    { label: 'Pair: TCL Split Inverter', p1: '/products/TCL1.webp', p2: '/products/TCL2.webp' },
+                  ].map((pair) => (
                     <button
-                      key={p.url}
+                      key={pair.label}
                       type="button"
-                      onClick={() => setProofPhotoUrl(p.url)}
+                      onClick={() => { setProofPhotoUrl(pair.p1); setProofPhotoUrl2(pair.p2); }}
                       style={{
-                        padding: '2px 8px',
+                        padding: '3px 8px',
                         borderRadius: '4px',
-                        border: proofPhotoUrl === p.url ? '1px solid #0284c7' : '1px solid #e2e8f0',
-                        background: proofPhotoUrl === p.url ? '#e0f2fe' : '#f8fafc',
-                        color: proofPhotoUrl === p.url ? '#0369a1' : '#475569',
+                        border: (proofPhotoUrl === pair.p1 && proofPhotoUrl2 === pair.p2) ? '1px solid #0284c7' : '1px solid #cbd5e1',
+                        background: (proofPhotoUrl === pair.p1 && proofPhotoUrl2 === pair.p2) ? '#e0f2fe' : '#ffffff',
+                        color: (proofPhotoUrl === pair.p1 && proofPhotoUrl2 === pair.p2) ? '#0369a1' : '#334155',
                         fontSize: '0.72rem',
                         cursor: 'pointer',
                         fontWeight: 600,
                       }}
                     >
-                      {p.label}
+                      {pair.label}
                     </button>
                   ))}
                 </div>

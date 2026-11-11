@@ -34,9 +34,25 @@ interface InstallmentProof {
   rating: number;
   review?: string;
   photoUrl: string;
+  photoUrl2?: string;
   checklist: string[];
   createdAt?: string;
 }
+
+const getProofPhotoPair = (proof: any): [string, string] => {
+  const p1 = proof.photoUrl || proof.photourl || '/installed-ac/midea1.jpg';
+  const p2 = proof.photoUrl2 || proof.photourl2;
+  if (p2) return [p1, p2];
+  if (p1.includes('midea1')) return [p1, '/installed-ac/midea2.jpg'];
+  if (p1.includes('midea2')) return ['/installed-ac/midea1.jpg', p1];
+  if (p1.toLowerCase().includes('matrix1')) return [p1, '/installed-ac/matrix2.jpg'];
+  if (p1.toLowerCase().includes('matrix2')) return ['/installed-ac/Matrix1.jpg', p1];
+  if (p1.includes('carrier.jpg')) return [p1, '/products/carrier1.jpg'];
+  if (p1.includes('carrier1')) return [p1, '/products/carrier.jpg'];
+  if (p1.includes('TCL1')) return [p1, '/products/TCL2.webp'];
+  if (p1.includes('TCL2')) return ['/products/TCL1.webp', p1];
+  return [p1, p1];
+};
 
 export default function CustomerFeedbackAndProofsPage() {
   const [activeMainTab, setActiveMainTab] = useState<'FEEDBACK' | 'PROOFS'>('FEEDBACK');
@@ -221,7 +237,7 @@ export default function CustomerFeedbackAndProofsPage() {
           <Link href="/" style={{ color: '#0369a1', textDecoration: 'none', fontWeight: 600 }}>Home</Link>
           <span style={{ color: '#94a3b8' }}>/</span>
           <span style={{ color: '#0f172a', fontWeight: 800 }}>
-            {activeMainTab === 'FEEDBACK' ? 'Customer Feedback & Reviews' : 'Admin-Verified AC Installment Proofs'}
+            {activeMainTab === 'FEEDBACK' ? 'Customer Feedback & Reviews' : 'Installment Proofs'}
           </span>
         </div>
       </div>
@@ -337,8 +353,8 @@ export default function CustomerFeedbackAndProofsPage() {
                 transition: 'all 0.2s',
               }}
             >
-              <i className="fa-solid fa-shield-halved"></i>
-              Admin Installment Proofs ({proofs.length})
+              <i className="fa-solid fa-camera-retro"></i>
+              Installment Proofs ({proofs.length})
             </button>
           </div>
 
@@ -503,7 +519,7 @@ export default function CustomerFeedbackAndProofsPage() {
         )}
 
         {/* ============================================================== */}
-        {/* TAB 2: ADMIN INSTALLMENT & INSTALLATION PROOFS */}
+        {/* TAB 2: INSTALLMENT PROOFS */}
         {/* ============================================================== */}
         {activeMainTab === 'PROOFS' && (
           <div>
@@ -511,11 +527,11 @@ export default function CustomerFeedbackAndProofsPage() {
             <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1.25rem 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
                 <strong style={{ fontSize: '0.95rem', color: '#072a6b', display: 'block' }}>
-                  <i className="fa-solid fa-shield-halved" style={{ color: '#0284c7', marginRight: '8px' }}></i>
-                  Official Admin-Posted Installment & Installation Proofs
+                  <i className="fa-solid fa-camera-retro" style={{ color: '#0284c7', marginRight: '8px' }}></i>
+                  Installment Proofs Showcase
                 </strong>
                 <span style={{ fontSize: '0.84rem', color: '#64748b' }}>
-                  These records are posted directly by FrostTech Admin from completed customer installments and job orders, documenting vacuum testing, pipe insulation, and signed technician handovers.
+                  These records document completed customer AC installments, verifying electrical safety, vacuum testing, pipe insulation, and signed technician handovers with paired on-site photography.
                 </span>
               </div>
               <Link
@@ -533,7 +549,7 @@ export default function CustomerFeedbackAndProofsPage() {
                   gap: '6px',
                 }}
               >
-                <i className="fa-solid fa-plus"></i> Admin: Manage Proofs
+                <i className="fa-solid fa-plus"></i> Post Installment Proof
               </Link>
             </div>
 
@@ -610,27 +626,49 @@ export default function CustomerFeedbackAndProofsPage() {
                       flexDirection: 'column',
                     }}
                   >
-                    {/* On-Site Photo */}
-                    <div style={{ position: 'relative', height: '220px', background: '#0a1d37', overflow: 'hidden' }}>
-                      <img
-                        src={proof.photoUrl}
-                        alt={proof.unitModel}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                      <div style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(22, 163, 74, 0.95)', color: '#ffffff', padding: '4px 10px', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <i className="fa-solid fa-circle-check"></i> Admin Verified Installment
-                      </div>
-                      <div style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(7, 42, 107, 0.9)', color: '#ffffff', padding: '4px 10px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700 }}>
-                        {proof.jobOrderNo}
-                      </div>
-                      <div style={{ position: 'absolute', bottom: '10px', left: '12px', right: '12px', background: 'rgba(5, 20, 45, 0.85)', backdropFilter: 'blur(8px)', color: '#ffffff', padding: '6px 12px', borderRadius: '8px', fontSize: '0.78rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 600 }}>
-                          <i className="fa-solid fa-calendar-day" style={{ marginRight: '6px', color: '#38bdf8' }}></i>
-                          {proof.installDate}
-                        </span>
-                        <span style={{ color: '#bae6fd', fontSize: '0.74rem' }}>{proof.installType}</span>
-                      </div>
-                    </div>
+                    {/* On-Site Paired Photos (by pair) */}
+                    {(() => {
+                      const [photo1, photo2] = getProofPhotoPair(proof);
+                      return (
+                        <div style={{ position: 'relative', height: '220px', background: '#0a1d37', overflow: 'hidden' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', height: '100%', gap: '3px' }}>
+                            <div style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>
+                              <img
+                                src={photo1}
+                                alt={`${proof.unitModel} - Photo 1`}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                              <span style={{ position: 'absolute', bottom: '38px', left: '8px', background: 'rgba(0,0,0,0.65)', color: '#ffffff', fontSize: '0.66rem', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                Photo 1
+                              </span>
+                            </div>
+                            <div style={{ position: 'relative', height: '100%', overflow: 'hidden' }}>
+                              <img
+                                src={photo2}
+                                alt={`${proof.unitModel} - Photo 2`}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                              <span style={{ position: 'absolute', bottom: '38px', right: '8px', background: 'rgba(0,0,0,0.65)', color: '#ffffff', fontSize: '0.66rem', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                Photo 2
+                              </span>
+                            </div>
+                          </div>
+                          <div style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(22, 163, 74, 0.95)', color: '#ffffff', padding: '4px 10px', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <i className="fa-solid fa-circle-check"></i> Verified Installment Proof
+                          </div>
+                          <div style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(7, 42, 107, 0.9)', color: '#ffffff', padding: '4px 10px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700 }}>
+                            {proof.jobOrderNo}
+                          </div>
+                          <div style={{ position: 'absolute', bottom: '10px', left: '12px', right: '12px', background: 'rgba(5, 20, 45, 0.85)', backdropFilter: 'blur(8px)', color: '#ffffff', padding: '6px 12px', borderRadius: '8px', fontSize: '0.78rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 600 }}>
+                              <i className="fa-solid fa-calendar-day" style={{ marginRight: '6px', color: '#38bdf8' }}></i>
+                              {proof.installDate}
+                            </span>
+                            <span style={{ color: '#bae6fd', fontSize: '0.74rem' }}>{proof.installType}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Card Content */}
                     <div style={{ padding: '1.4rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
@@ -937,7 +975,7 @@ export default function CustomerFeedbackAndProofsPage() {
             <div style={{ background: 'linear-gradient(135deg, #072a6b 0%, #0369a1 100%)', color: '#ffffff', padding: '1.4rem 1.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: '0.74rem', color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Admin-Verified AC Installment Sign-Off
+                  Verified AC Installment Sign-Off
                 </div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '2px 0 0' }}>Job Order {selectedProof.jobOrderNo}</h3>
               </div>
@@ -951,12 +989,26 @@ export default function CustomerFeedbackAndProofsPage() {
             </div>
 
             <div style={{ padding: '1.8rem' }}>
-              <div style={{ position: 'relative', height: '240px', borderRadius: '14px', overflow: 'hidden', marginBottom: '1.4rem', border: '1px solid #cbd5e1' }}>
-                <img src={selectedProof.photoUrl} alt="Installation proof" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                <div style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(7, 42, 107, 0.9)', color: '#ffffff', padding: '6px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700 }}>
-                  <i className="fa-solid fa-camera" style={{ marginRight: '6px' }}></i> Certified Field Photography
-                </div>
-              </div>
+              {/* Paired Photos in Inspect Modal */}
+              {(() => {
+                const [photo1, photo2] = getProofPhotoPair(selectedProof);
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', height: '240px', marginBottom: '1.4rem' }}>
+                    <div style={{ position: 'relative', borderRadius: '14px', overflow: 'hidden', border: '1px solid #cbd5e1', background: '#0a1d37' }}>
+                      <img src={photo1} alt="Installation photo 1" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(7, 42, 107, 0.9)', color: '#ffffff', padding: '4px 10px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700 }}>
+                        <i className="fa-solid fa-camera" style={{ marginRight: '6px' }}></i> Photo 1 (Indoor / Unit)
+                      </div>
+                    </div>
+                    <div style={{ position: 'relative', borderRadius: '14px', overflow: 'hidden', border: '1px solid #cbd5e1', background: '#0a1d37' }}>
+                      <img src={photo2} alt="Installation photo 2" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <div style={{ position: 'absolute', bottom: '10px', right: '10px', background: 'rgba(7, 42, 107, 0.9)', color: '#ffffff', padding: '4px 10px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700 }}>
+                        <i className="fa-solid fa-camera" style={{ marginRight: '6px' }}></i> Photo 2 (Outdoor / Piping)
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.4rem' }}>
                 <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
