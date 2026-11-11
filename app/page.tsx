@@ -205,7 +205,7 @@ export default function HomePage() {
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const [storeInventory, setStoreInventory] = useState<DBProduct[]>([]);
-  
+
   // Downpayment state
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [showDownpaymentModal, setShowDownpaymentModal] = useState(false);
@@ -230,7 +230,7 @@ export default function HomePage() {
 
     checkAuth();
     window.addEventListener('storage', checkAuth);
-    
+
     return () => window.removeEventListener('storage', checkAuth);
   }, []);
 
@@ -300,19 +300,19 @@ export default function HomePage() {
   }, []);
 
   const handleBrandChange = (brand: string) => {
-    setSelectedBrands(prev => 
+    setSelectedBrands(prev =>
       prev.includes(brand) ? prev.filter(b => b !== brand) : [...prev, brand]
     );
   };
 
   const handleTypeChange = (type: string) => {
-    setSelectedTypes(prev => 
+    setSelectedTypes(prev =>
       prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
     );
   };
 
   const handlePriceChange = (priceRange: string) => {
-    setSelectedPrices(prev => 
+    setSelectedPrices(prev =>
       prev.includes(priceRange) ? prev.filter(p => p !== priceRange) : [...prev, priceRange]
     );
   };
@@ -323,7 +323,7 @@ export default function HomePage() {
     setTimeout(() => { setToastVisible(false); }, 2500);
   };
 
-    const addToCart = async (name: string, price: number, brand?: string, image?: string, productId?: string, skipModal?: boolean) => {
+  const addToCart = async (name: string, price: number, brand?: string, image?: string, productId?: string, skipModal?: boolean) => {
     const actualProductId = productId || 'PROD-' + Date.now();
     const itemImage = image || '/hero-bg.png';
     const itemBrand = brand || '';
@@ -347,7 +347,7 @@ export default function HomePage() {
           const data = await res.json();
           isNew = data.isNewCustomer;
           setIsNewCustomer(isNew);
-        } catch (e) {}
+        } catch (e) { }
       } else {
         isNew = true; // Guests are considered new customers for downpayment purposes
       }
@@ -395,7 +395,7 @@ export default function HomePage() {
         console.error('Failed to add to cart API', err);
       }
     }
-    
+
     // Toast notification
     showToast('<i class="fa-solid fa-check-circle"></i> ' + name + ' added to cart!');
   };
@@ -427,13 +427,13 @@ export default function HomePage() {
     const matchesBrand = selectedBrands.length === 0 || selectedBrands.some(b => b.toLowerCase() === (item.brand || '').toLowerCase());
     const isSpareCategory = item.category === 'Parts' || item.category === 'Spare Parts' || item.category === 'Parts & Accessories';
 
-    const matchesCategory = selectedCategory === 'All' 
+    const matchesCategory = selectedCategory === 'All'
       ? true
       : (
-          catLower.includes(selectedCategory.toLowerCase()) ||
-                    (selectedCategory === 'Spare Parts' && isSpareCategory)
-        );
-    
+        catLower.includes(selectedCategory.toLowerCase()) ||
+        (selectedCategory === 'Spare Parts' && isSpareCategory)
+      );
+
     const matchesPrice = selectedPrices.length === 0 || selectedPrices.some(range => {
       if (range === 'under-20k') return item.price < 20000;
       if (range === '20k-40k') return item.price >= 20000 && item.price <= 40000;
@@ -441,7 +441,7 @@ export default function HomePage() {
       if (range === 'over-60k') return item.price > 60000;
       return false;
     });
-    
+
     const matchesType = selectedTypes.length === 0 || selectedTypes.some(type => {
       if (type === 'Spare Parts') return isSpareCategory;
       if (type === 'Air Conditioners') return !isSpareCategory;
@@ -508,12 +508,12 @@ export default function HomePage() {
       {/* Category Nav */}
       <nav className="category-nav">
         <ul className="nav-links">
-          <li className={selectedCategory === 'All' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('All'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>All Air Conditioners</a></li>
-          <li className={selectedCategory === 'Window' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Window'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Window Type</a></li>
-          <li className={selectedCategory === 'Split' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Split'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Split Type Inverter</a></li>
-          <li className={selectedCategory === 'Floor' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Floor'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Floor Standing</a></li>
-          
-          <li className={selectedCategory === 'Spare Parts' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Spare Parts'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}}>Spare Parts</a></li>
+          <li className={selectedCategory === 'All' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('All'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }) }}>All Air Conditioners</a></li>
+          <li className={selectedCategory === 'Window' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Window'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }) }}>Window Type</a></li>
+          <li className={selectedCategory === 'Split' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Split'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }) }}>Split Type Inverter</a></li>
+          <li className={selectedCategory === 'Floor' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Floor'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }) }}>Floor Standing</a></li>
+
+          <li className={selectedCategory === 'Spare Parts' ? 'active' : ''}><a href="#products" onClick={(e) => { e.preventDefault(); setSelectedCategory('Spare Parts'); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }) }}>Spare Parts</a></li>
           <li>
             <Link
               href="/feedback"
@@ -597,8 +597,8 @@ export default function HomePage() {
             </div>
             {['Air Conditioners', 'Spare Parts'].map(type => (
               <label key={type} className="filter-option">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   value={type}
                   checked={selectedTypes.includes(type)}
                   onChange={() => handleTypeChange(type)}
@@ -615,9 +615,9 @@ export default function HomePage() {
             </div>
             {availableBrands.map(brand => (
               <label key={brand} className="filter-option">
-                <input 
-                  type="checkbox" 
-                  className="brand-filter" 
+                <input
+                  type="checkbox"
+                  className="brand-filter"
                   value={brand}
                   checked={selectedBrands.some(b => b.toLowerCase() === brand.toLowerCase())}
                   onChange={() => handleBrandChange(brand)}
@@ -655,8 +655,8 @@ export default function HomePage() {
               Showing {sortedProducts.length} products
             </div>
             <div className="toolbar-actions">
-              <button 
-                id="mobile-filter-btn" 
+              <button
+                id="mobile-filter-btn"
                 className="btn btn-secondary mobile-only"
                 onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
               >
@@ -763,11 +763,11 @@ export default function HomePage() {
               sortedProducts.map(item => {
                 const price = item.price;
                 const imgPlaceholder = item.image;
-                
+
                 return (
-                  <div 
-                    key={item.id} 
-                    className="product-card" 
+                  <div
+                    key={item.id}
+                    className="product-card"
                     onClick={() => router.push(`/product/${item.slug || item.id}`)}
                     style={{ cursor: 'pointer' }}
                   >
@@ -903,7 +903,7 @@ export default function HomePage() {
               <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem', border: 'none', padding: 0 }}>Downpayment Required</h2>
               <p style={{ color: 'var(--text-light)', fontSize: '0.95rem' }}>As a first-time buyer of Air Conditioning units, a 15% downpayment is required.</p>
             </div>
-            
+
             <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1.2rem', marginBottom: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <span style={{ color: 'var(--text-light)' }}>{pendingCartItem.name}</span>
@@ -914,7 +914,7 @@ export default function HomePage() {
                 <span>₱ {(pendingCartItem.price * 0.15).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
-            
+
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => {
                 setShowDownpaymentModal(false);

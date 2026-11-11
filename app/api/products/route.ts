@@ -95,6 +95,70 @@ export async function GET() {
       });
     }
 
+    // Self-healing: Update any legacy '/hero-bg.png' images to real images from fallbackProducts
+    for (const p of prods) {
+      if (!p.image || p.image === '/hero-bg.png' || p.image.includes('hero-bg')) {
+        const match = fallbackProducts.find(
+          fb => fb.slug === p.slug || fb.id === p.id || fb.name.toLowerCase() === p.name.toLowerCase()
+        );
+        if (match && match.image && match.image !== '/hero-bg.png') {
+          try {
+            await prisma.product.update({
+              where: { id: p.id },
+              data: {
+                image: match.image,
+                images: match.images && match.images.length > 0 ? match.images : [match.image],
+              },
+            });
+            p.image = match.image;
+            p.images = match.images && match.images.length > 0 ? match.images : [match.image];
+          } catch (err) {
+            console.error('Failed to update legacy image for', p.name, err);
+          }
+        }
+      }
+    }
+
+    // Self-healing: Ensure any missing catalog products from fallbackProducts are inserted
+    for (const fb of fallbackProducts) {
+      const exists = prods.some(
+        p => p.slug === (fb.slug || fb.id) || p.name.toLowerCase() === fb.name.toLowerCase()
+      );
+      if (!exists) {
+        try {
+          const newProd = await prisma.product.create({
+            data: {
+              slug: fb.slug || fb.id,
+              name: fb.name,
+              brand: fb.brand,
+              category: fb.category,
+              price: fb.price,
+              originalPrice: fb.originalPrice ?? null,
+              rating: fb.rating,
+              sold: fb.sold,
+              image: fb.image,
+              images: fb.images || [fb.image],
+              horsepower: (fb.specs || []).find((s: string) => s.includes('HP')) || null,
+              badge: fb.badge ?? null,
+              specs: fb.specs || [],
+              description: fb.description ?? null,
+              variants: {
+                create: fb.variants && fb.variants.length > 0
+                  ? fb.variants.map((v: any) => ({ condition: v.condition, price: v.price, stock: v.stock }))
+                  : [
+                      { condition: fb.badge === 'Used' ? 'Second Hand' : 'Brand New', price: fb.price, stock: 10 }
+                    ]
+              }
+            },
+            include: { variants: true }
+          });
+          prods.unshift(newProd);
+        } catch (err) {
+          console.error('Failed to create missing product', fb.name, err);
+        }
+      }
+    }
+
     // Self-healing: Ensure every product has variants and stock synced from inventory
     for (const p of prods) {
       if (!p.variants || p.variants.length === 0) {
