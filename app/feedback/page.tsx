@@ -409,7 +409,7 @@ export default function CustomerFeedbackAndProofsPage() {
       {/* Hero Banner Header with Dual Section Selector */}
       <section style={{ background: 'linear-gradient(135deg, #072a6b 0%, #0c3d98 50%, #0369a1 100%)', padding: '2.8rem 5% 2.4rem', color: '#ffffff' }}>
         <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-          
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.5rem', marginBottom: '1.5rem' }}>
             <div>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.15)', padding: '5px 14px', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.75rem', backdropFilter: 'blur(4px)' }}>
