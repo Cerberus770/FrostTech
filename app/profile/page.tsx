@@ -1540,12 +1540,12 @@ export default function ProfilePage() {
                 <div>
                   <h2 style={{ margin: 0, fontSize: '1.5rem', color: '#0f172a', fontWeight: 800 }}>My Orders</h2>
                   <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: '#64748b' }}>
-                    Track your successful store orders and delivery dispatch scheduling.
+                    Track your orders, delivery dispatch, and installment application status.
                   </p>
                 </div>
               </div>
 
-              {orders.length === 0 ? (
+              {orders.length === 0 && installments.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '3rem 1rem', background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                   <i className="fa-solid fa-box-open" style={{ fontSize: '3rem', color: '#cbd5e1', marginBottom: '1rem', display: 'block' }}></i>
                   <h3 style={{ color: '#0f172a', margin: '0 0 0.5rem' }}>No orders placed yet</h3>
@@ -1556,6 +1556,194 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {/* Installment Applications Section */}
+                  {installments.map((inst) => {
+                    const fin = getInstallmentFinancials(inst);
+                    const isAccepted = inst.status === 'CI_ACCEPTED' || inst.status === 'COMPLETED';
+                    const isPending = inst.status === 'PENDING';
+                    const isRejected = inst.status === 'REJECTED';
+
+                    return (
+                      <div
+                        key={inst.id}
+                        style={{
+                          background: '#ffffff',
+                          border: isAccepted ? '1.5px solid #bae6fd' : isPending ? '1.5px solid #fed7aa' : '1px solid #e2e8f0',
+                          borderRadius: '16px',
+                          padding: '1.5rem',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#0f172a', fontWeight: 700 }}>
+                                Installment Application {inst.appId}
+                              </h3>
+                              <span
+                                style={{
+                                  fontSize: '0.78rem',
+                                  padding: '4px 10px',
+                                  borderRadius: '999px',
+                                  fontWeight: 700,
+                                  background: isAccepted ? '#dcfce7' : isRejected ? '#fee2e2' : '#fef3c7',
+                                  color: isAccepted ? '#16a34a' : isRejected ? '#dc2626' : '#b45309',
+                                }}
+                              >
+                                {isPending
+                                  ? '⏳ Under Admin Review (Pending CI)'
+                                  : inst.status === 'CI_ACCEPTED'
+                                  ? '✅ Accepted for CI'
+                                  : inst.status === 'COMPLETED'
+                                  ? '🎉 Approved & Active'
+                                  : 'Rejected'}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Date Applied: {inst.date}</span>
+                          </div>
+
+                          <div>
+                            <span
+                              style={{
+                                background: '#f1f5f9',
+                                color: '#334155',
+                                padding: '6px 14px',
+                                borderRadius: '8px',
+                                fontSize: '0.82rem',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                              }}
+                            >
+                              <i className="fa-solid fa-credit-card" style={{ color: '#0284c7' }}></i>
+                              {inst.term || 6}-Month Installment Plan
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
+                          <div>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>AC Unit Requested</span>
+                            <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#0f172a' }}>{inst.item}</p>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Delivery / Installation Address</span>
+                            <p style={{ margin: '4px 0 0', color: '#334155', fontSize: '0.9rem' }}>{inst.location?.split('| COORDS:')[0].trim() || 'Address on file'}</p>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Monthly Due</span>
+                            <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#0284c7', fontSize: '0.95rem' }}>
+                              ₱{fin.monthlyAmortization.toLocaleString('en-PH', { minimumFractionDigits: 2 })} / mo
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Summary & Action Bar */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #e2e8f0', marginTop: '0.5rem' }}>
+                          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                            <div>
+                              <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', fontWeight: 600 }}>Contract Price</span>
+                              <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#052e80' }}>
+                                ₱{fin.totalPrice.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', fontWeight: 600 }}>Downpayment (15%)</span>
+                              <span style={{ fontSize: '1.05rem', fontWeight: 700, color: '#16a34a' }}>
+                                ₱{fin.downpayment.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', fontWeight: 600 }}>Remaining Balance</span>
+                              <span style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0284c7' }}>
+                                ₱{fin.remainingBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          </div>
+
+                          {isAccepted && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                changeTab('tab-myacs');
+                                setSelectedInstallmentDetails({ inst, fin });
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                background: '#0284c7',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '0.55rem 1.1rem',
+                                fontSize: '0.84rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+                              }}
+                            >
+                              <i className="fa-solid fa-fan"></i>
+                              View in My AC Units &rarr;
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Status Message Banner */}
+                        {isPending && (
+                          <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '10px', padding: '0.85rem 1rem', marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <i className="fa-solid fa-clock-rotate-left" style={{ color: '#d97706', fontSize: '1.2rem', flexShrink: 0 }}></i>
+                            <div>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#92400e', display: 'block' }}>
+                                Under Admin Review &amp; Credit Investigation (CI)
+                              </span>
+                              <span style={{ fontSize: '0.8rem', color: '#b45309' }}>
+                                Your application is submitted and awaiting review by the FrostTech Admin team. Once accepted, this unit will automatically transfer to your <strong>My AC Units</strong> tab for installment payments and scheduling.
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {isAccepted && (
+                          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.85rem 1rem', marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <i className="fa-solid fa-circle-check" style={{ color: '#16a34a', fontSize: '1.2rem', flexShrink: 0 }}></i>
+                              <div>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#15803d', display: 'block' }}>
+                                  Application Accepted by Admin! Moved to My AC Units
+                                </span>
+                                <span style={{ fontSize: '0.8rem', color: '#166534' }}>
+                                  This unit is now accessible under your <strong>My AC Units</strong> tab. You can view the payment ledger and submit your monthly GCash reference number.
+                                </span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                changeTab('tab-myacs');
+                                setSelectedInstallmentDetails({ inst, fin });
+                              }}
+                              style={{
+                                background: '#15803d',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '6px',
+                                padding: '6px 12px',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Pay / View Ledger &rarr;
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Standard Store Orders */}
                   {orders.map((order) => {
                     const dispatchItem = dispatch.find((d) => (d.notes && d.notes.includes(order.orderNo)) || d.item === order.item);
                     const isDispatchCompleted = dispatchItem?.status?.toUpperCase() === 'COMPLETED';
@@ -1817,24 +2005,43 @@ export default function ProfilePage() {
               </div>
 
               {/* 3 Box Containers Side by Side (Grid) */}
-              {registeredACs.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '3rem 1rem', background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                  <i className="fa-solid fa-fan" style={{ fontSize: '3rem', color: '#cbd5e1', marginBottom: '1rem', display: 'block' }}></i>
-                  <h3 style={{ color: '#0f172a', margin: '0 0 0.5rem' }}>No AC Units Found</h3>
-                  <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Go to Settings to register or add your air conditioners.</p>
-                  <button onClick={() => changeTab('tab-settings')} className="btn" style={{ marginTop: '1rem' }}>
-                    Register AC in Settings &rarr;
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(3, 1fr)',
-                      gap: '1.25rem',
-                    }}
-                  >
+              {(() => {
+                const unlinkedAcceptedInstallments = installments.filter(
+                  (inst) =>
+                    (inst.status === 'CI_ACCEPTED' || inst.status === 'COMPLETED') &&
+                    !registeredACs.some((ac) => {
+                      const acModel = (ac.brandModel || '').toLowerCase();
+                      const instItem = (inst.item || '').toLowerCase();
+                      return instItem.includes(acModel) || acModel.includes(instItem);
+                    })
+                );
+                const hasAnyUnits = registeredACs.length > 0 || unlinkedAcceptedInstallments.length > 0;
+
+                if (!hasAnyUnits) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '3rem 1rem', background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                      <i className="fa-solid fa-fan" style={{ fontSize: '3rem', color: '#cbd5e1', marginBottom: '1rem', display: 'block' }}></i>
+                      <h3 style={{ color: '#0f172a', margin: '0 0 0.5rem' }}>No AC Units Found</h3>
+                      <p style={{ color: '#64748b', fontSize: '0.9rem' }}>
+                        If you recently applied for an installment AC, your application is under review in <strong style={{ color: '#0284c7', cursor: 'pointer' }} onClick={() => changeTab('tab-orders')}>My Orders</strong>. Once accepted by Admin, it will appear here.
+                      </p>
+                      <button onClick={() => changeTab('tab-settings')} className="btn" style={{ marginTop: '1rem' }}>
+                        Register AC in Settings &rarr;
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    {registeredACs.length > 0 && (
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(3, 1fr)',
+                          gap: '1.25rem',
+                        }}
+                      >
                     {registeredACs.map((ac) => {
                       const isSelected = selectedAcIds.includes(ac.id);
                       const matchedInst = installments.find((inst) => {
@@ -2113,18 +2320,11 @@ export default function ProfilePage() {
                       );
                     })}
                   </div>
+                    )}
 
-                  {/* Unlinked Accepted Installment Accounts (CI Accepted / Completed from Store) */}
-                  {installments.filter(
-                    (inst) =>
-                      (inst.status === 'CI_ACCEPTED' || inst.status === 'COMPLETED') &&
-                      !registeredACs.some((ac) => {
-                        const acModel = (ac.brandModel || '').toLowerCase();
-                        const instItem = (inst.item || '').toLowerCase();
-                        return instItem.includes(acModel) || acModel.includes(instItem);
-                      })
-                  ).length > 0 && (
-                    <div style={{ marginTop: '2.5rem' }}>
+                    {/* Unlinked Accepted Installment Accounts (CI Accepted / Completed from Store) */}
+                    {unlinkedAcceptedInstallments.length > 0 && (
+                      <div style={{ marginTop: registeredACs.length > 0 ? '2.5rem' : '0' }}>
                       <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <i className="fa-solid fa-file-invoice-dollar" style={{ color: '#0284c7', fontSize: '1.2rem' }}></i>
                         <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#0f172a', fontWeight: 800 }}>
@@ -2141,17 +2341,7 @@ export default function ProfilePage() {
                           gap: '1.25rem',
                         }}
                       >
-                        {installments
-                          .filter(
-                            (inst) =>
-                              (inst.status === 'CI_ACCEPTED' || inst.status === 'COMPLETED') &&
-                              !registeredACs.some((ac) => {
-                                const acModel = (ac.brandModel || '').toLowerCase();
-                                const instItem = (inst.item || '').toLowerCase();
-                                return instItem.includes(acModel) || acModel.includes(instItem);
-                              })
-                          )
-                          .map((inst) => {
+                        {unlinkedAcceptedInstallments.map((inst) => {
                             const fin = getInstallmentFinancials(inst);
                             return (
                               <div
@@ -2257,7 +2447,8 @@ export default function ProfilePage() {
                     </div>
                   )}
                 </>
-              )}
+              );
+            })()}
 
               {/* Active Maintenance Monitoring Schedules Section */}
               {maintenance.length > 0 && (

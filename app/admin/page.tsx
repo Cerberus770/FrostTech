@@ -1705,12 +1705,16 @@ export default function AdminDashboard() {
       });
 
       if (res.ok) {
-        setInstallments(installments.map((i) => (i.id === inst.id ? { ...i, status: 'CI_ACCEPTED' } : i)));
+        setInstallments((prev) => prev.map((i) => (i.id === inst.id ? { ...i, status: 'CI_ACCEPTED' } : i)));
+        setSelectedInstallment((prev) => (prev && prev.id === inst.id ? { ...prev, status: 'CI_ACCEPTED' } : prev));
         showAlert({ title: 'CI Accepted', message: `Application ${inst.appId} is now accepted for CI! You can now proceed to Assign & Schedule.` });
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        showAlert({ title: 'Error', message: errJson.error || 'Failed to update installment status', type: 'error' });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showAlert({ title: 'Error', message: 'Failed to update installment status', type: 'error' });
+      showAlert({ title: 'Error', message: err?.message || 'Failed to update installment status', type: 'error' });
     }
   };
 
@@ -1730,12 +1734,16 @@ export default function AdminDashboard() {
       });
 
       if (res.ok) {
-        setInstallments(installments.map((i) => (i.id === inst.id ? { ...i, status: 'REJECTED' } : i)));
+        setInstallments((prev) => prev.map((i) => (i.id === inst.id ? { ...i, status: 'REJECTED' } : i)));
+        setSelectedInstallment((prev) => (prev && prev.id === inst.id ? { ...prev, status: 'REJECTED' } : prev));
         showAlert({ title: 'Application Rejected', message: `Application ${inst.appId} has been marked as Rejected.` });
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        showAlert({ title: 'Error', message: errJson.error || 'Failed to reject installment application', type: 'error' });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showAlert({ title: 'Error', message: 'Failed to reject installment application', type: 'error' });
+      showAlert({ title: 'Error', message: err?.message || 'Failed to reject installment application', type: 'error' });
     }
   };
 
