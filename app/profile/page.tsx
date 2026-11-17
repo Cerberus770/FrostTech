@@ -3512,11 +3512,12 @@ export default function ProfilePage() {
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        <th style={{ padding: '0.75rem 1rem' }}>Month #</th>
-                        <th style={{ padding: '0.75rem 1rem' }}>Due Date</th>
-                        <th style={{ padding: '0.75rem 1rem' }}>Monthly Due</th>
-                        <th style={{ padding: '0.75rem 1rem' }}>Status</th>
-                        <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Remaining Balance</th>
+                        <th style={{ padding: '0.75rem 0.85rem' }}>Month #</th>
+                        <th style={{ padding: '0.75rem 0.85rem' }}>Due Date</th>
+                        <th style={{ padding: '0.75rem 0.85rem' }}>Monthly Due</th>
+                        <th style={{ padding: '0.75rem 0.85rem' }}>Status</th>
+                        <th style={{ padding: '0.75rem 0.85rem' }}>Reference No.</th>
+                        <th style={{ padding: '0.75rem 0.85rem', textAlign: 'right' }}>Remaining Balance</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3533,7 +3534,10 @@ export default function ProfilePage() {
                         const dueDate = new Date(startDate);
                         dueDate.setMonth(dueDate.getMonth() + monthNum);
                         const dueDateStr = dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                        const runningRemaining = Math.max(0, selectedInstallmentDetails.fin.totalFinancedWithInterest - monthNum * selectedInstallmentDetails.fin.monthlyAmortization);
+                        
+                        // Remaining balance: Full in first month before payment, deducts only after payment is settled
+                        const deductionCount = isPaid ? monthNum : Math.max(0, monthNum - 1);
+                        const runningRemaining = Math.max(0, selectedInstallmentDetails.fin.totalFinancedWithInterest - deductionCount * selectedInstallmentDetails.fin.monthlyAmortization);
 
                         return (
                           <tr
@@ -3543,44 +3547,121 @@ export default function ProfilePage() {
                               background: isNextDue ? '#fffbeb' : isPaid ? '#ffffff' : '#fafafa',
                             }}
                           >
-                            <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#0f172a' }}>
+                            <td style={{ padding: '0.75rem 0.85rem', fontWeight: 700, color: '#0f172a' }}>
                               Month {monthNum}
                             </td>
-                            <td style={{ padding: '0.75rem 1rem', color: '#475569' }}>
+                            <td style={{ padding: '0.75rem 0.85rem', color: '#475569' }}>
                               {dueDateStr}
                             </td>
-                            <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: '#0f172a' }}>
+                            <td style={{ padding: '0.75rem 0.85rem', fontWeight: 600, color: '#0f172a' }}>
                               ₱{selectedInstallmentDetails.fin.monthlyAmortization.toLocaleString()}
                             </td>
-                            <td style={{ padding: '0.75rem 1rem' }}>
+                            <td style={{ padding: '0.75rem 0.85rem' }}>
                               {isPaid ? (
                                 <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 9px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                   <i className="fa-solid fa-circle-check"></i> Paid
                                 </span>
                               ) : isNextDue ? (
-                                <div>
-                                  <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 9px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                    <i className="fa-solid fa-clock"></i> Next Due
-                                  </span>
-                                  {(() => {
-                                    const submittedPay = (selectedInstallmentDetails.fin.payments || []).find((p: any) => p.month === monthNum);
-                                    if (submittedPay) {
-                                      return (
-                                        <div style={{ marginTop: '4px', fontSize: '0.72rem', color: '#0369a1', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                          <i className="fa-solid fa-receipt"></i> Ref #{submittedPay.refNo} (Pending)
-                                        </div>
-                                      );
-                                    }
-                                    return null;
-                                  })()}
-                                </div>
+                                <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 9px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <i className="fa-solid fa-clock"></i> Next Due
+                                </span>
                               ) : (
                                 <span style={{ background: '#f1f5f9', color: '#64748b', padding: '3px 9px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600 }}>
                                   Upcoming
                                 </span>
                               )}
                             </td>
-                            <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: isPaid ? '#94a3b8' : '#0284c7' }}>
+                            <td style={{ padding: '0.75rem 0.85rem' }}>
+                              {(() => {
+                                const submittedPay = (selectedInstallmentDetails.fin.payments || []).find((p: any) => p.month === monthNum);
+
+                                if (submittedPay) {
+                                  return (
+                                    <div>
+                                      <span
+                                        style={{
+                                          background: '#e0f2fe',
+                                          color: '#0369a1',
+                                          padding: '3px 8px',
+                                          borderRadius: '6px',
+                                          fontSize: '0.78rem',
+                                          fontWeight: 700,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                        }}
+                                      >
+                                        <i className="fa-solid fa-receipt"></i> #{submittedPay.refNo}
+                                      </span>
+                                      <div style={{ fontSize: '0.68rem', color: isPaid ? '#15803d' : '#b45309', fontWeight: 600, marginTop: '2px' }}>
+                                        {isPaid ? 'Verified' : 'Under Review'}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
+                                if (isPaid) {
+                                  return (
+                                    <span
+                                      style={{
+                                        background: '#f1f5f9',
+                                        color: '#475569',
+                                        padding: '3px 8px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      #{selectedInstallmentDetails.inst?.appId ? `FT-${selectedInstallmentDetails.inst.appId}-M${monthNum}` : 'VERIFIED'}
+                                    </span>
+                                  );
+                                }
+
+                                if (isNextDue) {
+                                  return (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                      <input
+                                        type="text"
+                                        placeholder="GCash Ref #"
+                                        value={installmentRefInput}
+                                        onChange={(e) => setInstallmentRefInput(e.target.value)}
+                                        style={{
+                                          width: '110px',
+                                          padding: '4px 6px',
+                                          fontSize: '0.76rem',
+                                          borderRadius: '6px',
+                                          border: '1.5px solid #0284c7',
+                                          outline: 'none',
+                                          fontWeight: 600,
+                                          background: '#ffffff',
+                                          color: '#0f172a',
+                                        }}
+                                      />
+                                      <button
+                                        onClick={() => handleSubmitInstallmentRef(monthNum, selectedInstallmentDetails.fin.monthlyAmortization)}
+                                        disabled={isSubmittingInstallmentRef}
+                                        style={{
+                                          padding: '4px 8px',
+                                          fontSize: '0.74rem',
+                                          fontWeight: 700,
+                                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                                          color: '#ffffff',
+                                          border: 'none',
+                                          borderRadius: '6px',
+                                          cursor: 'pointer',
+                                          whiteSpace: 'nowrap',
+                                        }}
+                                      >
+                                        {isSubmittingInstallmentRef ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Submit'}
+                                      </button>
+                                    </div>
+                                  );
+                                }
+
+                                return <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>—</span>;
+                              })()}
+                            </td>
+                            <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right', fontWeight: 700, color: isPaid ? '#94a3b8' : '#0284c7' }}>
                               ₱{runningRemaining.toLocaleString()}
                             </td>
                           </tr>

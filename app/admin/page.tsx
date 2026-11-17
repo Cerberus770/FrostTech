@@ -9220,6 +9220,7 @@ export default function AdminDashboard() {
                                   dueDate.setMonth(dueDate.getMonth() + monthNum);
                                   const dueDateStr = dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                                   const isPaid = paidMonths.includes(monthNum);
+                                  const submittedPay = Array.isArray(meta.payments) ? meta.payments.find((p: any) => p.month === monthNum) : null;
 
                                   return (
                                     <tr key={monthNum} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -9239,12 +9240,17 @@ export default function AdminDashboard() {
                                             borderRadius: '999px',
                                             fontSize: '0.74rem',
                                             fontWeight: 800,
-                                            background: isPaid ? '#dcfce7' : '#fef3c7',
-                                            color: isPaid ? '#15803d' : '#b45309',
+                                            background: isPaid ? '#dcfce7' : submittedPay ? '#e0f2fe' : '#fef3c7',
+                                            color: isPaid ? '#15803d' : submittedPay ? '#0369a1' : '#b45309',
                                           }}
                                         >
-                                          {isPaid ? 'PAID' : 'DUE / PENDING'}
+                                          {isPaid ? 'PAID' : submittedPay ? 'REF SUBMITTED' : 'DUE / PENDING'}
                                         </span>
+                                        {submittedPay && (
+                                          <div style={{ fontSize: '0.72rem', color: '#0369a1', fontWeight: 700, marginTop: '3px' }}>
+                                            GCash: #{submittedPay.refNo}
+                                          </div>
+                                        )}
                                       </td>
                                       <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
                                         {isPaid ? (
