@@ -823,15 +823,20 @@ export default function AdminDashboard() {
   const parseInstallmentMeta = (issueStr: string = '') => {
     try {
       if (issueStr && issueStr.startsWith('{')) {
-        return JSON.parse(issueStr);
+        const parsed = JSON.parse(issueStr);
+        if (parsed.ciNotes && typeof parsed.ciNotes === 'string' && parsed.ciNotes.startsWith('{')) {
+          parsed.ciNotes = '';
+        }
+        return parsed;
       }
     } catch (e) {
       // fallback
     }
     return {
-      ciNotes: issueStr || '',
+      ciNotes: issueStr && !issueStr.startsWith('{') ? issueStr : '',
       riskLevel: 'LOW',
       paidMonths: [] as number[],
+      payments: [] as any[],
       checklist: { address: true, employer: true, id: true, reference: false },
     };
   };
@@ -1537,7 +1542,7 @@ export default function AdminDashboard() {
   const handleOpenInstallmentMonitor = (inst: Installment) => {
     setSelectedInstallment(inst);
     const meta = parseInstallmentMeta(inst.issue);
-    setCiNotesInput(meta.ciNotes || inst.issue || '');
+    setCiNotesInput((meta.ciNotes && !meta.ciNotes.startsWith('{')) ? meta.ciNotes : '');
     setInstallmentMonitoringTab('DOSSIER');
     const fin = getInstallmentFinancials(inst);
     setInstallmentSmsMessage(
@@ -5156,48 +5161,84 @@ export default function AdminDashboard() {
 
                                 {/* Status */}
                                 <td style={{ padding: '0.85rem 1rem' }}>
-                                  <span
-                                    style={{
-                                      padding: '3px 8px',
-                                      borderRadius: '6px',
-                                      fontSize: '0.74rem',
-                                      fontWeight: 700,
-                                      background: fin.isFullyPaid ? '#dcfce7' : inst.status === 'COMPLETED' ? '#e0f2fe' : '#fef3c7',
-                                      color: fin.isFullyPaid ? '#166534' : inst.status === 'COMPLETED' ? '#0369a1' : '#b45309',
-                                    }}
-                                  >
-                                    {fin.isFullyPaid ? 'Fully Paid' : inst.status === 'COMPLETED' ? 'Active / Dispatched' : 'CI Accepted'}
-                                  </span>
+                                  {(() => {
+                                    const instMeta = parseInstallmentMeta(inst.issue);
+                                    const pendingRefs = Array.isArray(instMeta.payments)
+                                      ? instMeta.payments.filter((p: any) => p.status === 'PENDING_VERIFICATION')
+                                      : [];
+                                    return (
+                                      <div>
+                                        <span
+                                          style={{
+                                            padding: '3px 8px',
+                                            borderRadius: '6px',
+                                            fontSize: '0.74rem',
+                                            fontWeight: 700,
+                                            background: fin.isFullyPaid ? '#dcfce7' : inst.status === 'COMPLETED' ? '#e0f2fe' : '#fef3c7',
+                                            color: fin.isFullyPaid ? '#166534' : inst.status === 'COMPLETED' ? '#0369a1' : '#b45309',
+                                          }}
+                                        >
+                                          {fin.isFullyPaid ? 'Fully Paid' : inst.status === 'COMPLETED' ? 'Active / Dispatched' : 'CI Accepted'}
+                                        </span>
+                                        {pendingRefs.length > 0 && (
+                                          <div style={{ marginTop: '4px' }}>
+                                            <span
+                                              style={{
+                                                background: '#fef3c7',
+                                                color: '#b45309',
+                                                border: '1px solid #fde68a',
+                                                padding: '2px 7px',
+                                                borderRadius: '999px',
+                                                fontSize: '0.7rem',
+                                                fontWeight: 800,
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '3px',
+                                              }}
+                                            >
+                                              <i className="fa-solid fa-bell"></i> {pendingRefs.length} Ref Pending
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </td>
 
                                 {/* Actions */}
                                 <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
                                   <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                                     {/* Record Payment Button */}
-                                    <button
-                                      onClick={() => {
-                                        setInstallmentMonitoringTab('SCHEDULE');
-                                        handleOpenInstallmentMonitor(inst);
-                                      }}
-                                      style={{
-                                        padding: '6px 12px',
-                                        borderRadius: '8px',
-                                        background: fin.isFullyPaid ? '#f1f5f9' : '#052e80',
-                                        color: fin.isFullyPaid ? '#64748b' : '#ffffff',
-                                        border: 'none',
-                                        fontWeight: 700,
-                                        fontSize: '0.8rem',
-                                        cursor: 'pointer',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '5px',
-                                        boxShadow: fin.isFullyPaid ? 'none' : '0 2px 4px rgba(5, 46, 128, 0.2)',
-                                      }}
-                                      title="Record customer amortization payment and view ledger"
-                                    >
-                                      <i className="fa-solid fa-receipt"></i>
-                                      {fin.isFullyPaid ? 'View Ledger' : 'Record Payment'}
-                                    </button>
+                                    {(() => {
+                                      const instMeta = parseInstallmentMeta(inst.issue);
+                                      const hasPendingRefs = Array.isArray(instMeta.payments) && instMeta.payments.some((p: any) => p.status === 'PENDING_VERIFICATION');
+                                      return (
+                                        <button
+                                          onClick={() => {
+                                            setInstallmentMonitoringTab('SCHEDULE');
+                                            handleOpenInstallmentMonitor(inst);
+                                          }}
+                                          style={{
+                                            padding: '6px 12px',
+                                            borderRadius: '8px',
+                                            background: hasPendingRefs ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : fin.isFullyPaid ? '#f1f5f9' : '#052e80',
+                                            color: fin.isFullyPaid && !hasPendingRefs ? '#64748b' : '#ffffff',
+                                            border: 'none',
+                                            fontWeight: 700,
+                                            fontSize: '0.8rem',
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                            boxShadow: hasPendingRefs ? '0 2px 6px rgba(2, 132, 199, 0.3)' : fin.isFullyPaid ? 'none' : '0 2px 4px rgba(5, 46, 128, 0.2)',
+                                          }}
+                                          title="Record customer amortization payment and view ledger"
+                                        >
+                                          <i className={`fa-solid ${hasPendingRefs ? 'fa-check-double' : 'fa-receipt'}`}></i>
+                                          {hasPendingRefs ? 'Accept Payment' : fin.isFullyPaid ? 'View Ledger' : 'Record Payment'}
+                                        </button>
+                                      );
+                                    })()}
 
                                     {/* Send Reminder SMS */}
                                     <button
@@ -9218,6 +9259,42 @@ export default function AdminDashboard() {
                           </div>
                         </div>
 
+                        {/* Banner if customer has submitted pending payments */}
+                        {(() => {
+                          const pendingCustomerPayments = Array.isArray(meta.payments)
+                            ? meta.payments.filter((p: any) => p.status === 'PENDING_VERIFICATION')
+                            : [];
+                          if (pendingCustomerPayments.length === 0) return null;
+                          return (
+                            <div
+                              style={{
+                                background: '#eff6ff',
+                                border: '1.5px solid #93c5fd',
+                                borderRadius: '12px',
+                                padding: '0.85rem 1.25rem',
+                                marginBottom: '1rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                flexWrap: 'wrap',
+                                gap: '0.75rem',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <i className="fa-solid fa-bell" style={{ color: '#0284c7', fontSize: '1.25rem' }}></i>
+                                <div>
+                                  <strong style={{ color: '#1e40af', fontSize: '0.88rem', display: 'block' }}>
+                                    Customer Submitted {pendingCustomerPayments.length} Payment Reference(s)
+                                  </strong>
+                                  <span style={{ color: '#3b82f6', fontSize: '0.78rem' }}>
+                                    Customer entered GCash reference number(s). Click &ldquo;Accept Payment&rdquo; to verify and deduct balance.
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         {/* Amortization Table */}
                         <div style={{ border: '1px solid #e2e8f0', borderRadius: '14px', overflow: 'hidden' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
@@ -9226,6 +9303,7 @@ export default function AdminDashboard() {
                                 <th style={{ padding: '0.75rem 1rem' }}>Amortization Month</th>
                                 <th style={{ padding: '0.75rem 1rem' }}>Due Date</th>
                                 <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Amount Due (₱)</th>
+                                <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Customer Ref No.</th>
                                 <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Payment Status</th>
                                 <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Action / Official Receipt</th>
                               </tr>
@@ -9255,25 +9333,72 @@ export default function AdminDashboard() {
                                       <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
                                         ₱{fin.monthlyAmortization.toLocaleString()}
                                       </td>
+
+                                      {/* Customer Ref No. Column */}
+                                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                                        {submittedPay?.refNo ? (
+                                          <div>
+                                            <span
+                                              style={{
+                                                background: isPaid ? '#f0fdf4' : '#eff6ff',
+                                                color: isPaid ? '#15803d' : '#0369a1',
+                                                border: isPaid ? '1px solid #bbf7d0' : '1px solid #bfdbfe',
+                                                padding: '4px 10px',
+                                                borderRadius: '6px',
+                                                fontWeight: 800,
+                                                fontSize: '0.82rem',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '5px',
+                                                fontFamily: 'monospace',
+                                                letterSpacing: '0.5px',
+                                                boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                                              }}
+                                            >
+                                              <i className="fa-solid fa-receipt"></i>
+                                              #{submittedPay.refNo}
+                                            </span>
+                                            <div style={{ fontSize: '0.71rem', color: isPaid ? '#16a34a' : '#b45309', fontWeight: 700, marginTop: '3px' }}>
+                                              {isPaid ? (
+                                                <span><i className="fa-solid fa-circle-check"></i> Verified (GCash)</span>
+                                              ) : (
+                                                <span><i className="fa-solid fa-clock"></i> Pending Review</span>
+                                              )}
+                                            </div>
+                                            {submittedPay.submittedAt && (
+                                              <div style={{ fontSize: '0.67rem', color: '#94a3b8', marginTop: '1px' }}>
+                                                {new Date(submittedPay.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ) : isPaid ? (
+                                          <span style={{ fontSize: '0.78rem', color: '#64748b', fontStyle: 'italic' }}>
+                                            Direct / Cash
+                                          </span>
+                                        ) : (
+                                          <span style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
+                                            —
+                                          </span>
+                                        )}
+                                      </td>
+
+                                      {/* Payment Status Column */}
                                       <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
                                         <span
                                           style={{
-                                            padding: '3px 9px',
+                                            padding: '4px 10px',
                                             borderRadius: '999px',
                                             fontSize: '0.74rem',
                                             fontWeight: 800,
-                                            background: isPaid ? '#dcfce7' : submittedPay ? '#e0f2fe' : '#fef3c7',
-                                            color: isPaid ? '#15803d' : submittedPay ? '#0369a1' : '#b45309',
+                                            background: isPaid ? '#dcfce7' : submittedPay ? '#fef3c7' : '#f1f5f9',
+                                            color: isPaid ? '#15803d' : submittedPay ? '#b45309' : '#64748b',
                                           }}
                                         >
                                           {isPaid ? 'PAID' : submittedPay ? 'REF SUBMITTED' : 'DUE / PENDING'}
                                         </span>
-                                        {submittedPay && (
-                                          <div style={{ fontSize: '0.72rem', color: '#0369a1', fontWeight: 700, marginTop: '3px' }}>
-                                            GCash: #{submittedPay.refNo}
-                                          </div>
-                                        )}
                                       </td>
+
+                                      {/* Action / Official Receipt Column */}
                                       <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
                                         {isPaid ? (
                                           <button
@@ -9324,21 +9449,23 @@ export default function AdminDashboard() {
                                             type="button"
                                             onClick={() => handleRecordInstallmentPayment(selectedInstallment, monthNum)}
                                             style={{
-                                              padding: '5px 12px',
+                                              padding: '6px 14px',
                                               borderRadius: '6px',
-                                              background: '#16a34a',
+                                              background: submittedPay ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#16a34a',
                                               color: 'white',
                                               border: 'none',
                                               fontSize: '0.78rem',
-                                              fontWeight: 700,
+                                              fontWeight: 800,
                                               cursor: 'pointer',
                                               display: 'inline-flex',
                                               alignItems: 'center',
-                                              gap: '4px',
-                                              boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)',
+                                              gap: '5px',
+                                              boxShadow: submittedPay ? '0 2px 6px rgba(2, 132, 199, 0.3)' : '0 2px 4px rgba(22, 163, 74, 0.2)',
                                             }}
+                                            title={submittedPay ? `Verify GCash Ref #${submittedPay.refNo} and accept payment` : 'Record payment manually'}
                                           >
-                                            <i className="fa-solid fa-cash-register"></i> Record Payment
+                                            <i className={`fa-solid ${submittedPay ? 'fa-check-double' : 'fa-cash-register'}`}></i>
+                                            {submittedPay ? 'Accept Payment' : 'Record Payment'}
                                           </button>
                                         )}
                                       </td>
