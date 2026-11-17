@@ -1598,9 +1598,19 @@ export default function AdminDashboard() {
         paidMonths.push(monthNum);
       }
       meta.paidMonths = paidMonths;
-      const issueString = JSON.stringify(meta);
 
+      // Check if customer submitted a reference number and mark it verified
+      const submittedPayment = Array.isArray(meta.payments) ? meta.payments.find((p: any) => p.month === monthNum) : null;
+      if (Array.isArray(meta.payments)) {
+        meta.payments = meta.payments.map((p: any) =>
+          p.month === monthNum ? { ...p, status: 'VERIFIED', verifiedAt: new Date().toISOString() } : p
+        );
+      }
+
+      const issueString = JSON.stringify(meta);
       const fin = getInstallmentFinancials(inst);
+      const paymentMethodUsed = submittedPayment ? 'GCash' : recordingPaymentMethod;
+
       const res = await fetch('/api/installments', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1619,7 +1629,7 @@ export default function AdminDashboard() {
           customerName: inst.name,
           customerPhone: inst.user?.phone || undefined,
           location: inst.location || 'Customer Address',
-          paymentMethod: recordingPaymentMethod,
+          paymentMethod: paymentMethodUsed,
           status: 'Paid',
           items: [
             {
@@ -1631,13 +1641,17 @@ export default function AdminDashboard() {
           ],
           subtotal: fin.monthlyAmortization,
           totalAmount: fin.monthlyAmortization,
-          notes: `Official monthly installment amortization receipt (Month ${monthNum} of ${fin.term}). Payment received via ${recordingPaymentMethod}.`,
+          notes: submittedPayment?.refNo
+            ? `Verified GCash Ref #${submittedPayment.refNo}. Official installment amortization receipt (Month ${monthNum} of ${fin.term}). Balance deducted successfully.`
+            : `Official monthly installment amortization receipt (Month ${monthNum} of ${fin.term}). Payment received via ${paymentMethodUsed}.`,
         };
         setAdminReceiptData(rData);
         setIsAdminReceiptOpen(true);
         showAlert({
-          title: 'Payment Recorded!',
-          message: `Successfully recorded Month ${monthNum} payment of ₱${fin.monthlyAmortization.toLocaleString()} via ${recordingPaymentMethod}. Official receipt generated.`,
+          title: submittedPayment ? 'Payment Accepted & Verified!' : 'Payment Recorded!',
+          message: submittedPayment?.refNo
+            ? `Successfully accepted and verified Month ${monthNum} payment (GCash Ref #${submittedPayment.refNo}) of ₱${fin.monthlyAmortization.toLocaleString()}. Customer remaining balance has been deducted.`
+            : `Successfully recorded Month ${monthNum} payment of ₱${fin.monthlyAmortization.toLocaleString()} via ${paymentMethodUsed}. Official receipt generated.`,
           type: 'success',
         });
       }
