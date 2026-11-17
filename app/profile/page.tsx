@@ -3719,66 +3719,20 @@ export default function ProfilePage() {
                           </div>
                         </div>
 
-                        {/* Type Box as Reference Number */}
+                        {/* GCash Merchant Info */}
                         <div>
-                          <div style={{ fontSize: '0.85rem', color: '#334155', marginBottom: '0.5rem', lineHeight: 1.4 }}>
-                            <strong>FrostTech GCash:</strong> 0917-888-3767 (FrostTech Cooling Solutions Co.)<br />
-                            Scan the QR code or send <strong>₱{monthlyAmt.toLocaleString()}</strong> to our GCash account, then enter your 13-digit reference number below:
+                          <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.35rem' }}>
+                            Scan QR Code to Pay via GCash
                           </div>
-
-                          <div style={{ display: 'flex', gap: '8px', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-                            <input
-                              type="text"
-                              placeholder={submittedPay ? `Current: ${submittedPay.refNo} (Enter new to update)` : "Enter GCash Reference Number (e.g. 1029384756)"}
-                              value={installmentRefInput}
-                              onChange={(e) => setInstallmentRefInput(e.target.value)}
-                              style={{
-                                flex: '1 1 240px',
-                                padding: '0.7rem 0.9rem',
-                                borderRadius: '10px',
-                                border: '1.5px solid #0284c7',
-                                fontSize: '0.9rem',
-                                outline: 'none',
-                                background: '#ffffff',
-                                color: '#0f172a',
-                                fontWeight: 600,
-                              }}
-                            />
-                            <button
-                              onClick={() => handleSubmitInstallmentRef(nextDueMonth, monthlyAmt)}
-                              disabled={isSubmittingInstallmentRef}
-                              style={{
-                                padding: '0.7rem 1.25rem',
-                                borderRadius: '10px',
-                                border: 'none',
-                                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                                color: '#ffffff',
-                                fontWeight: 700,
-                                fontSize: '0.88rem',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                boxShadow: '0 4px 10px rgba(2, 132, 199, 0.25)',
-                              }}
-                            >
-                              {isSubmittingInstallmentRef ? (
-                                <>
-                                  <i className="fa-solid fa-spinner fa-spin"></i> Submitting...
-                                </>
-                              ) : (
-                                <>
-                                  <i className="fa-solid fa-paper-plane"></i> Submit Ref No.
-                                </>
-                              )}
-                            </button>
+                          <div style={{ fontSize: '0.85rem', color: '#334155', lineHeight: 1.5 }}>
+                            <strong>Account Name:</strong> FrostTech Cooling Solutions Co.<br />
+                            <strong>GCash Mobile:</strong> 0917-888-3767<br />
+                            <strong>Amount to Transfer:</strong> <span style={{ color: '#0284c7', fontWeight: 800 }}>₱{monthlyAmt.toLocaleString()}</span>
                           </div>
-                          {submittedPay && (
-                            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '6px' }}>
-                              <i className="fa-solid fa-circle-check" style={{ color: '#16a34a', marginRight: '4px' }}></i>
-                              Reference #{submittedPay.refNo} submitted on {new Date(submittedPay.submittedAt).toLocaleDateString()}
-                            </div>
-                          )}
+                          <div style={{ marginTop: '0.65rem', padding: '0.6rem 0.85rem', background: '#ffffff', borderRadius: '10px', border: '1px solid #bae6fd', fontSize: '0.8rem', color: '#0369a1', lineHeight: 1.4 }}>
+                            <i className="fa-solid fa-circle-info" style={{ marginRight: '6px' }}></i>
+                            After paying in GCash, type your reference number in the <strong>Reference No.</strong> box in the schedule table above.
+                          </div>
                         </div>
                       </div>
                     </div>
