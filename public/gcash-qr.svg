@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 380" width="340" height="380">
+  <defs>
+    <linearGradient id="gcashGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#005ce6" />
+      <stop offset="100%" stop-color="#003d99" />
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#005ce6" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+
+  <!-- Card Background -->
+  <rect x="10" y="10" width="320" height="360" rx="18" fill="#ffffff" stroke="#e2e8f0" stroke-width="2" filter="url(#shadow)"/>
+
+  <!-- GCash Header Banner -->
+  <path d="M 10 28 Q 10 10 28 10 L 312 10 Q 330 10 330 28 L 330 70 L 10 70 Z" fill="url(#gcashGrad)"/>
+  
+  <!-- GCash Text & Logo -->
+  <text x="170" y="42" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="20" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="1">GCash</text>
+  <text x="170" y="59" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#bae6fd" text-anchor="middle" letter-spacing="0.5">SCAN TO PAY • FROSTTECH</text>
+
+  <!-- QR Frame White Container -->
+  <rect x="45" y="85" width="250" height="250" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+
+  <!-- QR Code Position Detection Patterns (Top-Left, Top-Right, Bottom-Left) -->
+  <!-- Top-Left -->
+  <rect x="65" y="105" width="55" height="55" rx="6" fill="#005ce6"/>
+  <rect x="73" y="113" width="39" height="39" rx="4" fill="#ffffff"/>
+  <rect x="81" y="121" width="23" height="23" rx="2" fill="#005ce6"/>
+
+  <!-- Top-Right -->
+  <rect x="220" y="105" width="55" height="55" rx="6" fill="#005ce6"/>
+  <rect x="228" y="113" width="39" height="39" rx="4" fill="#ffffff"/>
+  <rect x="236" y="121" width="23" height="23" rx="2" fill="#005ce6"/>
+
+  <!-- Bottom-Left -->
+  <rect x="65" y="260" width="55" height="55" rx="6" fill="#005ce6"/>
+  <rect x="73" y="268" width="39" height="39" rx="4" fill="#ffffff"/>
+  <rect x="81" y="276" width="23" height="23" rx="2" fill="#005ce6"/>
+
+  <!-- QR Data Dots & Alignment Patterns -->
+  <g fill="#0f172a">
+    <!-- Row 1 & 2 -->
+    <rect x="135" y="105" width="10" height="10" rx="1"/>
+    <rect x="155" y="105" width="10" height="10" rx="1"/>
+    <rect x="175" y="105" width="10" height="10" rx="1"/>
+    <rect x="195" y="105" width="10" height="10" rx="1"/>
+    <rect x="145" y="115" width="10" height="10" rx="1"/>
+    <rect x="165" y="115" width="10" height="10" rx="1"/>
+    <rect x="185" y="115" width="10" height="10" rx="1"/>
+
+    <!-- Row 3 & 4 -->
+    <rect x="135" y="135" width="10" height="10" rx="1"/>
+    <rect x="155" y="135" width="10" height="10" rx="1"/>
+    <rect x="175" y="135" width="10" height="10" rx="1"/>
+    <rect x="145" y="145" width="10" height="10" rx="1"/>
+    <rect x="195" y="145" width="10" height="10" rx="1"/>
+
+    <!-- Center Section -->
+    <rect x="65" y="180" width="10" height="10" rx="1"/>
+    <rect x="85" y="180" width="10" height="10" rx="1"/>
+    <rect x="105" y="180" width="10" height="10" rx="1"/>
+    <rect x="135" y="170" width="10" height="10" rx="1"/>
+    <rect x="155" y="170" width="10" height="10" rx="1"/>
+    <rect x="195" y="170" width="10" height="10" rx="1"/>
+    <rect x="235" y="170" width="10" height="10" rx="1"/>
+    <rect x="255" y="170" width="10" height="10" rx="1"/>
+
+    <!-- Middle cluster -->
+    <rect x="130" y="190" width="12" height="12" rx="2" fill="#005ce6"/>
+    <rect x="150" y="190" width="12" height="12" rx="2"/>
+    <rect x="178" y="190" width="12" height="12" rx="2" fill="#005ce6"/>
+    <rect x="198" y="190" width="12" height="12" rx="2"/>
+
+    <rect x="65" y="210" width="10" height="10" rx="1"/>
+    <rect x="95" y="210" width="10" height="10" rx="1"/>
+    <rect x="115" y="210" width="10" height="10" rx="1"/>
+    <rect x="135" y="210" width="10" height="10" rx="1"/>
+    <rect x="165" y="210" width="10" height="10" rx="1"/>
+    <rect x="185" y="210" width="10" height="10" rx="1"/>
+    <rect x="225" y="210" width="10" height="10" rx="1"/>
+    <rect x="245" y="210" width="10" height="10" rx="1"/>
+    <rect x="265" y="210" width="10" height="10" rx="1"/>
+
+    <!-- Bottom Data Clusters -->
+    <rect x="135" y="240" width="10" height="10" rx="1"/>
+    <rect x="155" y="240" width="10" height="10" rx="1"/>
+    <rect x="175" y="240" width="10" height="10" rx="1"/>
+    <rect x="225" y="240" width="10" height="10" rx="1"/>
+    <rect x="255" y="240" width="10" height="10" rx="1"/>
+
+    <rect x="145" y="260" width="10" height="10" rx="1"/>
+    <rect x="165" y="260" width="10" height="10" rx="1"/>
+    <rect x="185" y="260" width="10" height="10" rx="1"/>
+    <rect x="215" y="260" width="10" height="10" rx="1"/>
+    <rect x="245" y="260" width="10" height="10" rx="1"/>
+
+    <rect x="135" y="280" width="10" height="10" rx="1"/>
+    <rect x="155" y="280" width="10" height="10" rx="1"/>
+    <rect x="195" y="280" width="10" height="10" rx="1"/>
+    <rect x="235" y="280" width="10" height="10" rx="1"/>
+    <rect x="255" y="280" width="10" height="10" rx="1"/>
+
+    <rect x="145" y="300" width="10" height="10" rx="1"/>
+    <rect x="175" y="300" width="10" height="10" rx="1"/>
+    <rect x="215" y="300" width="10" height="10" rx="1"/>
+    <rect x="245" y="300" width="10" height="10" rx="1"/>
+  </g>
+
+  <!-- Center FrostTech Badge inside QR -->
+  <rect x="145" y="185" width="50" height="50" rx="10" fill="#ffffff" stroke="#005ce6" stroke-width="2"/>
+  <circle cx="170" cy="210" r="16" fill="#005ce6"/>
+  <path d="M 164 210 L 168 214 L 176 206" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Footer Merchant Details -->
+  <text x="170" y="348" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#0f172a" text-anchor="middle">FrostTech Cooling Services</text>
+  <text x="170" y="362" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10" font-weight="600" fill="#64748b" text-anchor="middle">GCash No: 0917-888-3767 (FROST)</text>
+</svg>

@@ -93,6 +93,16 @@ export default function ProfilePage() {
   const [selectedService, setSelectedService] = useState('Regular Cleaning (₱900)');
   const [serviceNotes, setServiceNotes] = useState('');
 
+  // Service Request Upfront Payment Modal State
+  const [showServicePaymentModal, setShowServicePaymentModal] = useState(false);
+  const [servicePaymentType, setServicePaymentType] = useState<'HALF' | 'FULL'>('HALF');
+  const [servicePaymentRef, setServicePaymentRef] = useState('');
+  const [isSubmittingServicePayment, setIsSubmittingServicePayment] = useState(false);
+
+  // Installment Amortization Reference State
+  const [installmentRefInput, setInstallmentRefInput] = useState('');
+  const [isSubmittingInstallmentRef, setIsSubmittingInstallmentRef] = useState(false);
+
   // Edit AC Modal State
   const [editingAc, setEditingAc] = useState<any | null>(null);
   const [editLocation, setEditLocation] = useState('');
@@ -522,23 +532,31 @@ export default function ProfilePage() {
     }
   };
 
-  // Multi-AC Service request
-  const handleRequestServiceForSelected = async () => {
+  // Multi-AC Service request: open upfront payment modal (Half or Full Payment)
+  const handleRequestServiceForSelected = () => {
     if (selectedAcIds.length === 0) {
-      showAlert({ title: 'Select AC', message: 'Please check at least one AC container to request service.', type: 'warning' });
+      showAlert({ title: 'Select AC Unit', message: 'Please check at least one AC unit to request service.', type: 'warning' });
+      return;
+    }
+    setServicePaymentRef('');
+    setServicePaymentType('HALF');
+    setShowServicePaymentModal(true);
+  };
+
+  // Submit Service Request with Upfront GCash Payment
+  const handleConfirmServiceRequestWithPayment = async () => {
+    if (!servicePaymentRef.trim()) {
+      showAlert({ title: 'Reference Number Required', message: 'Please enter your GCash reference number to complete your service request booking.', type: 'warning' });
       return;
     }
 
     const selectedUnits = registeredACs.filter((ac) => selectedAcIds.includes(ac.id));
-    const unitNames = selectedUnits.map((u) => `${u.location} (${u.brandModel})`).join(', ');
+    const unitPrice = parseInt(selectedService.replace(/[^0-9]/g, '')) || 900;
+    const totalCost = unitPrice * selectedUnits.length;
+    const amountPaid = servicePaymentType === 'HALF' ? Math.round(totalCost / 2) : totalCost;
+    const paymentLabel = servicePaymentType === 'HALF' ? '50% Downpayment (Half Payment)' : '100% Full Payment';
 
-    const isConfirmed = await confirm({
-      title: 'Confirm Service Request',
-      message: `Request "${selectedService}" for ${selectedUnits.length} AC unit(s):\n${unitNames}?`,
-      confirmText: 'Request Service',
-    });
-    if (!isConfirmed) return;
-
+    setIsSubmittingServicePayment(true);
     try {
       for (const unit of selectedUnits) {
         await fetch('/api/maintenance', {
@@ -554,19 +572,103 @@ export default function ProfilePage() {
             serviceType: selectedService.split(' (')[0],
             scheduledDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0] + ' 09:00',
             status: 'SCHEDULED',
-            notes: serviceNotes || `Multi-AC request for ${unit.location}`,
+            notes: `[PAYMENT: ${paymentLabel} - ₱${amountPaid.toLocaleString()} | GCash Ref: ${servicePaymentRef.trim()}] ${serviceNotes ? 'Notes: ' + serviceNotes : ''}`,
           }),
         });
       }
 
-      showToast(`Service requested for ${selectedUnits.length} AC unit(s)!`);
+      setShowServicePaymentModal(false);
+      showToast(`Service request submitted for ${selectedUnits.length} AC unit(s)!`);
       setSelectedAcIds([]);
       setServiceNotes('');
+      setServicePaymentRef('');
       // Refresh maintenance list
       fetch(`/api/maintenance?userId=${userId}`).then(r => r.json()).then(setMaintenance).catch(console.error);
+      showAlert({
+        title: 'Booking Confirmed!',
+        message: `Your ${paymentLabel} of ₱${amountPaid.toLocaleString()} has been recorded with GCash Ref #${servicePaymentRef.trim()}. Our team will verify the payment and dispatch a technician on schedule.`,
+        type: 'success',
+      });
     } catch (err) {
       console.error(err);
       showAlert({ title: 'Error', message: 'Failed to submit service request.', type: 'error' });
+    } finally {
+      setIsSubmittingServicePayment(false);
+    }
+  };
+
+  // Submit Installment Next Due Reference Number
+  const handleSubmitInstallmentRef = async (monthNum: number, dueAmount: number) => {
+    if (!installmentRefInput.trim()) {
+      showAlert({ title: 'Reference Number Required', message: 'Please enter your GCash payment reference number.', type: 'warning' });
+      return;
+    }
+    if (!selectedInstallmentDetails?.inst?.id) {
+      showAlert({ title: 'Error', message: 'Installment reference record not found.', type: 'error' });
+      return;
+    }
+
+    setIsSubmittingInstallmentRef(true);
+    try {
+      const inst = selectedInstallmentDetails.inst;
+      const meta = parseInstallmentMeta(inst.issue);
+      const existingPayments = Array.isArray(meta.payments) ? meta.payments : [];
+
+      const newPayment = {
+        month: monthNum,
+        refNo: installmentRefInput.trim(),
+        amount: dueAmount,
+        submittedAt: new Date().toISOString(),
+        status: 'PENDING_VERIFICATION',
+        method: 'GCASH',
+      };
+
+      const updatedPayments = [
+        ...existingPayments.filter((p: any) => p.month !== monthNum),
+        newPayment,
+      ];
+
+      const updatedMeta = {
+        ...meta,
+        payments: updatedPayments,
+      };
+
+      const issueString = JSON.stringify(updatedMeta);
+
+      const res = await fetch('/api/installments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: inst.id,
+          issue: issueString,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to update installment payment');
+      }
+
+      const updatedInst = { ...inst, issue: issueString };
+      const recomputedFin = getInstallmentFinancials(updatedInst, selectedInstallmentDetails.ac);
+
+      setInstallments((prev) => prev.map((i) => (i.id === inst.id ? updatedInst : i)));
+      setSelectedInstallmentDetails({
+        ...selectedInstallmentDetails,
+        inst: updatedInst,
+        fin: recomputedFin,
+      });
+      setInstallmentRefInput('');
+
+      showAlert({
+        title: 'Payment Reference Submitted!',
+        message: `GCash Reference #${newPayment.refNo} for Month ${monthNum} (₱${dueAmount.toLocaleString()}) has been submitted for verification. Your ledger will update once verified by admin.`,
+        type: 'success',
+      });
+    } catch (err) {
+      console.error(err);
+      showAlert({ title: 'Error', message: 'Failed to submit payment reference. Please try again.', type: 'error' });
+    } finally {
+      setIsSubmittingInstallmentRef(false);
     }
   };
 
@@ -3456,9 +3558,22 @@ export default function ProfilePage() {
                                   <i className="fa-solid fa-circle-check"></i> Paid
                                 </span>
                               ) : isNextDue ? (
-                                <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 9px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                  <i className="fa-solid fa-clock"></i> Current Due
-                                </span>
+                                <div>
+                                  <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 9px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    <i className="fa-solid fa-clock"></i> Next Due
+                                  </span>
+                                  {(() => {
+                                    const submittedPay = (selectedInstallmentDetails.fin.payments || []).find((p: any) => p.month === monthNum);
+                                    if (submittedPay) {
+                                      return (
+                                        <div style={{ marginTop: '4px', fontSize: '0.72rem', color: '#0369a1', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                          <i className="fa-solid fa-receipt"></i> Ref #{submittedPay.refNo} (Pending)
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                </div>
                               ) : (
                                 <span style={{ background: '#f1f5f9', color: '#64748b', padding: '3px 9px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600 }}>
                                   Upcoming
@@ -3475,6 +3590,120 @@ export default function ProfilePage() {
                   </table>
                 </div>
               </div>
+
+              {/* Next Due Amortization Payment Section with GCash QR & Reference Type Box */}
+              {!selectedInstallmentDetails.fin.isFullyPaid && (
+                (() => {
+                  const nextDueMonth = selectedInstallmentDetails.fin.paidMonthsCount + 1;
+                  const monthlyAmt = selectedInstallmentDetails.fin.monthlyAmortization;
+                  const submittedPay = (selectedInstallmentDetails.fin.payments || []).find((p: any) => p.month === nextDueMonth);
+
+                  return (
+                    <div
+                      style={{
+                        background: 'linear-gradient(135deg, #f0f9ff 0%, #ecfdf5 100%)',
+                        border: '1.5px solid #0284c7',
+                        borderRadius: '16px',
+                        padding: '1.25rem 1.5rem',
+                        marginBottom: '1.5rem',
+                        boxShadow: '0 4px 15px rgba(2, 132, 199, 0.08)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ background: '#0284c7', color: '#ffffff', padding: '4px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800 }}>
+                            NEXT STATUS: MONTH {nextDueMonth} DUE
+                          </span>
+                          <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '1rem' }}>
+                            ₱{monthlyAmt.toLocaleString()}
+                          </span>
+                        </div>
+                        {submittedPay && (
+                          <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '4px 12px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700 }}>
+                            <i className="fa-solid fa-spinner fa-spin" style={{ marginRight: '4px' }}></i> Verification In Progress (Ref #{submittedPay.refNo})
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '1.25rem', alignItems: 'center' }}>
+                        {/* GCash QR Code */}
+                        <div style={{ textAlign: 'center', background: '#ffffff', padding: '0.75rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+                          <img
+                            src="/gcash-qr.svg"
+                            alt="FrostTech GCash QR Code"
+                            style={{ width: '130px', height: '130px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                          />
+                          <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#005ce6', marginTop: '4px' }}>
+                            SCAN TO PAY GCASH
+                          </div>
+                        </div>
+
+                        {/* Type Box as Reference Number */}
+                        <div>
+                          <div style={{ fontSize: '0.85rem', color: '#334155', marginBottom: '0.5rem', lineHeight: 1.4 }}>
+                            <strong>FrostTech GCash:</strong> 0917-888-3767 (FrostTech Cooling Solutions Co.)<br />
+                            Scan the QR code or send <strong>₱{monthlyAmt.toLocaleString()}</strong> to our GCash account, then enter your 13-digit reference number below:
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                            <input
+                              type="text"
+                              placeholder={submittedPay ? `Current: ${submittedPay.refNo} (Enter new to update)` : "Enter GCash Reference Number (e.g. 1029384756)"}
+                              value={installmentRefInput}
+                              onChange={(e) => setInstallmentRefInput(e.target.value)}
+                              style={{
+                                flex: '1 1 240px',
+                                padding: '0.7rem 0.9rem',
+                                borderRadius: '10px',
+                                border: '1.5px solid #0284c7',
+                                fontSize: '0.9rem',
+                                outline: 'none',
+                                background: '#ffffff',
+                                color: '#0f172a',
+                                fontWeight: 600,
+                              }}
+                            />
+                            <button
+                              onClick={() => handleSubmitInstallmentRef(nextDueMonth, monthlyAmt)}
+                              disabled={isSubmittingInstallmentRef}
+                              style={{
+                                padding: '0.7rem 1.25rem',
+                                borderRadius: '10px',
+                                border: 'none',
+                                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                                color: '#ffffff',
+                                fontWeight: 700,
+                                fontSize: '0.88rem',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                boxShadow: '0 4px 10px rgba(2, 132, 199, 0.25)',
+                              }}
+                            >
+                              {isSubmittingInstallmentRef ? (
+                                <>
+                                  <i className="fa-solid fa-spinner fa-spin"></i> Submitting...
+                                </>
+                              ) : (
+                                <>
+                                  <i className="fa-solid fa-paper-plane"></i> Submit Ref No.
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          {submittedPay && (
+                            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '6px' }}>
+                              <i className="fa-solid fa-circle-check" style={{ color: '#16a34a', marginRight: '4px' }}></i>
+                              Reference #{submittedPay.refNo} submitted on {new Date(submittedPay.submittedAt).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
 
               {/* Payment Channels Guide */}
               <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '1rem', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
@@ -3493,6 +3722,305 @@ export default function ProfilePage() {
                   style={{ padding: '0.65rem 1.5rem' }}
                 >
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upfront Service Request Payment Modal (Half or Full Payment + GCash QR) */}
+      {showServicePaymentModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 10001,
+            padding: '1rem',
+          }}
+          onClick={() => setShowServicePaymentModal(false)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              maxWidth: '560px',
+              width: '100%',
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              border: '1px solid #e2e8f0',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: '1.25rem 1.5rem',
+                background: 'linear-gradient(135deg, #052e80 0%, #0284c7 100%)',
+                color: '#ffffff',
+                borderTopLeftRadius: '20px',
+                borderTopRightRadius: '20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <i className="fa-solid fa-screwdriver-wrench" style={{ fontSize: '1.25rem', color: '#38bdf8' }}></i>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#ffffff' }}>
+                    Service Request & Upfront Payment
+                  </h3>
+                  <span style={{ fontSize: '0.78rem', color: '#bae6fd' }}>
+                    {selectedAcIds.length} AC Unit(s) Selected • Half or Full Payment Required
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowServicePaymentModal(false)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  border: 'none',
+                  color: '#ffffff',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div style={{ padding: '1.5rem' }}>
+              {/* Order Summary */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Service Type:</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>{selectedService}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Selected Units:</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0f172a' }}>{selectedAcIds.length} Unit(s)</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '8px', marginTop: '6px' }}>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>Total Service Fee:</span>
+                  <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0284c7' }}>
+                    ₱{((parseInt(selectedService.replace(/[^0-9]/g, '')) || 900) * selectedAcIds.length).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Payment Plan Choice: Half vs Full */}
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.6rem' }}>
+                  Select Upfront Payment Plan:
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  {/* Half Payment Option */}
+                  <div
+                    onClick={() => setServicePaymentType('HALF')}
+                    style={{
+                      border: servicePaymentType === 'HALF' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                      background: servicePaymentType === 'HALF' ? '#f0f9ff' : '#ffffff',
+                      borderRadius: '12px',
+                      padding: '0.9rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#0f172a' }}>Half Payment (50%)</span>
+                      <input
+                        type="radio"
+                        name="servicePaymentPlan"
+                        checked={servicePaymentType === 'HALF'}
+                        onChange={() => setServicePaymentType('HALF')}
+                      />
+                    </div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0284c7' }}>
+                      ₱{Math.round(((parseInt(selectedService.replace(/[^0-9]/g, '')) || 900) * selectedAcIds.length) / 2).toLocaleString()}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '4px', lineHeight: 1.3 }}>
+                      Pay 50% now to confirm schedule; remaining 50% due on completion.
+                    </div>
+                  </div>
+
+                  {/* Full Payment Option */}
+                  <div
+                    onClick={() => setServicePaymentType('FULL')}
+                    style={{
+                      border: servicePaymentType === 'FULL' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                      background: servicePaymentType === 'FULL' ? '#f0f9ff' : '#ffffff',
+                      borderRadius: '12px',
+                      padding: '0.9rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#0f172a' }}>Full Payment (100%)</span>
+                      <input
+                        type="radio"
+                        name="servicePaymentPlan"
+                        checked={servicePaymentType === 'FULL'}
+                        onChange={() => setServicePaymentType('FULL')}
+                      />
+                    </div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#16a34a' }}>
+                      ₱{((parseInt(selectedService.replace(/[^0-9]/g, '')) || 900) * selectedAcIds.length).toLocaleString()}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '4px', lineHeight: 1.3 }}>
+                      Pay full amount upfront for express automated verification.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* GCash QR Section */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: '14px',
+                  padding: '1.1rem',
+                  marginBottom: '1.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px',
+                }}
+              >
+                <div style={{ background: '#ffffff', padding: '6px', borderRadius: '10px', border: '1px solid #cbd5e1', flexShrink: 0, textAlign: 'center' }}>
+                  <img
+                    src="/gcash-qr.svg"
+                    alt="FrostTech GCash QR"
+                    style={{ width: '105px', height: '105px', objectFit: 'contain', display: 'block' }}
+                  />
+                  <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#005ce6', marginTop: '3px' }}>
+                    SCAN TO PAY
+                  </div>
+                </div>
+                <div style={{ fontSize: '0.82rem', color: '#1e3a8a', lineHeight: 1.45 }}>
+                  <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#005ce6', marginBottom: '3px' }}>
+                    GCash Express Payment
+                  </div>
+                  <div><strong>Account Name:</strong> FrostTech Cooling Solutions Co.</div>
+                  <div><strong>GCash Mobile:</strong> 0917-888-3767</div>
+                  <div style={{ marginTop: '5px', color: '#047857', fontWeight: 800, fontSize: '0.92rem' }}>
+                    Amount Due: ₱{(
+                      servicePaymentType === 'HALF'
+                        ? Math.round(((parseInt(selectedService.replace(/[^0-9]/g, '')) || 900) * selectedAcIds.length) / 2)
+                        : ((parseInt(selectedService.replace(/[^0-9]/g, '')) || 900) * selectedAcIds.length)
+                    ).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+
+              {/* GCash Reference Input Box */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', marginBottom: '5px' }}>
+                  GCash Reference Number <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter 13-digit GCash Ref No. (e.g. 1029 3847 5612)"
+                  value={servicePaymentRef}
+                  onChange={(e) => setServicePaymentRef(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 0.95rem',
+                    borderRadius: '10px',
+                    border: '1.5px solid #0284c7',
+                    fontSize: '0.92rem',
+                    color: '#0f172a',
+                    outline: 'none',
+                    fontWeight: 600,
+                  }}
+                />
+              </div>
+
+              {/* Optional Notes */}
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
+                  Service Notes / Instructions (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Bring extra ladder, gated subdivision"
+                  value={serviceNotes}
+                  onChange={(e) => setServiceNotes(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.7rem 0.9rem',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.88rem',
+                    color: '#0f172a',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowServicePaymentModal(false)}
+                  style={{
+                    padding: '0.7rem 1.25rem',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    color: '#475569',
+                    fontWeight: 600,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmServiceRequestWithPayment}
+                  disabled={isSubmittingServicePayment}
+                  style={{
+                    padding: '0.7rem 1.5rem',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #052e80 0%, #0284c7 100%)',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
+                  }}
+                >
+                  {isSubmittingServicePayment ? (
+                    <>
+                      <i className="fa-solid fa-spinner fa-spin"></i> Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-check"></i> Submit Service Request
+                    </>
+                  )}
                 </button>
               </div>
             </div>

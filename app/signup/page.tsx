@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import CaptchaWidget from '@/components/CaptchaWidget';
 
 
 export default function SignupPage() {
@@ -14,6 +15,7 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('CUSTOMER');
   const [loading, setLoading] = useState(false);
+  const [isCaptchaVerified, setIsCaptchaVerified] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const router = useRouter();
@@ -91,6 +93,10 @@ export default function SignupPage() {
       setError('Phone number is required for technician accounts.');
       return;
     }
+    if (!isCaptchaVerified) {
+      setError('Please verify that you are not a robot before proceeding.');
+      return;
+    }
     setLoading(true);
     setError('');
     setSuccess('');
@@ -161,11 +167,11 @@ export default function SignupPage() {
     <>
       <header>
         <Link href="/" className="logo">
-          <img 
-            src="/LOGO.jpg" 
+          <img
+            src="/LOGO.jpg"
             alt="FrostTech Logo"
             style={{ height: '35px', verticalAlign: 'middle', borderRadius: '4px', marginRight: '8px' }}
-          /> 
+          />
           <span style={{ fontWeight: 700, fontSize: '1.2rem', verticalAlign: 'middle', color: 'white', letterSpacing: '-0.5px' }}>
             FrostTech
           </span>
@@ -198,22 +204,22 @@ export default function SignupPage() {
           <h2>Create an Account</h2>
 
           {/* Role Toggle Tabs */}
-          <div style={{ 
-            display: 'flex', 
-            gap: '0', 
-            marginBottom: '1.5rem', 
-            borderRadius: 'var(--radius-pill)', 
-            overflow: 'hidden', 
+          <div style={{
+            display: 'flex',
+            gap: '0',
+            marginBottom: '1.5rem',
+            borderRadius: 'var(--radius-pill)',
+            overflow: 'hidden',
             border: '1px solid var(--border-color)',
             background: 'var(--bg-input)'
           }}>
-            <button 
+            <button
               type="button"
               onClick={() => setRole('CUSTOMER')}
-              style={{ 
-                flex: 1, 
-                padding: '0.75rem', 
-                border: 'none', 
+              style={{
+                flex: 1,
+                padding: '0.75rem',
+                border: 'none',
                 cursor: 'pointer',
                 fontWeight: 600,
                 fontSize: '0.9rem',
@@ -224,13 +230,13 @@ export default function SignupPage() {
             >
               <i className="fa-solid fa-user" style={{ marginRight: '6px' }}></i> Customer
             </button>
-            <button 
+            <button
               type="button"
               onClick={() => setRole('TECHNICIAN')}
-              style={{ 
-                flex: 1, 
-                padding: '0.75rem', 
-                border: 'none', 
+              style={{
+                flex: 1,
+                padding: '0.75rem',
+                border: 'none',
                 cursor: 'pointer',
                 fontWeight: 600,
                 fontSize: '0.9rem',
@@ -263,31 +269,31 @@ export default function SignupPage() {
           )}
 
           <form onSubmit={handleSignup}>
-            {error && <div style={{background: 'rgba(220,53,69,0.1)', color: '#dc3545', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem', border: '1px solid rgba(220,53,69,0.3)'}}><i className="fa-solid fa-circle-exclamation" style={{marginRight: '6px'}}></i>{error}</div>}
-            {success && <div style={{background: 'rgba(40,167,69,0.1)', color: '#28a745', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem', border: '1px solid rgba(40,167,69,0.3)'}}><i className="fa-solid fa-circle-check" style={{marginRight: '6px'}}></i>{success}</div>}
-            
+            {error && <div style={{ background: 'rgba(220,53,69,0.1)', color: '#dc3545', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem', border: '1px solid rgba(220,53,69,0.3)' }}><i className="fa-solid fa-circle-exclamation" style={{ marginRight: '6px' }}></i>{error}</div>}
+            {success && <div style={{ background: 'rgba(40,167,69,0.1)', color: '#28a745', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem', border: '1px solid rgba(40,167,69,0.3)' }}><i className="fa-solid fa-circle-check" style={{ marginRight: '6px' }}></i>{success}</div>}
+
             {/* Name Row */}
             <div className="form-row">
               <div className="form-group">
                 <label htmlFor="fname">First Name</label>
-                <input 
-                  type="text" 
-                  id="fname" 
-                  placeholder="First Name" 
+                <input
+                  type="text"
+                  id="fname"
+                  placeholder="First Name"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  required 
+                  required
                 />
               </div>
               <div className="form-group">
                 <label htmlFor="lname">Last Name</label>
-                <input 
-                  type="text" 
-                  id="lname" 
-                  placeholder="Last Name" 
+                <input
+                  type="text"
+                  id="lname"
+                  placeholder="Last Name"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  required 
+                  required
                 />
               </div>
             </div>
@@ -295,23 +301,23 @@ export default function SignupPage() {
             {/* Email */}
             <div className="form-group">
               <label htmlFor="email">Email Address</label>
-              <input 
-                type="email" 
-                id="email" 
-                placeholder="Enter your email" 
+              <input
+                type="email"
+                id="email"
+                placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required 
+                required
               />
             </div>
 
             {/* Phone Number */}
             <div className="form-group">
               <label htmlFor="phone">Phone Number {role === 'TECHNICIAN' && <span style={{ color: 'var(--secondary)', fontSize: '0.8rem' }}>(Required)</span>}</label>
-              <input 
-                type="tel" 
-                id="phone" 
-                placeholder="e.g. 09123456789" 
+              <input
+                type="tel"
+                id="phone"
+                placeholder="e.g. 09123456789"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required={role === 'TECHNICIAN'}
@@ -322,41 +328,48 @@ export default function SignupPage() {
             {/* Password */}
             <div className="form-group">
               <label htmlFor="password">Password</label>
-              <input 
-                type="password" 
-                id="password" 
-                placeholder="Create a password (min 6 chars)" 
+              <input
+                type="password"
+                id="password"
+                placeholder="Create a password (min 6 chars)"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required 
+                required
               />
             </div>
 
             {/* Confirm Password */}
             <div className="form-group">
               <label htmlFor="confirm-password">Confirm Password</label>
-              <input 
-                type="password" 
-                id="confirm-password" 
-                placeholder="Confirm your password" 
+              <input
+                type="password"
+                id="confirm-password"
+                placeholder="Confirm your password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                required 
+                required
               />
             </div>
 
+            {/* Anti-Bot Captcha Security Check */}
+            <div style={{ marginBottom: '1rem' }}>
+              <CaptchaWidget verified={isCaptchaVerified} onVerify={(val) => setIsCaptchaVerified(val)} />
+            </div>
+
             {/* Submit */}
-            <button 
-              type="submit" 
-              className="btn login-btn" 
-              disabled={loading}
+            <button
+              type="submit"
+              className="btn login-btn"
+              disabled={loading || !isCaptchaVerified}
               style={{
                 background: role === 'TECHNICIAN' ? 'var(--secondary)' : undefined,
+                opacity: !isCaptchaVerified ? 0.6 : 1,
+                cursor: !isCaptchaVerified ? 'not-allowed' : 'pointer',
               }}
             >
               {loading ? 'Creating account...' : role === 'TECHNICIAN' ? 'Apply as Technician' : 'Sign Up'}
             </button>
-            
+
             {/* Google Sign-In (only for customers) */}
             {role === 'CUSTOMER' && (
               <>
@@ -379,16 +392,16 @@ export default function SignupPage() {
       </section>
 
       {/* Footer */}
-      <footer style={{ 
-        marginTop: 0, 
-        padding: '1rem 5%', 
+      <footer style={{
+        marginTop: 0,
+        padding: '1rem 5%',
         background: 'linear-gradient(135deg, #072a6b 0%, #0b3080 100%)',
         borderTop: '1px solid rgba(56, 189, 248, 0.15)'
       }}>
-        <div style={{ 
-          display: 'flex', 
+        <div style={{
+          display: 'flex',
           flexWrap: 'wrap' as const,
-          justifyContent: 'space-between', 
+          justifyContent: 'space-between',
           alignItems: 'center',
           maxWidth: '1200px',
           margin: '0 auto',

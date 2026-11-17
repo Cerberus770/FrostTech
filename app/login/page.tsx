@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import CaptchaWidget from '@/components/CaptchaWidget';
 
 
 export default function LoginPage() {
@@ -11,6 +12,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isCaptchaVerified, setIsCaptchaVerified] = useState(false);
+  const [captchaError, setCaptchaError] = useState('');
   const router = useRouter();
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
@@ -96,6 +99,10 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isCaptchaVerified) {
+      setCaptchaError('Please check "I\'m not a robot" before signing in.');
+      return;
+    }
     setLoading(true);
     setError('');
 
@@ -208,6 +215,18 @@ export default function LoginPage() {
               </div>
               <a href="#" className="forgot-password">Forgot Password?</a>
             </div>
+
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <CaptchaWidget
+                verified={isCaptchaVerified}
+                onVerify={(v) => {
+                  setIsCaptchaVerified(v);
+                  setCaptchaError('');
+                }}
+                error={captchaError}
+              />
+            </div>
+
             <button type="submit" className="btn login-btn" disabled={loading}>{loading ? 'Signing in...' : 'Sign In'}</button>
             
             <div style={{ display: 'flex', alignItems: 'center', margin: '1.5rem 0', color: 'var(--text-light)', fontSize: '0.85rem' }}>

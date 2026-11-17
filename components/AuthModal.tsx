@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import CaptchaWidget from '@/components/CaptchaWidget';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -24,6 +25,8 @@ export default function AuthModal({
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isLoginCaptcha, setIsLoginCaptcha] = useState(false);
+  const [isSignupCaptcha, setIsSignupCaptcha] = useState(false);
   const [error, setError] = useState('');
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
@@ -114,6 +117,10 @@ export default function AuthModal({
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isLoginCaptcha) {
+      setError('Please verify that you are not a robot before signing in.');
+      return;
+    }
     setError('');
     setLoading(true);
 
@@ -154,6 +161,10 @@ export default function AuthModal({
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSignupCaptcha) {
+      setError('Please verify that you are not a robot before signing up.');
+      return;
+    }
     setError('');
     setLoading(true);
 
@@ -405,9 +416,13 @@ export default function AuthModal({
                 />
               </div>
 
+              <div>
+                <CaptchaWidget verified={isLoginCaptcha} onVerify={setIsLoginCaptcha} />
+              </div>
+
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !isLoginCaptcha}
                 style={{
                   marginTop: '0.5rem',
                   padding: '0.85rem',
@@ -417,7 +432,8 @@ export default function AuthModal({
                   color: 'white',
                   fontWeight: 700,
                   fontSize: '0.95rem',
-                  cursor: 'pointer',
+                  cursor: !isLoginCaptcha ? 'not-allowed' : 'pointer',
+                  opacity: !isLoginCaptcha ? 0.65 : 1,
                   boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
                 }}
               >
@@ -536,9 +552,13 @@ export default function AuthModal({
                 />
               </div>
 
+              <div>
+                <CaptchaWidget verified={isSignupCaptcha} onVerify={setIsSignupCaptcha} />
+              </div>
+
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !isSignupCaptcha}
                 style={{
                   marginTop: '0.4rem',
                   padding: '0.85rem',
@@ -548,7 +568,8 @@ export default function AuthModal({
                   color: 'white',
                   fontWeight: 700,
                   fontSize: '0.95rem',
-                  cursor: 'pointer',
+                  cursor: !isSignupCaptcha ? 'not-allowed' : 'pointer',
+                  opacity: !isSignupCaptcha ? 0.65 : 1,
                   boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
                 }}
               >
