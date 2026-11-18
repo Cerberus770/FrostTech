@@ -647,84 +647,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const handlePrintInventoryReport = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const rowsHtml = inventory.map((item, idx) => `
-      <tr>
-        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${idx + 1}</td>
-        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${item.sku}</td>
-        <td style="padding: 8px; border: 1px solid #ddd;">${item.brand} ${item.model}</td>
-        <td style="padding: 8px; border: 1px solid #ddd;">${item.category}</td>
-        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${item.horsepower || 'N/A'}</td>
-        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">₱${item.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-        <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold;">${item.stock}</td>
-        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${item.stock > 5 ? 'In Stock' : item.stock > 0 ? 'Low Stock' : 'Out of Stock'}</td>
-        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}</td>
-      </tr>
-    `).join('');
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>FrostTech Inventory Report - ${new Date().toLocaleDateString()}</title>
-          <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 2rem; color: #333; }
-            h1 { color: #0284c7; margin-bottom: 4px; }
-            .header-info { margin-bottom: 2rem; color: #666; font-size: 0.9rem; }
-            table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 1rem; }
-            th { background-color: #0284c7; color: white; padding: 10px; border: 1px solid #0284c7; text-align: left; }
-            .summary { margin-top: 2rem; font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0284c7; padding-bottom: 1rem;">
-            <div>
-              <h1>FrostTech Cooling Solutions Co.</h1>
-              <div class="header-info">Official Inventory & Equipment Report</div>
-            </div>
-            <div style="text-align: right; font-size: 0.85rem; color: #666;">
-              <div>Date Generated: ${new Date().toLocaleString()}</div>
-              <div>Total Unique Items: ${inventory.length}</div>
-            </div>
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 40px; text-align: center;">#</th>
-                <th>SKU</th>
-                <th>Item / Model</th>
-                <th>Category</th>
-                <th style="text-align: center;">HP</th>
-                <th style="text-align: right;">Price</th>
-                <th style="text-align: center;">Stock</th>
-                <th style="text-align: center;">Status</th>
-                <th style="text-align: center;">Date Added</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-
-          <div class="summary">
-            Total Inventory Units On Hand: ${inventory.reduce((sum, i) => sum + i.stock, 0)} units
-          </div>
-
-          <script>
-            window.onload = function() { window.print(); }
-          </script>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-  };
-
   // Filtered inventory items
   const filteredInventory = inventory.filter((item) => {
     const cat = (item.category || '').toLowerCase();
@@ -753,6 +675,334 @@ export default function AdminDashboard() {
 
   // Unique models for dropdown filter
   const uniqueModels = Array.from(new Set(inventory.map((i) => i.model))).filter(Boolean).slice(0, 20);
+
+  // ==========================================
+  // INVENTORY & SALES PRINT REPORT HANDLERS
+  // ==========================================
+  const handlePrintInventoryReport = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups in your browser to print the Inventory Report.');
+      return;
+    }
+
+    const itemsToPrint = filteredInventory.length > 0 ? filteredInventory : inventory;
+    const totalUnits = itemsToPrint.reduce((sum, i) => sum + (Number(i.stock) || 0), 0);
+    const totalAssetVal = itemsToPrint.reduce((sum, i) => sum + ((Number(i.price) || 0) * (Number(i.stock) || 0)), 0);
+
+    const rowsHtml = itemsToPrint.map((item, idx) => {
+      const stockVal = (Number(item.price) || 0) * (Number(item.stock) || 0);
+      return `
+        <tr>
+          <td style="padding: 7px 8px; border: 1px solid #e2e8f0; text-align: center;">${idx + 1}</td>
+          <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-weight: bold; font-family: monospace;">${item.sku}</td>
+          <td style="padding: 7px 8px; border: 1px solid #e2e8f0;"><strong>${item.brand}</strong> ${item.model}</td>
+          <td style="padding: 7px 8px; border: 1px solid #e2e8f0;">${item.category}</td>
+          <td style="padding: 7px 8px; border: 1px solid #e2e8f0; text-align: center;">${item.horsepower || 'N/A'}</td>
+          <td style="padding: 7px 8px; border: 1px solid #e2e8f0; text-align: right;">₱${Number(item.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td style="padding: 7px 8px; border: 1px solid #e2e8f0; text-align: center; font-weight: bold;">${item.stock}</td>
+          <td style="padding: 7px 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold; color: #0284c7;">₱${stockVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td style="padding: 7px 8px; border: 1px solid #e2e8f0; text-align: center;">
+            <span style="display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: bold; background: ${item.stock > 5 ? '#dcfce7' : item.stock > 0 ? '#fef3c7' : '#fee2e2'}; color: ${item.stock > 5 ? '#15803d' : item.stock > 0 ? '#b45309' : '#b91c1c'};">
+              ${item.stock > 5 ? 'In Stock' : item.stock > 0 ? 'Low Stock' : 'Out of Stock'}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <title>FrostTech Inventory &amp; Valuation Report - ${new Date().toLocaleDateString()}</title>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 0; margin: 0; color: #1e293b; background: #f8fafc; }
+    .page-wrap { max-width: 960px; margin: 0 auto; padding: 2rem; background: #ffffff; min-height: 100vh; box-sizing: border-box; }
+    h1 { color: #052e80; margin: 0 0 4px; font-size: 24px; font-weight: 800; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 1rem; }
+    th { background: #052e80; color: #ffffff; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid #052e80; text-align: left; }
+    .no-print { background: #052e80; color: white; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #ffffff !important; }
+      .page-wrap { padding: 0 !important; max-width: 100% !important; }
+      @page { margin: 1.5cm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <div style="font-weight: 700; font-size: 14px;">🖨️ FrostTech Inventory Report — Print Preview</div>
+    <div>
+      <button onclick="window.print()" style="background: #0284c7; color: white; border: none; padding: 7px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; margin-right: 8px;">Print Report</button>
+      <button onclick="window.close()" style="background: rgba(255,255,255,0.2); color: white; border: none; padding: 7px 12px; border-radius: 6px; cursor: pointer; color: #fff;">Close Window</button>
+    </div>
+  </div>
+
+  <div class="page-wrap">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #052e80; padding-bottom: 1rem;">
+      <div>
+        <h1>FrostTech Cooling Solutions Co.</h1>
+        <div style="font-size: 13px; color: #475569; font-weight: 600;">Official Inventory &amp; Stock Valuation Audit</div>
+        <div style="font-size: 12px; color: #64748b; margin-top: 2px;">Filtered Category: <strong>${invFilterType === 'All' ? 'All Products &amp; Parts' : invFilterType === 'AC' ? 'Air Conditioners Only' : 'Spare Parts Only'}</strong></div>
+      </div>
+      <div style="text-align: right; font-size: 12px; color: #64748b;">
+        <div>Date: <strong>${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong></div>
+        <div>Unique SKUs: <strong>${itemsToPrint.length} items</strong></div>
+        <div style="margin-top: 4px; font-size: 14px; font-weight: 800; color: #0284c7;">Asset Value: ₱${totalAssetVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 35px; text-align: center;">#</th>
+          <th>SKU</th>
+          <th>Item / Model</th>
+          <th>Category</th>
+          <th style="text-align: center;">HP</th>
+          <th style="text-align: right;">Unit Price</th>
+          <th style="text-align: center;">Stock</th>
+          <th style="text-align: right;">Total Valuation</th>
+          <th style="text-align: center;">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+      </tbody>
+    </table>
+
+    <div style="margin-top: 1.5rem; display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 18px; font-size: 13px;">
+      <div>Total Stock Units On Hand: <strong style="color: #0f172a; font-size: 15px;">${totalUnits}</strong> units</div>
+      <div>Total Stock Asset Valuation: <strong style="color: #059669; font-size: 15px;">₱${totalAssetVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
+    </div>
+
+    <div style="margin-top: 3rem; display: flex; justify-content: space-between; font-size: 12px; color: #475569; border-top: 1px dashed #cbd5e1; padding-top: 1.5rem;">
+      <div>
+        <div style="border-top: 1px solid #94a3b8; width: 200px; padding-top: 4px; text-align: center; margin-top: 40px;">
+          <strong>Inventory Officer</strong><br/>FrostTech Warehouse
+        </div>
+      </div>
+      <div>
+        <div style="border-top: 1px solid #94a3b8; width: 200px; padding-top: 4px; text-align: center; margin-top: 40px;">
+          <strong>Warehouse Manager</strong><br/>Audit &amp; Operations
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if (document.readyState === 'complete') {
+      setTimeout(function() { window.print(); }, 400);
+    } else {
+      window.addEventListener('load', function() {
+        setTimeout(function() { window.print(); }, 400);
+      });
+    }
+  </script>
+</body>
+</html>`;
+
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      try { printWindow.print(); } catch (e) {}
+    }, 500);
+  };
+
+  const handlePrintSalesReport = (period: string = reportsPeriod) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups in your browser to print the Sales Report.');
+      return;
+    }
+
+    const data = reportsData;
+    const periodLabel = period === 'today' ? 'Today' : period === 'week' ? 'This Week' : period === 'month' ? 'This Month' : 'All Time';
+    const totalRev = Number(data?.metrics?.totalRevenue ?? 0);
+    const unitsSold = data?.metrics?.unitsSold?.count ?? 0;
+    const unitsSoldRev = Number(data?.metrics?.unitsSold?.revenue ?? 0);
+    const cleanedCount = data?.metrics?.unitsCleaned?.count ?? 0;
+    const cleanedRev = Number(data?.metrics?.unitsCleaned?.revenue ?? 0);
+    const repairCount = data?.metrics?.unitsRepaired?.count ?? 0;
+    const repairRev = Number(data?.metrics?.unitsRepaired?.revenue ?? 0);
+    const partsCount = data?.metrics?.sparePartsPurchased?.count ?? 0;
+    const partsRev = Number(data?.metrics?.sparePartsPurchased?.revenue ?? 0);
+
+    const brandRows = (data?.metrics?.unitsSold?.brandBreakdown || []).map((b: any, idx: number) => `
+      <tr>
+        <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center;">${idx + 1}</td>
+        <td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold; color: #0f172a;">${b.brand}</td>
+        <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; font-weight: bold;">${b.count}</td>
+        <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold; color: #059669;">₱${Number(b.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+      </tr>
+    `).join('');
+
+    const txRows = (data?.recentTransactions || []).slice(0, 30).map((tx: any, idx: number) => `
+      <tr>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">${idx + 1}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; font-weight: bold;">${tx.id || tx.orderNo || `TX-${idx + 1}`}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${tx.customer || tx.name || 'Customer'}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${tx.item || tx.serviceType || 'AC Unit'}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">
+          <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; background: #e0f2fe; color: #0369a1;">
+            ${tx.type || 'Sale'}
+          </span>
+        </td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">${tx.date || '—'}</td>
+        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">₱${Number(tx.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+      </tr>
+    `).join('');
+
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <title>FrostTech Sales &amp; Revenue Report - ${periodLabel}</title>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 0; margin: 0; color: #1e293b; background: #f8fafc; }
+    .page-wrap { max-width: 960px; margin: 0 auto; padding: 2rem; background: #ffffff; min-height: 100vh; box-sizing: border-box; }
+    h1 { color: #052e80; margin: 0 0 4px; font-size: 24px; font-weight: 800; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 1.5rem 0; }
+    .kpi-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #f8fafc; }
+    .kpi-val { font-size: 18px; font-weight: 800; color: #0f172a; margin-top: 4px; }
+    .kpi-lbl { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+    th { background: #052e80; color: #ffffff; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid #052e80; text-align: left; }
+    .section-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 1.5rem 0 0.5rem; border-bottom: 2px solid #0284c7; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+    .no-print { background: #052e80; color: white; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #ffffff !important; }
+      .page-wrap { padding: 0 !important; max-width: 100% !important; }
+      @page { margin: 1.5cm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <div style="font-weight: 700; font-size: 14px;">🖨️ FrostTech Sales &amp; Revenue Report — Print Preview</div>
+    <div>
+      <button onclick="window.print()" style="background: #0284c7; color: white; border: none; padding: 7px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; margin-right: 8px;">Print Report</button>
+      <button onclick="window.close()" style="background: rgba(255,255,255,0.2); color: white; border: none; padding: 7px 12px; border-radius: 6px; cursor: pointer; color: #fff;">Close Window</button>
+    </div>
+  </div>
+
+  <div class="page-wrap">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #052e80; padding-bottom: 1rem;">
+      <div>
+        <h1>FrostTech Cooling Solutions Co.</h1>
+        <div style="font-size: 13px; color: #475569; font-weight: 600;">Official Sales, Services &amp; Revenue Audit Report</div>
+        <div style="font-size: 12px; color: #64748b; margin-top: 2px;">Reporting Period: <strong>${periodLabel}</strong></div>
+      </div>
+      <div style="text-align: right; font-size: 12px; color: #64748b;">
+        <div>Date Generated: <strong>${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong></div>
+        <div>Time: <strong>${new Date().toLocaleTimeString()}</strong></div>
+        <div style="margin-top: 6px; font-size: 15px; font-weight: 800; color: #16a34a;">Total Revenue: ₱${totalRev.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-box">
+        <div class="kpi-lbl">AC Units Sold</div>
+        <div class="kpi-val">${unitsSold} units</div>
+        <div style="font-size: 12px; color: #0284c7; font-weight: 700; margin-top: 2px;">₱${unitsSoldRev.toLocaleString()}</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-lbl">Cleaning Services</div>
+        <div class="kpi-val">${cleanedCount} jobs</div>
+        <div style="font-size: 12px; color: #0284c7; font-weight: 700; margin-top: 2px;">₱${cleanedRev.toLocaleString()}</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-lbl">Repairs &amp; Troubleshooting</div>
+        <div class="kpi-val">${repairCount} jobs</div>
+        <div style="font-size: 12px; color: #0284c7; font-weight: 700; margin-top: 2px;">₱${repairRev.toLocaleString()}</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-lbl">Spare Parts Sold</div>
+        <div class="kpi-val">${partsCount} parts</div>
+        <div style="font-size: 12px; color: #0284c7; font-weight: 700; margin-top: 2px;">₱${partsRev.toLocaleString()}</div>
+      </div>
+    </div>
+
+    ${brandRows ? `
+      <div class="section-title">
+        <span>AC Units Sold by Brand</span>
+        <span style="font-size: 12px; color: #64748b; font-weight: normal;">${data?.metrics?.unitsSold?.brandBreakdown?.length || 0} Brands</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 40px; text-align: center;">#</th>
+            <th>Brand</th>
+            <th style="text-align: center;">Units Sold</th>
+            <th style="text-align: right;">Total Sales (₱)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${brandRows}
+        </tbody>
+      </table>
+    ` : ''}
+
+    <div class="section-title">
+      <span>Completed Sales &amp; Service Transactions</span>
+      <span style="font-size: 12px; color: #64748b; font-weight: normal;">Showing Recent ${Math.min(30, (data?.recentTransactions || []).length)} Transactions</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 35px; text-align: center;">#</th>
+          <th>Reference #</th>
+          <th>Customer</th>
+          <th>Item / Service</th>
+          <th style="text-align: center;">Category</th>
+          <th style="text-align: center;">Date</th>
+          <th style="text-align: right;">Amount (₱)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${txRows || '<tr><td colspan="7" style="text-align: center; padding: 20px; color: #94a3b8;">No transaction logs found for this period.</td></tr>'}
+      </tbody>
+    </table>
+
+    <div style="margin-top: 3rem; display: flex; justify-content: space-between; font-size: 12px; color: #475569; border-top: 1px dashed #cbd5e1; padding-top: 1.5rem;">
+      <div>
+        <div style="border-top: 1px solid #94a3b8; width: 200px; padding-top: 4px; text-align: center; margin-top: 40px;">
+          <strong>Prepared By: Administrator</strong><br/>FrostTech Operations
+        </div>
+      </div>
+      <div>
+        <div style="border-top: 1px solid #94a3b8; width: 200px; padding-top: 4px; text-align: center; margin-top: 40px;">
+          <strong>Audited &amp; Approved By</strong><br/>Finance &amp; Inventory Management
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if (document.readyState === 'complete') {
+      setTimeout(function() { window.print(); }, 400);
+    } else {
+      window.addEventListener('load', function() {
+        setTimeout(function() { window.print(); }, 400);
+      });
+    }
+  </script>
+</body>
+</html>`;
+
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      try { printWindow.print(); } catch (e) {}
+    }, 500);
+  };
 
   // Filtered Orders for Order & Services tab
   const filteredOrders = orders.filter((o) => {
@@ -3389,11 +3639,11 @@ export default function AdminDashboard() {
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   <button
                     onClick={handlePrintInventoryReport}
                     style={{
-                      padding: '0.65rem 1.2rem',
+                      padding: '0.65rem 1.1rem',
                       background: '#ffffff',
                       border: '1.5px solid #cbd5e1',
                       borderRadius: '10px',
@@ -3406,7 +3656,26 @@ export default function AdminDashboard() {
                       gap: '8px',
                     }}
                   >
-                    <i className="fa-solid fa-print" style={{ color: '#0284c7' }}></i> Print / Generate Report
+                    <i className="fa-solid fa-boxes-stacked" style={{ color: '#0284c7' }}></i> Print Inventory
+                  </button>
+
+                  <button
+                    onClick={() => handlePrintSalesReport()}
+                    style={{
+                      padding: '0.65rem 1.1rem',
+                      background: '#ffffff',
+                      border: '1.5px solid #cbd5e1',
+                      borderRadius: '10px',
+                      color: '#052e80',
+                      fontWeight: 700,
+                      fontSize: '0.88rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <i className="fa-solid fa-receipt" style={{ color: '#16a34a' }}></i> Print Sales Report
                   </button>
 
                   <button
@@ -7155,7 +7424,7 @@ export default function AdminDashboard() {
                   </div>
 
                   <button
-                    onClick={() => window.print()}
+                    onClick={() => handlePrintSalesReport(reportsPeriod)}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
