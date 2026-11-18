@@ -292,6 +292,10 @@ export default function AdminDashboard() {
   const [dispatchCurrentPage, setDispatchCurrentPage] = useState(1);
   const DISPATCH_PER_PAGE = 10;
 
+  // Service Modification Review State
+  const [reviewingModJob, setReviewingModJob] = useState<DispatchItem | null>(null);
+  const [isProcessingModReview, setIsProcessingModReview] = useState(false);
+
   // Dispatch Sidebar Submenu & Flyout State
   const [isDispatchSubmenuOpen, setIsDispatchSubmenuOpen] = useState(true);
   const [isDispatchFlyoutOpen, setIsDispatchFlyoutOpen] = useState(false);
@@ -1533,6 +1537,141 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error(err);
       showAlert({ title: 'Error', message: 'Failed to assign technician and schedule service.', type: 'error' });
+    }
+  };
+
+  // ==========================================
+  // SERVICE MODIFICATION APPROVAL ACTIONS
+  // ==========================================
+  const parseModificationDetails = (notes?: string) => {
+    if (!notes || !notes.includes('[SERVICE MODIFICATION PENDING]')) return null;
+    let original = '';
+    let modified = '';
+    let amount = '';
+    let remarks = '';
+    let proof = '';
+
+    const proofSplit = notes.split('| PROOF:');
+    if (proofSplit.length > 1) {
+      proof = proofSplit[1].trim();
+    }
+    const textPart = proofSplit[0];
+    const origMatch = textPart.match(/Original:\s*([^->]+)/i);
+    if (origMatch) original = origMatch[1].trim();
+
+    const modMatch = textPart.match(/->\s*Modified:\s*([^(]+)\s*\(₱?([0-9,]+)\)/i);
+    if (modMatch) {
+      modified = modMatch[1].trim();
+      amount = modMatch[2].trim();
+    }
+
+    const remMatch = textPart.match(/Remarks:\s*(.*)/i);
+    if (remMatch) remarks = remMatch[1].trim();
+
+    return { original, modified, amount, remarks, proof };
+  };
+
+  const handleApproveModification = async (item: DispatchItem) => {
+    const details = parseModificationDetails(item.notes);
+    if (!details) return;
+
+    const confirmed = await confirm({
+      title: 'Approve Service Modification?',
+      message: `Approve upgrading service for ${item.name} from "${details.original}" to "${details.modified}" (₱${details.amount})?\n\nThis will update the dispatch record and generate the official customer invoice.`,
+      confirmText: 'Approve & Issue Invoice',
+      type: 'success',
+    });
+    if (!confirmed) return;
+
+    setIsProcessingModReview(true);
+    try {
+      const cleanRemarks = details.remarks || 'Service modification approved by admin.';
+
+      // 1. Update dispatch item to COMPLETED with modified type
+      await fetch('/api/dispatch', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: item.id,
+          type: details.modified,
+          status: 'COMPLETED',
+          notes: `[SERVICE MODIFICATION APPROVED]: Upgraded from ${details.original} to ${details.modified} (₱${details.amount}). ${cleanRemarks}`
+        })
+      });
+
+      // 2. Generate Customer Invoice
+      await fetch('/api/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'CUSTOMER',
+          dispatchId: item.id,
+          dispatchNo: item.dispatchNo,
+          customerName: item.name,
+          serviceType: details.modified,
+          acUnit: item.item || 'Air Conditioner',
+          location: (item.location || '').split('| COORDS:')[0].trim(),
+          technicianName: item.assignedTechName || (item.technicians && item.technicians[0] ? `${item.technicians[0].firstName} ${item.technicians[0].lastName}` : 'Assigned Technician'),
+          amount: Number(details.amount.replace(/,/g, '')) || 0,
+          notes: `Service upgraded to ${details.modified}. ${cleanRemarks}`
+        })
+      });
+
+      // Refresh lists
+      fetch('/api/dispatch').then((r) => r.json()).then(setDispatch).catch(console.error);
+      fetch('/api/invoices').then((r) => r.json()).then(setInvoices).catch(console.error);
+
+      setIsProcessingModReview(false);
+      setReviewingModJob(null);
+      await showAlert({
+        title: 'Modification Approved',
+        message: `Service modification for ${item.name} approved successfully!\n\nService: ${details.modified}\nAmount: ₱${details.amount}\nOfficial invoice has been issued.`,
+        type: 'success'
+      });
+    } catch (err) {
+      console.error(err);
+      setIsProcessingModReview(false);
+      showAlert({ title: 'Error', message: 'Failed to approve modification. Please try again.', type: 'error' });
+    }
+  };
+
+  const handleRejectModification = async (item: DispatchItem) => {
+    const details = parseModificationDetails(item.notes);
+    if (!details) return;
+
+    const rejectionReason = await prompt({
+      title: 'Reject Service Modification',
+      message: `State the reason for rejecting service modification for ${item.name}:`,
+      placeholder: 'Photo proof insufficient or service modification unapproved. Proceed with original service.'
+    });
+    if (rejectionReason === null) return;
+
+    setIsProcessingModReview(true);
+    try {
+      await fetch('/api/dispatch', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: item.id,
+          type: details.original,
+          status: 'Assigned',
+          notes: `[SERVICE MODIFICATION REJECTED]: Reverted to ${details.original}. Reason: ${rejectionReason}`
+        })
+      });
+
+      fetch('/api/dispatch').then((r) => r.json()).then(setDispatch).catch(console.error);
+
+      setIsProcessingModReview(false);
+      setReviewingModJob(null);
+      await showAlert({
+        title: 'Modification Rejected',
+        message: `Modification rejected. Service reverted to "${details.original}". Technician has been notified.`,
+        type: 'info'
+      });
+    } catch (err) {
+      console.error(err);
+      setIsProcessingModReview(false);
+      showAlert({ title: 'Error', message: 'Failed to reject modification. Please try again.', type: 'error' });
     }
   };
 
@@ -6223,8 +6362,9 @@ export default function AdminDashboard() {
                           const statusLower = (d.status || '').toLowerCase();
                           const isCompleted = statusLower === 'completed';
                           const isAssigned = statusLower === 'assigned';
-                          const badgeBg = isCompleted ? '#dcfce7' : isAssigned ? '#e0f2fe' : '#fef3c7';
-                          const badgeColor = isCompleted ? '#16a34a' : isAssigned ? '#0284c7' : '#b45309';
+                          const isModPending = d.status === 'MODIFICATION_PENDING' || (d.notes && d.notes.includes('[SERVICE MODIFICATION PENDING]'));
+                          const badgeBg = isModPending ? '#fef3c7' : isCompleted ? '#dcfce7' : isAssigned ? '#e0f2fe' : '#fef3c7';
+                          const badgeColor = isModPending ? '#b45309' : isCompleted ? '#16a34a' : isAssigned ? '#0284c7' : '#b45309';
 
                           const type = d.type || '';
                           const isReinstall = isReinstallType(type);
@@ -6336,18 +6476,47 @@ export default function AdminDashboard() {
                                 {d.assignedTechName || (d.technicians && d.technicians[0] ? `${d.technicians[0].firstName} ${d.technicians[0].lastName}` : 'Senior Tech')}
                               </td>
                               <td style={{ padding: '0.8rem 1rem' }}>
-                                <span
-                                  style={{
-                                    padding: '3px 8px',
-                                    borderRadius: '6px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 700,
-                                    background: badgeBg,
-                                    color: badgeColor,
-                                  }}
-                                >
-                                  {d.status}
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                  <span
+                                    style={{
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 700,
+                                      background: badgeBg,
+                                      color: badgeColor,
+                                      border: isModPending ? '1px solid #fde68a' : 'none',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                    }}
+                                  >
+                                    {isModPending && <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: '0.7rem' }}></i>}
+                                    {isModPending ? 'Mod Pending Approval' : d.status}
+                                  </span>
+                                  {isModPending && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setReviewingModJob(d)}
+                                      style={{
+                                        padding: '4px 10px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 700,
+                                        background: '#052e80',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        boxShadow: '0 2px 4px rgba(5,46,128,0.2)',
+                                      }}
+                                    >
+                                      <i className="fa-solid fa-file-signature"></i> Review Mod
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -10953,6 +11122,245 @@ export default function AdminDashboard() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ======================================================== */}
+      {/* MODAL: SERVICE MODIFICATION REVIEW & APPROVAL */}
+      {/* ======================================================== */}
+      {reviewingModJob && (() => {
+        const details = parseModificationDetails(reviewingModJob.notes);
+        const originalService = details?.original || reviewingModJob.type || 'Regular Cleaning';
+        const modifiedService = details?.modified || 'Service Modification';
+        const modifiedAmount = details?.amount || '0';
+        const remarks = details?.remarks || 'No remarks provided.';
+        const proofImg = details?.proof;
+
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.7)',
+              backdropFilter: 'blur(6px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1100,
+              padding: '1rem',
+            }}
+            onClick={() => setReviewingModJob(null)}
+          >
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: '20px',
+                width: '100%',
+                maxWidth: '640px',
+                maxHeight: '92vh',
+                overflowY: 'auto',
+                boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.35)',
+                border: '1px solid #e2e8f0',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div
+                style={{
+                  padding: '1.25rem 1.5rem',
+                  borderBottom: '1px solid #e2e8f0',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                  borderTopLeftRadius: '20px',
+                  borderTopRightRadius: '20px',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span
+                      style={{
+                        background: '#fef3c7',
+                        color: '#b45309',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        border: '1px solid #fde68a',
+                      }}
+                    >
+                      <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: '4px' }}></i>
+                      APPROVAL REQUIRED
+                    </span>
+                    <span style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 600 }}>
+                      {reviewingModJob.dispatchNo}
+                    </span>
+                  </div>
+                  <h3 style={{ margin: '4px 0 0', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
+                    Review Service Modification
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReviewingModJob(null)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: '1.5rem',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    lineHeight: 1,
+                  }}
+                >
+                  &times;
+                </button>
+              </div>
+
+              {/* Body */}
+              <div style={{ padding: '1.5rem' }}>
+                {/* Customer & Unit Info Bar */}
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem', marginBottom: '1.25rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
+                    <div>
+                      <span style={{ color: '#64748b', display: 'block', fontSize: '0.75rem' }}>Customer</span>
+                      <strong style={{ color: '#0f172a' }}>{reviewingModJob.name}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b', display: 'block', fontSize: '0.75rem' }}>Assigned Technician</span>
+                      <strong style={{ color: '#0284c7' }}>
+                        <i className="fa-solid fa-user-gear" style={{ marginRight: '4px' }}></i>
+                        {reviewingModJob.assignedTechName || (reviewingModJob.technicians && reviewingModJob.technicians[0] ? `${reviewingModJob.technicians[0].firstName} ${reviewingModJob.technicians[0].lastName}` : 'Senior Tech')}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b', display: 'block', fontSize: '0.75rem' }}>AC Unit / Location</span>
+                      <strong style={{ color: '#0f172a' }}>{reviewingModJob.item}</strong>
+                      <div style={{ color: '#64748b', fontSize: '0.78rem' }}>{(reviewingModJob.location || '').split('| COORDS:')[0].trim()}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b', display: 'block', fontSize: '0.75rem' }}>Scheduled Date</span>
+                      <strong style={{ color: '#0f172a' }}>{reviewingModJob.scheduledDate || 'N/A'}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Service Upgrade Comparison Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '0.75rem', alignItems: 'center', marginBottom: '1.25rem' }}>
+                  {/* Original */}
+                  <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '1rem', textAlign: 'center' }}>
+                    <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700, letterSpacing: '0.05em' }}>
+                      Customer Booked
+                    </span>
+                    <h4 style={{ margin: '6px 0 2px', fontSize: '1rem', fontWeight: 700, color: '#334155' }}>
+                      {originalService}
+                    </h4>
+                    <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Original Service</span>
+                  </div>
+
+                  <div style={{ color: '#94a3b8', fontSize: '1.25rem' }}>
+                    <i className="fa-solid fa-arrow-right"></i>
+                  </div>
+
+                  {/* Modified */}
+                  <div style={{ background: '#eff6ff', border: '2px solid #3b82f6', borderRadius: '12px', padding: '1rem', textAlign: 'center' }}>
+                    <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#1d4ed8', fontWeight: 700, letterSpacing: '0.05em' }}>
+                      Technician Upgraded
+                    </span>
+                    <h4 style={{ margin: '6px 0 2px', fontSize: '1rem', fontWeight: 800, color: '#1d4ed8' }}>
+                      {modifiedService}
+                    </h4>
+                    <span style={{ fontSize: '1rem', fontWeight: 800, color: '#15803d' }}>
+                      ₱{Number(modifiedAmount.replace(/,/g, '')).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Technician Assessment & Justification */}
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.35rem' }}>
+                    <i className="fa-solid fa-comment-medical" style={{ marginRight: '6px', color: '#0284c7' }}></i>
+                    Technician Findings &amp; Adjustment Reason
+                  </label>
+                  <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '0.85rem', fontSize: '0.85rem', color: '#1e293b', lineHeight: 1.5 }}>
+                    {remarks}
+                  </div>
+                </div>
+
+                {/* Photo Proof Uploaded by Tech */}
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.35rem' }}>
+                    <i className="fa-solid fa-camera" style={{ marginRight: '6px', color: '#d97706' }}></i>
+                    Photo Proof Attached by Technician
+                  </label>
+                  {proofImg ? (
+                    <div style={{ border: '2px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', background: '#000000', display: 'flex', justifyContent: 'center', alignItems: 'center', maxHeight: '280px' }}>
+                      <img
+                        src={proofImg}
+                        alt="Technician Service Proof"
+                        style={{ maxWidth: '100%', maxHeight: '280px', objectFit: 'contain' }}
+                      />
+                    </div>
+                  ) : (
+                    <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '1rem', color: '#b91c1c', fontSize: '0.85rem', textAlign: 'center' }}>
+                      <i className="fa-solid fa-circle-exclamation" style={{ marginRight: '6px' }}></i>
+                      No photo proof was attached to this request.
+                    </div>
+                  )}
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    disabled={isProcessingModReview}
+                    onClick={() => handleRejectModification(reviewingModJob)}
+                    style={{
+                      padding: '0.85rem',
+                      borderRadius: '10px',
+                      border: '1px solid #ef4444',
+                      background: '#fff5f5',
+                      color: '#dc2626',
+                      fontWeight: 700,
+                      fontSize: '0.88rem',
+                      cursor: isProcessingModReview ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <i className="fa-solid fa-xmark"></i>
+                    Reject &amp; Revert
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isProcessingModReview}
+                    onClick={() => handleApproveModification(reviewingModJob)}
+                    style={{
+                      padding: '0.85rem',
+                      borderRadius: '10px',
+                      border: 'none',
+                      background: isProcessingModReview ? '#94a3b8' : 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+                      color: '#ffffff',
+                      fontWeight: 700,
+                      fontSize: '0.92rem',
+                      cursor: isProcessingModReview ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)',
+                    }}
+                  >
+                    <i className={`fa-solid ${isProcessingModReview ? 'fa-spinner fa-spin' : 'fa-check-double'}`}></i>
+                    {isProcessingModReview ? 'Processing...' : 'Approve Modification & Issue Invoice'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         );

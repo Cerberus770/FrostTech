@@ -116,6 +116,10 @@ export default function TechnicianDashboard() {
   const [invoiceNotes, setInvoiceNotes] = useState('');
   const [invoiceSending, setInvoiceSending] = useState(false);
 
+  // Service Modification Proof State
+  const [modificationProof, setModificationProof] = useState<string | null>(null);
+  const [isUploadingProof, setIsUploadingProof] = useState(false);
+
   // Calendar State
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
@@ -233,6 +237,42 @@ export default function TechnicianDashboard() {
     }
   };
 
+  // Handle proof image upload with canvas compression
+  const handleProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingProof(true);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 800;
+        let w = img.width, h = img.height;
+        if (w > MAX_SIZE || h > MAX_SIZE) {
+          if (w > h) { h = Math.round(h * MAX_SIZE / w); w = MAX_SIZE; }
+          else { w = Math.round(w * MAX_SIZE / h); h = MAX_SIZE; }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, w, h);
+        let quality = 0.7;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        while (dataUrl.length > 150000 && quality > 0.2) {
+          quality -= 0.1;
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+        setModificationProof(dataUrl);
+        setIsUploadingProof(false);
+      };
+      img.onerror = () => setIsUploadingProof(false);
+      img.src = evt.target?.result as string;
+    };
+    reader.onerror = () => setIsUploadingProof(false);
+    reader.readAsDataURL(file);
+  };
+
   // Open Invoice Modal - Only for Services (not for Pick Up items or Delivery & Installation)
   const openInvoiceModal = (job: any) => {
     if (isAssignedTask(job)) {
@@ -248,6 +288,7 @@ export default function TechnicianDashboard() {
     setInvoiceServiceType(initialType);
     setInvoiceAmount(standardServices[initialType] || 1200);
     setInvoiceNotes(`Service conducted on ${job.item || 'AC Unit'} at ${job.location || job.address || ''}.`);
+    setModificationProof(null);
     setShowInvoiceModal(true);
   };
 
@@ -313,6 +354,46 @@ export default function TechnicianDashboard() {
     } catch (err) {
       setInvoiceSending(false);
       showAlert({ title: 'Error', message: 'Failed to generate invoice. Please try again.', type: 'error' });
+    }
+  };
+
+  // Submit Service Modification for Admin Approval (requires photo proof)
+  const handleSubmitModification = async () => {
+    if (!invoiceJob) return;
+    if (!modificationProof) {
+      showAlert({ title: 'Photo Proof Required', message: 'Please upload a photo showing why the service was modified (e.g. mold on evaporator, damaged parts).', type: 'error' });
+      return;
+    }
+    if (!invoiceNotes.trim() || invoiceNotes.trim().length < 10) {
+      showAlert({ title: 'Assessment Required', message: 'Please provide a detailed technician assessment explaining why the service was changed (at least 10 characters).', type: 'error' });
+      return;
+    }
+    setInvoiceSending(true);
+    try {
+      const originalService = invoiceJob.type || invoiceJob.serviceType || 'Regular Cleaning';
+      const modNotes = `[SERVICE MODIFICATION PENDING]: Original: ${originalService} -> Modified: ${invoiceServiceType} (₱${invoiceAmount}). Remarks: ${invoiceNotes} | PROOF:${modificationProof}`;
+
+      // Update dispatch status to MODIFICATION_PENDING
+      await fetch('/api/dispatch', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: invoiceJob.id,
+          status: 'MODIFICATION_PENDING',
+          notes: modNotes
+        })
+      });
+
+      setInvoiceSending(false);
+      setShowInvoiceModal(false);
+      showAlert({
+        title: 'Modification Submitted',
+        message: `Service modification request has been submitted to Admin for approval.\n\nOriginal: ${originalService}\nModified: ${invoiceServiceType} — ₱${Number(invoiceAmount).toLocaleString()}\n\nPlease wait for Admin to review and approve before the invoice is generated.`
+      });
+      loadData();
+    } catch (err) {
+      setInvoiceSending(false);
+      showAlert({ title: 'Error', message: 'Failed to submit modification. Please try again.', type: 'error' });
     }
   };
 
@@ -955,7 +1036,17 @@ export default function TechnicianDashboard() {
                               }}>
                                 {isPick ? 'Store Pick Up' : isDeliv ? 'AC Delivery' : job.type}
                               </span>
-                              <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>{job.status}</span>
+                              <span style={{
+                                fontSize: '0.75rem',
+                                color: job.status === 'MODIFICATION_PENDING' ? '#b45309' : '#64748b',
+                                background: job.status === 'MODIFICATION_PENDING' ? '#fef3c7' : 'transparent',
+                                padding: job.status === 'MODIFICATION_PENDING' ? '2px 7px' : '0',
+                                borderRadius: '4px',
+                                fontWeight: job.status === 'MODIFICATION_PENDING' ? 700 : 600,
+                                border: job.status === 'MODIFICATION_PENDING' ? '1px solid #fde68a' : 'none'
+                              }}>
+                                {job.status === 'MODIFICATION_PENDING' ? 'Mod Pending Approval' : job.status}
+                              </span>
                             </div>
                             <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.2rem' }}>{job.name}</h4>
                             <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 0.3rem' }}>
@@ -974,12 +1065,20 @@ export default function TechnicianDashboard() {
                                 View Details & Map
                               </button>
                               {!isDelivery(job) && (
-                                <button
-                                  onClick={() => openInvoiceModal(job)}
-                                  style={{ background: '#052e80', border: 'none', color: '#ffffff', padding: '0.35rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
-                                >
-                                  Invoice
-                                </button>
+                                job.status === 'MODIFICATION_PENDING' ? (
+                                  <span
+                                    style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', padding: '0.35rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}
+                                  >
+                                    Mod Pending
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => openInvoiceModal(job)}
+                                    style={{ background: '#052e80', border: 'none', color: '#ffffff', padding: '0.35rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
+                                  >
+                                    Invoice
+                                  </button>
+                                )
                               )}
                             </div>
                           </div>
@@ -1282,12 +1381,20 @@ export default function TechnicianDashboard() {
                           </button>
 
                           {/* INVOICE BUTTON: ALLOWS CHANGING SERVICE TYPE */}
-                          <button
-                            onClick={() => openInvoiceModal(job)}
-                            style={{ flex: 1, background: '#052e80', color: '#ffffff', border: 'none', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
-                          >
-                            <i className="fa-solid fa-file-invoice" style={{ marginRight: '4px' }}></i> Invoice / Complete
-                          </button>
+                          {job.status === 'MODIFICATION_PENDING' ? (
+                            <span
+                              style={{ flex: 1, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                            >
+                              <i className="fa-solid fa-clock-rotate-left"></i> Mod Pending Admin
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => openInvoiceModal(job)}
+                              style={{ flex: 1, background: '#052e80', color: '#ffffff', border: 'none', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                            >
+                              <i className="fa-solid fa-file-invoice" style={{ marginRight: '4px' }}></i> Invoice / Complete
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -1383,39 +1490,134 @@ export default function TechnicianDashboard() {
                 </div>
               </div>
 
-              {/* TECHNICIAN NOTES / JUSTIFICATION */}
-              <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.4rem' }}>
-                  Technician Assessment & Reason for Service Adjustment
-                </label>
-                <textarea
-                  rows={3}
-                  value={invoiceNotes}
-                  onChange={(e) => setInvoiceNotes(e.target.value)}
-                  placeholder="e.g. Customer booked regular cleaning, but upon inspection the evaporator coils had excessive mold buildup requiring complete chemical wash."
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', color: '#0f172a', fontFamily: 'inherit' }}
-                />
-              </div>
+              {/* TECHNICIAN NOTES / JUSTIFICATION — with modification detection */}
+              {(() => {
+                const originalService = invoiceJob.type || invoiceJob.serviceType || 'Regular Cleaning';
+                const isModified = invoiceServiceType !== originalService;
+                return (
+                  <>
+                    {/* MODIFICATION WARNING BANNER */}
+                    {isModified && (
+                      <div style={{ background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: '10px', padding: '0.85rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                        <i className="fa-solid fa-triangle-exclamation" style={{ color: '#d97706', fontSize: '1.1rem', marginTop: '2px' }}></i>
+                        <div>
+                          <strong style={{ color: '#92400e', fontSize: '0.85rem', display: 'block', marginBottom: '2px' }}>Service Modification Detected</strong>
+                          <span style={{ color: '#78350f', fontSize: '0.78rem' }}>
+                            Changed from <strong>{originalService}</strong> &rarr; <strong>{invoiceServiceType}</strong>. This requires <u>photo proof</u> and <u>Admin approval</u> before the invoice is finalized.
+                          </span>
+                        </div>
+                      </div>
+                    )}
 
-              {/* SUBMIT BUTTONS */}
-              <div className="tech-modal-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                <button
-                  disabled={invoiceSending}
-                  onClick={() => handleSendInvoice('CUSTOMER')}
-                  style={{ background: '#052e80', color: '#ffffff', border: 'none', padding: '0.85rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                >
-                  <i className="fa-solid fa-receipt"></i>
-                  Send Customer Receipt
-                </button>
-                <button
-                  disabled={invoiceSending}
-                  onClick={() => handleSendInvoice('ADMIN')}
-                  style={{ background: '#0f172a', color: '#ffffff', border: 'none', padding: '0.85rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                >
-                  <i className="fa-solid fa-file-invoice"></i>
-                  Send Admin Invoice
-                </button>
-              </div>
+                    {/* PHOTO PROOF UPLOAD (only when modified) */}
+                    {isModified && (
+                      <div style={{ marginBottom: '1.25rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.4rem' }}>
+                          <i className="fa-solid fa-camera" style={{ marginRight: '6px', color: '#d97706' }}></i>
+                          Photo Proof of Service Adjustment <span style={{ color: '#dc2626' }}>*</span>
+                        </label>
+                        <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '0 0 8px' }}>
+                          Upload a photo showing why the unit needed a different service (e.g. heavy mold, damaged parts, electrical issue).
+                        </p>
+                        {!modificationProof ? (
+                          <label style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', padding: '1.5rem', border: '2px dashed #fbbf24', borderRadius: '10px', background: '#fffbeb', cursor: 'pointer', transition: 'all 0.2s' }}>
+                            <input type="file" accept="image/*" onChange={handleProofUpload} style={{ display: 'none' }} />
+                            {isUploadingProof ? (
+                              <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '1.5rem', color: '#d97706' }}></i>
+                            ) : (
+                              <>
+                                <i className="fa-solid fa-cloud-arrow-up" style={{ fontSize: '1.8rem', color: '#d97706', marginBottom: '6px' }}></i>
+                                <span style={{ fontWeight: 600, color: '#92400e', fontSize: '0.85rem' }}>Tap to upload photo proof</span>
+                                <span style={{ fontSize: '0.72rem', color: '#a16207' }}>JPEG, PNG — compressed for upload</span>
+                              </>
+                            )}
+                          </label>
+                        ) : (
+                          <div style={{ position: 'relative', display: 'inline-block' }}>
+                            <img src={modificationProof} alt="Proof" style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '10px', border: '2px solid #fbbf24', objectFit: 'cover' as const }} />
+                            <button
+                              type="button"
+                              onClick={() => setModificationProof(null)}
+                              style={{ position: 'absolute', top: '-8px', right: '-8px', width: '24px', height: '24px', borderRadius: '50%', background: '#dc2626', color: '#fff', border: 'none', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              <i className="fa-solid fa-xmark"></i>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.4rem' }}>
+                        {isModified ? (
+                          <>
+                            <i className="fa-solid fa-clipboard-check" style={{ marginRight: '6px', color: '#d97706' }}></i>
+                            Technician Assessment & Reason for Service Adjustment <span style={{ color: '#dc2626' }}>*</span>
+                          </>
+                        ) : (
+                          'Technician Assessment & Reason for Service Adjustment'
+                        )}
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={invoiceNotes}
+                        onChange={(e) => setInvoiceNotes(e.target.value)}
+                        placeholder={isModified
+                          ? 'REQUIRED: Explain why the service was changed (e.g. "Upon inspection, evaporator coils had severe mold requiring full chemical wash instead of regular cleaning.")'
+                          : 'e.g. Customer booked regular cleaning, but upon inspection the evaporator coils had excessive mold buildup requiring complete chemical wash.'
+                        }
+                        style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: `1px solid ${isModified && (!invoiceNotes.trim() || invoiceNotes.trim().length < 10) ? '#fbbf24' : '#cbd5e1'}`, fontSize: '0.85rem', color: '#0f172a', fontFamily: 'inherit' }}
+                      />
+                    </div>
+
+                    {/* SUBMIT BUTTONS — conditional on modification */}
+                    {isModified ? (
+                      <button
+                        disabled={invoiceSending || !modificationProof || !invoiceNotes.trim() || invoiceNotes.trim().length < 10}
+                        onClick={handleSubmitModification}
+                        style={{
+                          width: '100%',
+                          background: (!modificationProof || !invoiceNotes.trim() || invoiceNotes.trim().length < 10) ? '#94a3b8' : 'linear-gradient(135deg, #d97706, #b45309)',
+                          color: '#ffffff',
+                          border: 'none',
+                          padding: '0.95rem',
+                          borderRadius: '10px',
+                          fontWeight: 700,
+                          fontSize: '0.95rem',
+                          cursor: (!modificationProof || !invoiceNotes.trim() || invoiceNotes.trim().length < 10) ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '10px',
+                          boxShadow: '0 4px 12px rgba(217,119,6,0.3)'
+                        }}
+                      >
+                        <i className="fa-solid fa-paper-plane"></i>
+                        {invoiceSending ? 'Submitting...' : 'Submit Modification for Admin Approval'}
+                      </button>
+                    ) : (
+                      <div className="tech-modal-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        <button
+                          disabled={invoiceSending}
+                          onClick={() => handleSendInvoice('CUSTOMER')}
+                          style={{ background: '#052e80', color: '#ffffff', border: 'none', padding: '0.85rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                        >
+                          <i className="fa-solid fa-receipt"></i>
+                          Send Customer Receipt
+                        </button>
+                        <button
+                          disabled={invoiceSending}
+                          onClick={() => handleSendInvoice('ADMIN')}
+                          style={{ background: '#0f172a', color: '#ffffff', border: 'none', padding: '0.85rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                        >
+                          <i className="fa-solid fa-file-invoice"></i>
+                          Send Admin Invoice
+                        </button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

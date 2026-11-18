@@ -36,14 +36,14 @@ export async function POST(req: NextRequest) {
         acUnit: body.acUnit,
         location: body.location || '',
         technicianName: body.technicianName,
-        status: 'Sent',
+        status: body.status || 'Sent',
         amount: body.amount || 0,
         notes: body.notes || ''
       }
     });
 
-    // If it's a customer invoice, send via Gmail and PhilSMS
-    if (body.type === 'CUSTOMER') {
+    // If it's a customer invoice and not pending approval, send via Gmail and PhilSMS
+    if (body.type === 'CUSTOMER' && (body.status || 'Sent') !== 'Pending Approval') {
       try {
         // Look up the customer's email and phone from the dispatch record
         let customerEmail = '';
