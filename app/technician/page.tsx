@@ -1107,7 +1107,7 @@ export default function TechnicianDashboard() {
                             )}
                             <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
                               <i className="fa-regular fa-calendar-check" style={{ marginRight: '4px' }}></i>
-                              Schedule: <strong>{job.scheduledDate || 'Immediate Dispatch'}</strong>
+                              {isPickup ? 'Picked up schedule:' : 'Schedule:'} <strong>{job.scheduledDate || 'Immediate Dispatch'}</strong>
                             </div>
                           </div>
 
@@ -1129,7 +1129,7 @@ export default function TechnicianDashboard() {
 
                           {isCompleted ? (
                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: '#dcfce7', color: '#166534', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700 }}>
-                              <i className="fa-solid fa-circle-check"></i> {isPickup ? 'Picked Up by Customer' : 'Delivered & Installed'}
+                              <i className="fa-solid fa-circle-check"></i> {isPickup ? 'Successfully Picked Up' : 'Delivered & Installed'}
                             </div>
                           ) : isInProgress ? (
                             <button
