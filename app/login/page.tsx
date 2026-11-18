@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showCaptcha, setShowCaptcha] = useState(false);
   const [isCaptchaVerified, setIsCaptchaVerified] = useState(false);
   const [captchaError, setCaptchaError] = useState('');
   const router = useRouter();
@@ -97,20 +98,16 @@ export default function LoginPage() {
     }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isCaptchaVerified) {
-      setCaptchaError('Please check "I\'m not a robot" before signing in.');
-      return;
-    }
+  const executeLogin = async () => {
     setLoading(true);
     setError('');
+    setCaptchaError('');
 
     try {
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.toLowerCase(), password }),
+        body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
       });
 
       const data = await res.json();
@@ -126,6 +123,22 @@ export default function LoginPage() {
       setError('Network error. Please try again.');
       setLoading(false);
     }
+  };
+
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!email.trim() || !password) {
+      setError('Please enter your email and password.');
+      return;
+    }
+
+    if (!isCaptchaVerified) {
+      setShowCaptcha(true);
+      setCaptchaError('Please check "I\'m not a robot" before signing in.');
+      return;
+    }
+
+    await executeLogin();
   };
 
   return (
@@ -216,18 +229,34 @@ export default function LoginPage() {
               <a href="#" className="forgot-password">Forgot Password?</a>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <CaptchaWidget
-                verified={isCaptchaVerified}
-                onVerify={(v) => {
-                  setIsCaptchaVerified(v);
-                  setCaptchaError('');
+            {showCaptcha && (
+              <div 
+                style={{ 
+                  display: 'flex', 
+                  justifyContent: 'center',
+                  marginBottom: '1rem',
+                  animation: 'fadeIn 0.25s ease',
                 }}
-                error={captchaError}
-              />
-            </div>
+              >
+                <CaptchaWidget
+                  verified={isCaptchaVerified}
+                  onVerify={(v) => {
+                    setIsCaptchaVerified(v);
+                    setCaptchaError('');
+                    if (v && email.trim() && password) {
+                      setTimeout(() => {
+                        executeLogin();
+                      }, 400);
+                    }
+                  }}
+                  error={captchaError}
+                />
+              </div>
+            )}
 
-            <button type="submit" className="btn login-btn" disabled={loading}>{loading ? 'Signing in...' : 'Sign In'}</button>
+            <button type="submit" className="btn login-btn" disabled={loading}>
+              {loading ? 'Signing in...' : showCaptcha && !isCaptchaVerified ? 'Verify & Sign In' : 'Sign In'}
+            </button>
             
             <div style={{ display: 'flex', alignItems: 'center', margin: '1.5rem 0', color: 'var(--text-light)', fontSize: '0.85rem' }}>
               <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }}></div>

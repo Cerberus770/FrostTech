@@ -25,6 +25,7 @@ export default function AuthModal({
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showLoginCaptcha, setShowLoginCaptcha] = useState(false);
   const [isLoginCaptcha, setIsLoginCaptcha] = useState(false);
   const [isSignupCaptcha, setIsSignupCaptcha] = useState(false);
   const [error, setError] = useState('');
@@ -115,12 +116,7 @@ export default function AuthModal({
 
   if (!isOpen) return null;
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isLoginCaptcha) {
-      setError('Please verify that you are not a robot before signing in.');
-      return;
-    }
+  const executeLogin = async () => {
     setError('');
     setLoading(true);
 
@@ -157,6 +153,22 @@ export default function AuthModal({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!email.trim() || !password) {
+      setError('Please enter your email and password.');
+      return;
+    }
+
+    if (!isLoginCaptcha) {
+      setShowLoginCaptcha(true);
+      setError('Please check "I\'m not a robot" before signing in.');
+      return;
+    }
+
+    await executeLogin();
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -416,13 +428,23 @@ export default function AuthModal({
                 />
               </div>
 
-              <div>
-                <CaptchaWidget verified={isLoginCaptcha} onVerify={setIsLoginCaptcha} />
-              </div>
+              {showLoginCaptcha && (
+                <div style={{ animation: 'fadeIn 0.25s ease' }}>
+                  <CaptchaWidget
+                    verified={isLoginCaptcha}
+                    onVerify={(v) => {
+                      setIsLoginCaptcha(v);
+                      if (v && email.trim() && password) {
+                        setTimeout(() => executeLogin(), 400);
+                      }
+                    }}
+                  />
+                </div>
+              )}
 
               <button
                 type="submit"
-                disabled={loading || !isLoginCaptcha}
+                disabled={loading}
                 style={{
                   marginTop: '0.5rem',
                   padding: '0.85rem',
@@ -432,12 +454,12 @@ export default function AuthModal({
                   color: 'white',
                   fontWeight: 700,
                   fontSize: '0.95rem',
-                  cursor: !isLoginCaptcha ? 'not-allowed' : 'pointer',
-                  opacity: !isLoginCaptcha ? 0.65 : 1,
+                  cursor: 'pointer',
+                  opacity: loading ? 0.75 : 1,
                   boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
                 }}
               >
-                {loading ? 'Signing in...' : 'Sign In & Continue'}
+                {loading ? 'Signing in...' : showLoginCaptcha && !isLoginCaptcha ? 'Verify & Sign In' : 'Sign In & Continue'}
               </button>
             </form>
           ) : (
