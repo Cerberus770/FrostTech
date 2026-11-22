@@ -171,9 +171,10 @@ const FEATURE_PERMISSIONS = [
   { key: 'maintenance', label: 'Maintenance Monitoring', icon: 'fa-screwdriver-wrench' },
   { key: 'users', label: 'User Directory', icon: 'fa-users-gear' },
   { key: 'invoices', label: 'Invoices & Billing', icon: 'fa-file-invoice' },
+  { key: 'ci', label: 'Credit Investigation (CI Officer)', icon: 'fa-id-card-clip' },
 ];
 
-const TECH_RANKS = ['Junior Tech', 'Senior Tech', 'Master Tech', 'Lead HVAC Specialist'];
+const TECH_RANKS = ['Junior Tech', 'Senior Tech', 'Master Tech', 'Lead HVAC Specialist', 'Credit Investigator (CI)', 'CI Officer & Field Tech'];
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -1165,11 +1166,30 @@ export default function AdminDashboard() {
     );
   });
 
+  // Credit Investigation (CI Officer) helper
+  const isCiOfficer = (u: AppUser): boolean => {
+    if (u.techRank && (u.techRank.toLowerCase().includes('ci') || u.techRank.toLowerCase().includes('investigat'))) {
+      return true;
+    }
+    try {
+      const perms = JSON.parse(u.permissions || '[]');
+      if (Array.isArray(perms) && perms.includes('ci')) return true;
+    } catch {
+      if (u.permissions && u.permissions.includes('ci')) return true;
+    }
+    return false;
+  };
+
   // Filtered Users
   const filteredUsers = allUsers.filter((u) => {
-    if (userRoleFilter !== 'ALL' && u.role !== userRoleFilter) return false;
+    if (userRoleFilter === 'CI_OFFICER') {
+      if (!isCiOfficer(u)) return false;
+    } else if (userRoleFilter !== 'ALL' && u.role !== userRoleFilter) {
+      return false;
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
+      const isCi = isCiOfficer(u);
       return (
         (u.firstName || '').toLowerCase().includes(q) ||
         (u.lastName || '').toLowerCase().includes(q) ||
@@ -1177,7 +1197,8 @@ export default function AdminDashboard() {
         (u.email || '').toLowerCase().includes(q) ||
         (u.phone || '').toLowerCase().includes(q) ||
         (u.role || '').toLowerCase().includes(q) ||
-        (u.techRank || '').toLowerCase().includes(q)
+        (u.techRank || '').toLowerCase().includes(q) ||
+        (isCi && (q === 'ci' || 'credit investigator'.includes(q) || 'ci officer'.includes(q)))
       );
     }
     return true;
@@ -2464,6 +2485,57 @@ export default function AdminDashboard() {
   // Toggle permission helper
   const togglePermission = (perms: string[], key: string): string[] =>
     perms.includes(key) ? perms.filter((p) => p !== key) : [...perms, key];
+
+  // Quick toggle Credit Investigation (CI Officer) status
+  const handleToggleCiOfficer = async (user: AppUser) => {
+    const currentlyCi = isCiOfficer(user);
+    let perms: string[] = [];
+    try {
+      perms = JSON.parse(user.permissions || '[]');
+      if (!Array.isArray(perms)) perms = [];
+    } catch {
+      perms = [];
+    }
+
+    let newPerms: string[];
+    let newRank = user.techRank;
+
+    if (currentlyCi) {
+      newPerms = perms.filter((p) => p !== 'ci');
+      if (newRank === 'Credit Investigator (CI)' || newRank === 'CI Officer & Field Tech') {
+        newRank = 'Senior Tech';
+      }
+    } else {
+      newPerms = perms.includes('ci') ? perms : [...perms, 'ci'];
+    }
+
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: user.id,
+          role: user.role,
+          techRank: newRank,
+          permissions: newPerms,
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setAllUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+        showAlert({
+          title: currentlyCi ? 'CI Revoked' : 'CI Authorized',
+          message: `${user.firstName} ${user.lastName} is ${currentlyCi ? 'no longer' : 'now authorized as'} a Credit Investigator (CI Officer).`,
+        });
+      } else {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to update user');
+      }
+    } catch (err: any) {
+      console.error(err);
+      showAlert({ title: 'Error', message: err.message || 'Failed to update CI status', type: 'error' });
+    }
+  };
 
   // ==========================================
   // MAINTENANCE SCHEDULE NOTIFICATIONS (6-MONTH)
@@ -7184,6 +7256,7 @@ export default function AdminDashboard() {
                     <option value="ALL">All Roles ({allUsers.length})</option>
                     <option value="CUSTOMER">Customer ({allUsers.filter((u) => u.role === 'CUSTOMER').length})</option>
                     <option value="TECHNICIAN">Technician ({allUsers.filter((u) => u.role === 'TECHNICIAN').length})</option>
+                    <option value="CI_OFFICER">CI Investigators ({allUsers.filter(isCiOfficer).length})</option>
                     <option value="ADMIN">Admin ({allUsers.filter((u) => u.role === 'ADMIN').length})</option>
                   </select>
                   <i
@@ -7265,7 +7338,67 @@ export default function AdminDashboard() {
                             </td>
                             <td style={{ padding: '0.8rem 1rem', color: '#64748b' }}>
                               {u.role === 'TECHNICIAN' ? (
-                                <span style={{ fontWeight: 600, color: '#0f172a' }}>{u.techRank || 'Junior Tech'}</span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                  <span style={{ fontWeight: 600, color: '#0f172a' }}>{u.techRank || 'Junior Tech'}</span>
+                                  {isCiOfficer(u) ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span
+                                        style={{
+                                          padding: '2px 7px',
+                                          borderRadius: '5px',
+                                          fontSize: '0.7rem',
+                                          fontWeight: 800,
+                                          background: '#dcfce7',
+                                          color: '#15803d',
+                                          border: '1px solid #86efac',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          width: 'fit-content',
+                                        }}
+                                        title="Authorized Credit Investigator"
+                                      >
+                                        <i className="fa-solid fa-id-card-clip" style={{ fontSize: '0.65rem' }}></i> CI Officer
+                                      </span>
+                                      <button
+                                        onClick={() => handleToggleCiOfficer(u)}
+                                        title="Revoke CI authorization"
+                                        style={{
+                                          background: 'transparent',
+                                          border: 'none',
+                                          color: '#ef4444',
+                                          cursor: 'pointer',
+                                          fontSize: '0.7rem',
+                                          textDecoration: 'underline',
+                                          padding: 0,
+                                        }}
+                                      >
+                                        Revoke
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleToggleCiOfficer(u)}
+                                      title="Grant Credit Investigation (CI Officer) Authorization"
+                                      style={{
+                                        background: '#f0fdf4',
+                                        border: '1px dashed #22c55e',
+                                        color: '#16a34a',
+                                        borderRadius: '4px',
+                                        padding: '2px 6px',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        width: 'fit-content',
+                                      }}
+                                    >
+                                      <i className="fa-solid fa-plus" style={{ fontSize: '0.6rem' }}></i> Enable CI
+                                    </button>
+                                  )}
+                                </div>
                               ) : (
                                 <span style={{ color: '#94a3b8' }}>—</span>
                               )}
@@ -8697,6 +8830,52 @@ export default function AdminDashboard() {
                 <span>Assign a custom role title (overrides tech rank)</span>
               </label>
 
+              {/* CI Officer Authorization Toggle for Technicians */}
+              {newRole === 'TECHNICIAN' && (
+                <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '10px', padding: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#166534', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <i className="fa-solid fa-id-card-clip"></i> Credit Investigation (CI Officer) Feature
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#15803d', marginTop: '2px' }}>
+                      Authorize technician to verify customer residence, KYC, &amp; installment applications
+                    </div>
+                  </div>
+                  <label style={{ position: 'relative', display: 'inline-block', width: '40px', height: '22px', margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={newPermissions.includes('ci')}
+                      onChange={() => setNewPermissions(togglePermission(newPermissions, 'ci'))}
+                      style={{ opacity: 0, width: 0, height: 0 }}
+                    />
+                    <span
+                      style={{
+                        position: 'absolute',
+                        cursor: 'pointer',
+                        inset: 0,
+                        backgroundColor: newPermissions.includes('ci') ? '#16a34a' : '#cbd5e1',
+                        transition: '0.2s',
+                        borderRadius: '22px',
+                      }}
+                    >
+                      <span
+                        style={{
+                          position: 'absolute',
+                          content: "''",
+                          height: '16px',
+                          width: '16px',
+                          left: newPermissions.includes('ci') ? '21px' : '3px',
+                          bottom: '3px',
+                          backgroundColor: 'white',
+                          transition: '0.2s',
+                          borderRadius: '50%',
+                        }}
+                      />
+                    </span>
+                  </label>
+                </div>
+              )}
+
               <div>
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Email Address *</label>
                 <input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="user@frosttech.com" style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
@@ -8866,6 +9045,52 @@ export default function AdminDashboard() {
                 <input type="checkbox" checked={isEditCustomRole} onChange={(e) => setIsEditCustomRole(e.target.checked)} />
                 <span>Assign a custom role title (overrides tech rank)</span>
               </label>
+
+              {/* CI Officer Authorization Toggle for Technicians */}
+              {editRole === 'TECHNICIAN' && (
+                <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '10px', padding: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#166534', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <i className="fa-solid fa-id-card-clip"></i> Credit Investigation (CI Officer) Feature
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#15803d', marginTop: '2px' }}>
+                      Authorize technician to verify customer residence, KYC, &amp; installment applications
+                    </div>
+                  </div>
+                  <label style={{ position: 'relative', display: 'inline-block', width: '40px', height: '22px', margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={editPermissions.includes('ci')}
+                      onChange={() => setEditPermissions(togglePermission(editPermissions, 'ci'))}
+                      style={{ opacity: 0, width: 0, height: 0 }}
+                    />
+                    <span
+                      style={{
+                        position: 'absolute',
+                        cursor: 'pointer',
+                        inset: 0,
+                        backgroundColor: editPermissions.includes('ci') ? '#16a34a' : '#cbd5e1',
+                        transition: '0.2s',
+                        borderRadius: '22px',
+                      }}
+                    >
+                      <span
+                        style={{
+                          position: 'absolute',
+                          content: "''",
+                          height: '16px',
+                          width: '16px',
+                          left: editPermissions.includes('ci') ? '21px' : '3px',
+                          bottom: '3px',
+                          backgroundColor: 'white',
+                          transition: '0.2s',
+                          borderRadius: '50%',
+                        }}
+                      />
+                    </span>
+                  </label>
+                </div>
+              )}
 
               {/* Feature Permissions */}
               <div>

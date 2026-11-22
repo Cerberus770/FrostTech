@@ -97,6 +97,8 @@ export default function TechnicianDashboard() {
   const [tasks, setTasks] = useState<DispatchItem[]>([]);
   const [maintenanceTasks, setMaintenanceTasks] = useState<MaintenanceItem[]>([]);
   const [techName, setTechName] = useState('Carlos Rivera');
+  const [techRank, setTechRank] = useState('Senior Tech');
+  const [isCiOfficerTech, setIsCiOfficerTech] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [kebabOpen, setKebabOpen] = useState(false);
 
@@ -174,6 +176,21 @@ export default function TechnicianDashboard() {
         }
       })
       .catch(console.error);
+
+    fetch('/api/users/technicians')
+      .then(r => r.json())
+      .then((techs: any[]) => {
+        if (Array.isArray(techs)) {
+          const matched = techs.find(t => `${t.firstName} ${t.lastName}`.toLowerCase() === sessionName.toLowerCase());
+          if (matched) {
+            setTechRank(matched.techRank || 'Senior Tech');
+            const hasCi = (matched.techRank && (matched.techRank.toLowerCase().includes('ci') || matched.techRank.toLowerCase().includes('investigat'))) ||
+              (matched.permissions && matched.permissions.toLowerCase().includes('ci'));
+            setIsCiOfficerTech(Boolean(hasCi));
+          }
+        }
+      })
+      .catch(() => {});
   };
 
   useEffect(() => {
@@ -740,7 +757,28 @@ export default function TechnicianDashboard() {
             </div>
             <div style={{ overflow: 'hidden' }}>
               <strong style={{ fontSize: '0.9rem', color: '#0f172a', display: 'block', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{techName}</strong>
-              <span style={{ fontSize: '0.75rem', color: '#052e80', fontWeight: 600 }}>Field Specialist</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', marginTop: '2px' }}>
+                <span style={{ fontSize: '0.74rem', color: '#052e80', fontWeight: 600 }}>{techRank}</span>
+                {isCiOfficerTech && (
+                  <span
+                    style={{
+                      padding: '1px 5px',
+                      borderRadius: '4px',
+                      fontSize: '0.64rem',
+                      fontWeight: 800,
+                      background: '#dcfce7',
+                      color: '#15803d',
+                      border: '1px solid #86efac',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                    }}
+                    title="Authorized Credit Investigator"
+                  >
+                    <i className="fa-solid fa-id-card-clip" style={{ fontSize: '0.6rem' }}></i> CI Officer
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 

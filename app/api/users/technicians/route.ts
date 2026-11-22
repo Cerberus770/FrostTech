@@ -6,7 +6,7 @@ export async function GET() {
   try {
     const technicians = await prisma.user.findMany({
       where: { role: Role.TECHNICIAN },
-      select: { id: true, firstName: true, lastName: true, techRank: true },
+      select: { id: true, firstName: true, lastName: true, techRank: true, permissions: true },
       orderBy: { createdAt: 'desc' }
     });
     return NextResponse.json(technicians);
@@ -29,7 +29,7 @@ export async function PATCH(request: Request) {
     const updated = await prisma.user.update({
       where: { id },
       data: { techRank },
-      select: { id: true, firstName: true, lastName: true, techRank: true },
+      select: { id: true, firstName: true, lastName: true, techRank: true, permissions: true },
     });
     
     return NextResponse.json(updated);
