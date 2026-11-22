@@ -1386,118 +1386,296 @@ export default function TechnicianDashboard() {
                 </div>
               )}
 
-              {/* 4 STAT CARDS */}
-              <div className="tech-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-                <div className="tech-stat-card" style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+              {/* 5 STAT CARDS (Including Earned Income and Pending Payout) */}
+              <div className="tech-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div className="tech-stat-card" style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #bbf7d0', boxShadow: '0 2px 8px rgba(34,197,94,0.06)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Total Jobs</span>
-                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#d8e9fd', color: '#052e80', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <i className="fa-solid fa-clipboard-list"></i>
+                    <span style={{ fontSize: '0.82rem', color: '#166534', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Earned Income</span>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className="fa-solid fa-coins"></i>
                     </div>
                   </div>
-                  <div className="stat-num" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0f172a', marginTop: '0.5rem' }}>{totalJobsCount}</div>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Deliveries & Services</span>
+                  <div className="stat-num" style={{ fontSize: '1.7rem', fontWeight: 800, color: '#15803d', marginTop: '0.5rem' }}>
+                    ₱{totalCompletedIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: '#166534', fontWeight: 600 }}>
+                    {allIncomeEntries.filter(i => i.isCompleted).length} tasks completed & paid
+                  </span>
                 </div>
 
-                <div className="tech-stat-card" style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                <div className="tech-stat-card" style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #fde68a', boxShadow: '0 2px 8px rgba(245,158,11,0.06)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Pending</span>
+                    <span style={{ fontSize: '0.82rem', color: '#92400e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pending Payout</span>
                     <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <i className="fa-solid fa-hourglass-half"></i>
                     </div>
                   </div>
-                  <div className="stat-num" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#d97706', marginTop: '0.5rem' }}>{pendingJobsCount}</div>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Awaiting departure</span>
+                  <div className="stat-num" style={{ fontSize: '1.7rem', fontWeight: 800, color: '#b45309', marginTop: '0.5rem' }}>
+                    ₱{totalPendingIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: '#92400e', fontWeight: 600 }}>
+                    {allIncomeEntries.filter(i => !i.isCompleted).length} active/assigned jobs
+                  </span>
                 </div>
 
                 <div className="tech-stat-card" style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>In Progress</span>
+                    <span style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Jobs</span>
                     <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#d8e9fd', color: '#052e80', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <i className="fa-solid fa-person-running"></i>
+                      <i className="fa-solid fa-clipboard-list"></i>
                     </div>
                   </div>
-                  <div className="stat-num" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#052e80', marginTop: '0.5rem' }}>{inProgressJobsCount}</div>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Active in field</span>
+                  <div className="stat-num" style={{ fontSize: '1.7rem', fontWeight: 800, color: '#0f172a', marginTop: '0.5rem' }}>{totalJobsCount}</div>
+                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Deliveries, Services & CI</span>
                 </div>
 
                 <div className="tech-stat-card" style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Completed</span>
+                    <span style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Completed</span>
                     <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <i className="fa-solid fa-circle-check"></i>
                     </div>
                   </div>
-                  <div className="stat-num" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#16a34a', marginTop: '0.5rem' }}>{completedJobsCount}</div>
+                  <div className="stat-num" style={{ fontSize: '1.7rem', fontWeight: 800, color: '#16a34a', marginTop: '0.5rem' }}>{completedJobsCount}</div>
                   <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Finished tasks</span>
+                </div>
+
+                <div className="tech-stat-card" style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>In Progress</span>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#d8e9fd', color: '#052e80', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className="fa-solid fa-person-running"></i>
+                    </div>
+                  </div>
+                  <div className="stat-num" style={{ fontSize: '1.7rem', fontWeight: 800, color: '#052e80', marginTop: '0.5rem' }}>{inProgressJobsCount}</div>
+                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Active in field</span>
                 </div>
               </div>
 
-              {/* Total Income Highlight & Compensation Ledger Callout */}
-              <div style={{
-                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-                color: '#ffffff',
-                borderRadius: '16px',
-                padding: '1.5rem',
-                marginBottom: '1.5rem',
-                boxShadow: '0 4px 20px rgba(15,23,42,0.08)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '1.25rem',
-              }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                    <span style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Admin Task Compensation
-                    </span>
-                    <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Real-time technician earnings</span>
+              {/* DASHBOARD EARNINGS & TASK COMPENSATION CENTER */}
+              <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', marginBottom: '1.5rem', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Admin Compensation
+                      </span>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Live Technician Earnings</span>
+                    </div>
+                    <h3 style={{ margin: '4px 0 0', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="fa-solid fa-wallet" style={{ color: '#16a34a' }}></i>
+                      Earnings Breakdown & Payout Ledger
+                    </h3>
                   </div>
-                  <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#f8fafc' }}>
-                    Total Income Earned: <span style={{ color: '#4ade80' }}>₱{totalCompletedIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </h3>
-                  <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#94a3b8' }}>
-                    Calculated from completed deliveries, services, and approved credit investigations.
-                  </p>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => window.print()}
+                      style={{ background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1', padding: '0.5rem 0.9rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <i className="fa-solid fa-print"></i> Print Statement
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('earnings')}
+                      style={{ background: '#052e80', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      Full Earnings Tab &rarr;
+                    </button>
+                  </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
-                  <div style={{ textAlign: 'right', borderRight: '1px solid #334155', paddingRight: '1.25rem' }}>
-                    <div style={{ fontSize: '0.72rem', color: '#cbd5e1', textTransform: 'uppercase', fontWeight: 700 }}>Pending Payout</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f59e0b' }}>
-                      ₱{totalPendingIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {/* 4 Task Compensation Category Mini-Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.85rem', marginBottom: '1.25rem' }}>
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.9rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1d4ed8' }}>🚚 AC Deliveries</span>
+                      <span style={{ fontSize: '0.72rem', background: '#dbeafe', color: '#1e40af', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>₱2,000 / unit</span>
                     </div>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{allIncomeEntries.filter(i => !i.isCompleted).length} jobs queued</span>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginTop: '0.35rem' }}>
+                      ₱{deliveryIncomeList.filter(d => d.isCompleted).reduce((s, d) => s + d.amount, 0).toLocaleString()}
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                      {deliveryIncomeList.filter(d => d.isCompleted).length} delivered ({deliveryIncomeList.length} total)
+                    </span>
                   </div>
 
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.72rem', color: '#cbd5e1', textTransform: 'uppercase', fontWeight: 700 }}>Total Admin Value</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#38bdf8' }}>
-                      ₱{totalAssignedIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.9rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#052e80' }}>🔧 Repair Services</span>
+                      <span style={{ fontSize: '0.72rem', background: '#d8e9fd', color: '#052e80', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>₱1,200 / job</span>
                     </div>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{allIncomeEntries.length} assigned jobs</span>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginTop: '0.35rem' }}>
+                      ₱{serviceIncomeList.filter(s => s.isCompleted && s.serviceType.toLowerCase().includes('repair')).reduce((s, d) => s + d.amount, 0).toLocaleString()}
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                      {serviceIncomeList.filter(s => s.isCompleted && s.serviceType.toLowerCase().includes('repair')).length} repairs completed
+                    </span>
                   </div>
 
-                  <button
-                    onClick={() => setActiveTab('earnings')}
-                    style={{
-                      background: '#0284c7',
-                      color: '#ffffff',
-                      border: 'none',
-                      padding: '0.75rem 1.25rem',
-                      borderRadius: '10px',
-                      fontWeight: 700,
-                      fontSize: '0.86rem',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      transition: 'background 0.15s ease',
-                    }}
-                  >
-                    <i className="fa-solid fa-wallet"></i> View Earnings Ledger &rarr;
-                  </button>
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.9rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#047857' }}>❄️ Cleaning Services</span>
+                      <span style={{ fontSize: '0.72rem', background: '#dcfce7', color: '#15803d', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>₱800 / job</span>
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginTop: '0.35rem' }}>
+                      ₱{serviceIncomeList.filter(s => s.isCompleted && !s.serviceType.toLowerCase().includes('repair')).reduce((s, d) => s + d.amount, 0).toLocaleString()}
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                      {serviceIncomeList.filter(s => s.isCompleted && !s.serviceType.toLowerCase().includes('repair')).length} cleanings completed
+                    </span>
+                  </div>
+
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.9rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#b45309' }}>📋 CI Investigations</span>
+                      <span style={{ fontSize: '0.72rem', background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>₱500 / clearance</span>
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginTop: '0.35rem' }}>
+                      ₱{ciIncomeList.filter(c => c.isCompleted).reduce((s, d) => s + d.amount, 0).toLocaleString()}
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                      {ciIncomeList.filter(c => c.isCompleted).length} verified ({ciIncomeList.length} assigned)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Filter and Search Bar for Earnings on Dashboard */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.6rem' }}>
+                  <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'ALL', label: `All (${allIncomeEntries.length})` },
+                      { id: 'COMPLETED', label: `Earned (${allIncomeEntries.filter(i => i.isCompleted).length})` },
+                      { id: 'PENDING', label: `Pending (${allIncomeEntries.filter(i => !i.isCompleted).length})` },
+                      { id: 'DELIVERY', label: `Deliveries (${deliveryIncomeList.length})` },
+                      { id: 'SERVICE', label: `Services (${serviceIncomeList.length})` },
+                      { id: 'CI', label: `CI (${ciIncomeList.length})` },
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setEarningsFilter(tab.id as any)}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '8px',
+                          border: earningsFilter === tab.id ? '1px solid #052e80' : '1px solid #e2e8f0',
+                          background: earningsFilter === tab.id ? '#052e80' : '#ffffff',
+                          color: earningsFilter === tab.id ? '#ffffff' : '#475569',
+                          fontWeight: earningsFilter === tab.id ? 700 : 500,
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ position: 'relative', minWidth: '220px' }}>
+                    <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.75rem' }}></i>
+                    <input
+                      type="text"
+                      value={earningsSearch}
+                      onChange={(e) => setEarningsSearch(e.target.value)}
+                      placeholder="Search customer, ref, job..."
+                      style={{
+                        width: '100%',
+                        padding: '0.4rem 0.6rem 0.4rem 1.85rem',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.78rem',
+                        outline: 'none',
+                      }}
+                    />
+                    {earningsSearch && (
+                      <button
+                        onClick={() => setEarningsSearch('')}
+                        style={{ position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.75rem' }}
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Ledger Table */}
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+                  {filteredIncomeEntries.length === 0 ? (
+                    <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: '#94a3b8' }}>
+                      <i className="fa-solid fa-receipt" style={{ fontSize: '2.2rem', marginBottom: '0.5rem', opacity: 0.4 }}></i>
+                      <p style={{ margin: 0, fontSize: '0.85rem' }}>No task earnings match the selected filter.</p>
+                    </div>
+                  ) : (
+                    <div style={{ overflowX: 'auto', maxHeight: '360px' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
+                        <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
+                          <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            <th style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>Ref / Job</th>
+                            <th style={{ padding: '0.75rem 0.75rem', fontWeight: 700 }}>Task & Service</th>
+                            <th style={{ padding: '0.75rem 0.75rem', fontWeight: 700 }}>Customer</th>
+                            <th style={{ padding: '0.75rem 0.75rem', fontWeight: 700 }}>Assigned Date</th>
+                            <th style={{ padding: '0.75rem 0.75rem', fontWeight: 700 }}>Status</th>
+                            <th style={{ padding: '0.75rem 1rem', fontWeight: 700, textAlign: 'right' }}>Tech Compensation</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredIncomeEntries.map((item, idx) => {
+                            const isEven = idx % 2 === 0;
+                            return (
+                              <tr
+                                key={item.id}
+                                style={{
+                                  borderBottom: '1px solid #f1f5f9',
+                                  background: isEven ? '#ffffff' : '#fafafa',
+                                }}
+                              >
+                                <td style={{ padding: '0.75rem 1rem', verticalAlign: 'middle' }}>
+                                  <span style={{ fontSize: '0.72rem', fontWeight: 700, background: '#f1f5f9', color: '#334155', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace' }}>
+                                    {item.refNo}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
+                                  <div style={{ fontWeight: 600, color: '#0f172a' }}>{item.title}</div>
+                                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{item.serviceType}</div>
+                                </td>
+                                <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
+                                  <div style={{ fontWeight: 600, color: '#334155' }}>{item.customerName}</div>
+                                  <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{item.location.split('| COORDS:')[0].trim()}</div>
+                                </td>
+                                <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle', color: '#64748b', fontSize: '0.75rem' }}>
+                                  {item.date}
+                                </td>
+                                <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
+                                  <span style={{
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    padding: '2px 7px',
+                                    borderRadius: '999px',
+                                    background: item.isCompleted ? '#dcfce7' : '#fef3c7',
+                                    color: item.isCompleted ? '#15803d' : '#92400e',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                  }}>
+                                    <i className={`fa-solid ${item.isCompleted ? 'fa-circle-check' : 'fa-hourglass-half'}`} style={{ fontSize: '0.65rem' }}></i>
+                                    {item.isCompleted ? 'Earned & Cleared' : 'In Progress'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '0.75rem 1rem', verticalAlign: 'middle', textAlign: 'right' }}>
+                                  <span style={{
+                                    fontWeight: 800,
+                                    fontSize: '0.92rem',
+                                    color: item.isCompleted ? '#16a34a' : '#d97706',
+                                  }}>
+                                    +₱{item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
 
