@@ -12,7 +12,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showCaptcha, setShowCaptcha] = useState(false);
+  const [showCaptchaModal, setShowCaptchaModal] = useState(false);
   const [isCaptchaVerified, setIsCaptchaVerified] = useState(false);
   const [captchaError, setCaptchaError] = useState('');
   const router = useRouter();
@@ -127,14 +127,16 @@ export default function LoginPage() {
 
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    setError('');
+    setCaptchaError('');
+
     if (!email.trim() || !password) {
       setError('Please enter your email and password.');
       return;
     }
 
     if (!isCaptchaVerified) {
-      setShowCaptcha(true);
-      setCaptchaError('Please check "I\'m not a robot" before signing in.');
+      setShowCaptchaModal(true);
       return;
     }
 
@@ -229,33 +231,8 @@ export default function LoginPage() {
               <a href="#" className="forgot-password">Forgot Password?</a>
             </div>
 
-            {showCaptcha && (
-              <div 
-                style={{ 
-                  display: 'flex', 
-                  justifyContent: 'center',
-                  marginBottom: '1rem',
-                  animation: 'fadeIn 0.25s ease',
-                }}
-              >
-                <CaptchaWidget
-                  verified={isCaptchaVerified}
-                  onVerify={(v) => {
-                    setIsCaptchaVerified(v);
-                    setCaptchaError('');
-                    if (v && email.trim() && password) {
-                      setTimeout(() => {
-                        executeLogin();
-                      }, 400);
-                    }
-                  }}
-                  error={captchaError}
-                />
-              </div>
-            )}
-
             <button type="submit" className="btn login-btn" disabled={loading}>
-              {loading ? 'Signing in...' : showCaptcha && !isCaptchaVerified ? 'Verify & Sign In' : 'Sign In'}
+              {loading ? 'Signing in...' : 'Sign In'}
             </button>
             
             <div style={{ display: 'flex', alignItems: 'center', margin: '1.5rem 0', color: 'var(--text-light)', fontSize: '0.85rem' }}>
@@ -274,6 +251,132 @@ export default function LoginPage() {
           </div>
         </div>
       </section>
+
+      {/* CAPTCHA / SECURITY VERIFICATION POPUP MODAL */}
+      {showCaptchaModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+          onClick={() => setShowCaptchaModal(false)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              width: '100%',
+              maxWidth: '430px',
+              padding: '2rem',
+              boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.35)',
+              position: 'relative',
+              textAlign: 'center',
+              border: '1px solid #e2e8f0',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setShowCaptchaModal(false)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'none',
+                border: 'none',
+                color: '#94a3b8',
+                fontSize: '1.4rem',
+                cursor: 'pointer',
+                lineHeight: 1,
+                padding: '4px',
+              }}
+              title="Close"
+              aria-label="Close"
+            >
+              &times;
+            </button>
+
+            {/* FrostGuard Shield Icon */}
+            <div
+              style={{
+                width: '58px',
+                height: '58px',
+                borderRadius: '16px',
+                background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)',
+                color: '#0284c7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.65rem',
+                margin: '0 auto 1rem auto',
+                boxShadow: '0 4px 14px rgba(2, 132, 199, 0.18)',
+              }}
+            >
+              <i className="fa-solid fa-shield-halved"></i>
+            </div>
+
+            <h3 style={{ margin: '0 0 0.35rem 0', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
+              Security Verification
+            </h3>
+            <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.86rem', color: '#64748b', lineHeight: 1.45 }}>
+              Please check the box below to verify you are not a robot and proceed with sign in.
+            </p>
+
+            {/* Captcha Widget Container */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
+              <CaptchaWidget
+                verified={isCaptchaVerified}
+                onVerify={(v) => {
+                  setIsCaptchaVerified(v);
+                  setCaptchaError('');
+                  if (v) {
+                    setTimeout(() => {
+                      setShowCaptchaModal(false);
+                      executeLogin();
+                    }, 500);
+                  }
+                }}
+                error={captchaError}
+              />
+            </div>
+
+            {isCaptchaVerified && (
+              <div style={{ color: '#10b981', fontSize: '0.86rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '0.25rem' }}>
+                <i className="fa-solid fa-circle-check"></i> Verification Successful! Signing you in...
+              </div>
+            )}
+
+            <div style={{ marginTop: '1.25rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowCaptchaModal(false)}
+                style={{
+                  width: '100%',
+                  padding: '0.65rem 1rem',
+                  borderRadius: '10px',
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#475569',
+                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer style={{ 
         marginTop: 0, 
