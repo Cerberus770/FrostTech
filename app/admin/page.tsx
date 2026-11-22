@@ -610,11 +610,11 @@ export default function AdminDashboard() {
       });
 
       if (res.ok) {
-        setIsAddProductModalOpen(false);
         setNewProductImages([]);
         setNewProductSku('');
         fetch('/api/inventory').then((r) => r.json()).then(setInventory).catch(console.error);
-        showAlert({ title: 'Success', message: 'Product added to inventory & storefront successfully!' });
+        await showAlert({ title: 'Success', message: 'Product added to inventory & storefront successfully!' });
+        setIsAddProductModalOpen(false);
       } else {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to add product');
@@ -684,12 +684,6 @@ export default function AdminDashboard() {
   // INVENTORY & SALES PRINT REPORT HANDLERS
   // ==========================================
   const handlePrintInventoryReport = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert('Please allow popups in your browser to print the Inventory Report.');
-      return;
-    }
-
     const itemsToPrint = filteredInventory.length > 0 ? filteredInventory : inventory;
     const totalUnits = itemsToPrint.reduce((sum, i) => sum + (Number(i.stock) || 0), 0);
     const totalAssetVal = itemsToPrint.reduce((sum, i) => sum + ((Number(i.price) || 0) * (Number(i.stock) || 0)), 0);
@@ -795,26 +789,44 @@ export default function AdminDashboard() {
       </div>
     </div>
   </div>
-
-  <script>
-    if (document.readyState === 'complete') {
-      setTimeout(function() { window.print(); }, 400);
-    } else {
-      window.addEventListener('load', function() {
-        setTimeout(function() { window.print(); }, 400);
-      });
-    }
-  </script>
 </body>
 </html>`;
 
-    printWindow.document.open();
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      try { printWindow.print(); } catch (e) {}
-    }, 500);
+    // Try window.open first; use hidden iframe as fallback if popup is blocked
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.open();
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        try { printWindow.print(); } catch {}
+      }, 600);
+    } else {
+      // Fallback: use a hidden iframe to bypass popup blocker
+      const printFrame = document.createElement('iframe');
+      printFrame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;';
+      document.body.appendChild(printFrame);
+
+      const frameWin = printFrame.contentWindow;
+      if (frameWin) {
+        frameWin.document.open();
+        frameWin.document.write(htmlContent);
+        frameWin.document.close();
+        printFrame.onload = () => {
+          try {
+            frameWin.focus();
+            frameWin.print();
+          } catch {
+            showAlert({ title: 'Print Blocked', message: 'Please allow popups in your browser to print the Inventory Report.', type: 'warning' });
+          }
+          setTimeout(() => { try { document.body.removeChild(printFrame); } catch {} }, 2000);
+        };
+      } else {
+        document.body.removeChild(printFrame);
+        showAlert({ title: 'Print Blocked', message: 'Please allow popups in your browser to print the Inventory Report.', type: 'warning' });
+      }
+    }
   };
 
   const handlePrintSalesReport = (period: string = reportsPeriod) => {
@@ -9606,6 +9618,75 @@ export default function AdminDashboard() {
                 <>
                   <div style={{ padding: '1.25rem 1.75rem', background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)', color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', color: '#ffffff', fontWeight: 800 }}>
+                        {selectedInstallment.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#ffffff' }}>
+                            {selectedInstallment.name}
+                          </h3>
+                          <span style={{ background: '#0284c7', color: '#ffffff', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800 }}>
+                            #{selectedInstallment.appId}
+                          </span>
+                          <span
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              background:
+                                selectedInstallment.status === 'COMPLETED'
+                                  ? '#dcfce7'
+                                  : selectedInstallment.status === 'CI_ACCEPTED'
+                                    ? '#e0f2fe'
+                                    : selectedInstallment.status === 'REJECTED'
+                                      ? '#fee2e2'
+                                      : '#fef3c7',
+                              color:
+                                selectedInstallment.status === 'COMPLETED'
+                                  ? '#15803d'
+                                  : selectedInstallment.status === 'CI_ACCEPTED'
+                                    ? '#0369a1'
+                                    : selectedInstallment.status === 'REJECTED'
+                                      ? '#dc2626'
+                                      : '#b45309',
+                            }}
+                          >
+                            {selectedInstallment.status === 'CI_ACCEPTED' ? 'Under CI' : selectedInstallment.status}
+                          </span>
+                        </div>
+                        <p style={{ margin: '3px 0 0', fontSize: '0.82rem', color: '#bae6fd' }}>
+                          Financing: <strong>{selectedInstallment.item}</strong> • {selectedInstallment.term} Months Term
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedInstallment(null)}
+                      style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        border: 'none',
+                        color: '#ffffff',
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        cursor: 'pointer',
+                        fontSize: '1rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <i className="fa-solid fa-xmark"></i>
+                    </button>
+                  </div>
+
+                  {/* Internal Sub-Tabs Navigation */}
+                  <div style={{ display: 'flex', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '0 1.75rem' }}>
+                    {[
+                      { key: 'DOSSIER', label: 'KYC & Credit Investigation (CI)', icon: 'fa-user-shield' },
                       { key: 'SCHEDULE', label: `Payment Schedule & Ledger (${paidCount}/${selectedInstallment.term})`, icon: 'fa-calendar-days' },
                       { key: 'COMMUNICATION', label: 'Customer Reminders & SMS', icon: 'fa-paper-plane' },
                     ].map((tab) => (
