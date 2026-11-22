@@ -286,7 +286,7 @@ export default function AdminDashboard() {
   const [proofFilterType, setProofFilterType] = useState<'ALL' | 'Split' | 'Window'>('ALL');
 
   // Dispatch Filters & Pagination State (10 items per page)
-  const [dispatchStatusFilter, setDispatchStatusFilter] = useState<'All' | 'Assigned' | 'Pending' | 'Completed'>('All');
+  const [dispatchStatusFilter, setDispatchStatusFilter] = useState<'All' | 'Assigned' | 'Pending' | 'Completed' | 'Flagged'>('All');
   const [dispatchCategoryFilter, setDispatchCategoryFilter] = useState<'ALL' | 'INSTALLATION' | 'CLEANING' | 'REPAIR'>('INSTALLATION');
   const [dispatchInstallationSubFilter, setDispatchInstallationSubFilter] = useState<'ALL' | 'NEW' | 'REINSTALL'>('ALL');
   const [dispatchCleaningSubFilter, setDispatchCleaningSubFilter] = useState<'ALL' | 'STANDARD' | 'DEEP'>('ALL');
@@ -296,6 +296,9 @@ export default function AdminDashboard() {
   // Service Modification Review State
   const [reviewingModJob, setReviewingModJob] = useState<DispatchItem | null>(null);
   const [isProcessingModReview, setIsProcessingModReview] = useState(false);
+
+  // Flagged AC Tampering Report Modal State
+  const [selectedFlaggedJob, setSelectedFlaggedJob] = useState<DispatchItem | null>(null);
 
   // Dispatch Sidebar Submenu & Flyout State
   const [isDispatchSubmenuOpen, setIsDispatchSubmenuOpen] = useState(true);
@@ -2833,6 +2836,7 @@ export default function AdminDashboard() {
     return s === 'pending' || s === 'queued';
   }).length;
   const countDispatchCompleted = categoryScopedDispatch.filter((d) => (d.status || '').toLowerCase() === 'completed').length;
+  const countDispatchFlagged = categoryScopedDispatch.filter((d) => (d.notes || '').includes('[FLAGGED')).length;
 
   // Final filtered list including status filter and searchQuery
   const filteredDispatch = categoryScopedDispatch.filter((d) => {
@@ -2840,6 +2844,7 @@ export default function AdminDashboard() {
     if (dispatchStatusFilter === 'Assigned' && s !== 'assigned') return false;
     if (dispatchStatusFilter === 'Pending' && s !== 'pending' && s !== 'queued') return false;
     if (dispatchStatusFilter === 'Completed' && s !== 'completed') return false;
+    if (dispatchStatusFilter === 'Flagged' && !(d.notes || '').includes('[FLAGGED')) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       return (
@@ -6623,6 +6628,7 @@ export default function AdminDashboard() {
                     { key: 'Assigned', label: 'Assigned', count: countDispatchAssigned, color: '#0284c7' },
                     { key: 'Pending', label: 'Pending', count: countDispatchPending, color: '#b45309' },
                     { key: 'Completed', label: 'Completed', count: countDispatchCompleted, color: '#16a34a' },
+                    { key: 'Flagged', label: 'Flagged (Tampered)', count: countDispatchFlagged, color: '#dc2626' },
                   ].map((filterTab) => {
                     const isActive = dispatchStatusFilter === filterTab.key;
                     return (
@@ -6732,7 +6738,36 @@ export default function AdminDashboard() {
                               <td style={{ padding: '0.8rem 1rem', color: '#475569' }}>{d.location?.split('| COORDS:')[0].trim()}</td>
                               <td style={{ padding: '0.8rem 1rem' }}>
                                 <strong style={{ color: '#0f172a', fontWeight: 700, display: 'block' }}>{cleanItemName}</strong>
-                                {d.notes && <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block' }}>{d.notes.slice(0, 45)}{d.notes.length > 45 ? '...' : ''}</span>}
+                                {d.notes?.includes('[FLAGGED') ? (
+                                  <div style={{ marginTop: '4px' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedFlaggedJob(d)}
+                                      style={{
+                                        background: '#fee2e2',
+                                        border: '1px solid #fca5a5',
+                                        color: '#b91c1c',
+                                        borderRadius: '6px',
+                                        padding: '2px 8px',
+                                        fontSize: '0.72rem',
+                                        fontWeight: 800,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                        boxShadow: '0 1px 3px rgba(220, 38, 38, 0.12)',
+                                        transition: 'all 0.15s ease',
+                                      }}
+                                      title="Click to view technician tampering and damage report"
+                                    >
+                                      <i className="fa-solid fa-flag" style={{ color: '#dc2626' }}></i>
+                                      <span>FLAGGED (TAMPERED)</span>
+                                      <span style={{ textDecoration: 'underline', fontWeight: 600, marginLeft: '2px' }}>Read Report &rarr;</span>
+                                    </button>
+                                  </div>
+                                ) : (
+                                  d.notes && <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block' }}>{d.notes.slice(0, 45)}{d.notes.length > 45 ? '...' : ''}</span>
+                                )}
                               </td>
                               <td style={{ padding: '0.8rem 1rem' }}>
                                 {extractedHp ? (
@@ -6835,6 +6870,29 @@ export default function AdminDashboard() {
                                     {isModPending && <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: '0.7rem' }}></i>}
                                     {isModPending ? 'Mod Pending Approval' : d.status}
                                   </span>
+                                  {d.notes?.includes('[FLAGGED') && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedFlaggedJob(d)}
+                                      style={{
+                                        background: '#fee2e2',
+                                        border: '1px solid #f87171',
+                                        color: '#b91c1c',
+                                        borderRadius: '6px',
+                                        padding: '3px 7px',
+                                        fontSize: '0.72rem',
+                                        fontWeight: 800,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        boxShadow: '0 1px 2px rgba(220, 38, 38, 0.1)',
+                                      }}
+                                      title="Click to read technician tampering and damage report"
+                                    >
+                                      <i className="fa-solid fa-flag" style={{ fontSize: '0.68rem', color: '#dc2626' }}></i> Flagged
+                                    </button>
+                                  )}
                                   {isModPending && (
                                     <button
                                       type="button"
@@ -9548,75 +9606,6 @@ export default function AdminDashboard() {
                 <>
                   <div style={{ padding: '1.25rem 1.75rem', background: 'linear-gradient(135deg, #052e80 0%, #0b3080 100%)', color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', color: '#ffffff', fontWeight: 800 }}>
-                        {selectedInstallment.name.charAt(0)}
-                      </div>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#ffffff' }}>
-                            {selectedInstallment.name}
-                          </h3>
-                          <span style={{ background: '#0284c7', color: '#ffffff', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800 }}>
-                            #{selectedInstallment.appId}
-                          </span>
-                          <span
-                            style={{
-                              padding: '2px 8px',
-                              borderRadius: '6px',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              background:
-                                selectedInstallment.status === 'COMPLETED'
-                                  ? '#dcfce7'
-                                  : selectedInstallment.status === 'CI_ACCEPTED'
-                                    ? '#e0f2fe'
-                                    : selectedInstallment.status === 'REJECTED'
-                                      ? '#fee2e2'
-                                      : '#fef3c7',
-                              color:
-                                selectedInstallment.status === 'COMPLETED'
-                                  ? '#15803d'
-                                  : selectedInstallment.status === 'CI_ACCEPTED'
-                                    ? '#0369a1'
-                                    : selectedInstallment.status === 'REJECTED'
-                                      ? '#dc2626'
-                                      : '#b45309',
-                            }}
-                          >
-                            {selectedInstallment.status === 'CI_ACCEPTED' ? 'Under CI' : selectedInstallment.status}
-                          </span>
-                        </div>
-                        <p style={{ margin: '3px 0 0', fontSize: '0.82rem', color: '#bae6fd' }}>
-                          Financing: <strong>{selectedInstallment.item}</strong> • {selectedInstallment.term} Months Term
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedInstallment(null)}
-                      style={{
-                        background: 'rgba(255,255,255,0.15)',
-                        border: 'none',
-                        color: '#ffffff',
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '50%',
-                        cursor: 'pointer',
-                        fontSize: '1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <i className="fa-solid fa-xmark"></i>
-                    </button>
-                  </div>
-
-                  {/* Internal Sub-Tabs Navigation */}
-                  <div style={{ display: 'flex', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '0 1.75rem' }}>
-                    {[
-                      { key: 'DOSSIER', label: 'KYC & Credit Investigation (CI)', icon: 'fa-user-shield' },
                       { key: 'SCHEDULE', label: `Payment Schedule & Ledger (${paidCount}/${selectedInstallment.term})`, icon: 'fa-calendar-days' },
                       { key: 'COMMUNICATION', label: 'Customer Reminders & SMS', icon: 'fa-paper-plane' },
                     ].map((tab) => (
@@ -11859,6 +11848,135 @@ export default function AdminDashboard() {
           </div>
         );
       })()}
+
+      {/* MODAL: FLAGGED AC UNIT TAMPERING REPORT */}
+      {selectedFlaggedJob && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+          onClick={() => setSelectedFlaggedJob(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              width: '100%',
+              maxWidth: '540px',
+              padding: '2rem',
+              boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.35)',
+              position: 'relative',
+              border: '1px solid #fecaca',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #fee2e2', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', border: '1px solid #fca5a5' }}>
+                  <i className="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#991b1b' }}>
+                    AC Unit Flag Report
+                  </h3>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', padding: '1px 7px', borderRadius: '4px', border: '1px solid #fecaca', display: 'inline-block', marginTop: '3px' }}>
+                    <i className="fa-solid fa-ban" style={{ marginRight: '4px' }}></i> VOIDS STANDARD WARRANTY
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedFlaggedJob(null)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.3rem', cursor: 'pointer', padding: '4px' }}
+                title="Close"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Job Summary */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem', marginBottom: '1.25rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
+              <div>
+                <span style={{ color: '#64748b', fontSize: '0.78rem', display: 'block' }}>Dispatch Number</span>
+                <strong style={{ color: '#0f172a' }}>{selectedFlaggedJob.dispatchNo}</strong>
+              </div>
+              <div>
+                <span style={{ color: '#64748b', fontSize: '0.78rem', display: 'block' }}>Customer Name</span>
+                <strong style={{ color: '#0f172a' }}>{selectedFlaggedJob.name}</strong>
+              </div>
+              <div>
+                <span style={{ color: '#64748b', fontSize: '0.78rem', display: 'block' }}>AC Unit</span>
+                <strong style={{ color: '#0f172a' }}>{selectedFlaggedJob.item}</strong>
+              </div>
+              <div>
+                <span style={{ color: '#64748b', fontSize: '0.78rem', display: 'block' }}>Service Type</span>
+                <strong style={{ color: '#0f172a' }}>{selectedFlaggedJob.type || 'Service'}</strong>
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <span style={{ color: '#64748b', fontSize: '0.78rem', display: 'block' }}>Service Location</span>
+                <span style={{ color: '#334155', fontWeight: 600 }}>{selectedFlaggedJob.location?.split('| COORDS:')[0].trim()}</span>
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <span style={{ color: '#64748b', fontSize: '0.78rem', display: 'block' }}>Reporting Technician</span>
+                <span style={{ color: '#0284c7', fontWeight: 700 }}>
+                  <i className="fa-solid fa-user-gear" style={{ marginRight: '5px' }}></i>
+                  {selectedFlaggedJob.assignedTechName || (selectedFlaggedJob.technicians && selectedFlaggedJob.technicians[0] ? `${selectedFlaggedJob.technicians[0].firstName} ${selectedFlaggedJob.technicians[0].lastName}` : 'Assigned Technician')}
+                </span>
+              </div>
+            </div>
+
+            {/* Full Report Details */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                <i className="fa-solid fa-clipboard-list" style={{ color: '#dc2626', marginRight: '6px' }}></i>
+                Technician's Observed Tampering / Damage Notes:
+              </label>
+              <div
+                style={{
+                  background: '#fef2f2',
+                  border: '1.5px solid #fca5a5',
+                  borderRadius: '10px',
+                  padding: '1rem',
+                  fontSize: '0.9rem',
+                  color: '#7f1d1d',
+                  lineHeight: 1.5,
+                  fontWeight: 500,
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {selectedFlaggedJob.notes || 'No description provided.'}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => setSelectedFlaggedJob(null)}
+                style={{
+                  padding: '0.65rem 1.4rem',
+                  borderRadius: '10px',
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#475569',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: '0.88rem',
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
