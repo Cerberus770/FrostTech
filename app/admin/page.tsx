@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import GoogleMap from '@/components/GoogleMap';
 import { useConfirmModal } from '@/components/ConfirmModal';
 import ReceiptModal, { ReceiptData } from '@/components/ReceiptModal';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface InventoryItem {
   id: string;
@@ -687,9 +689,134 @@ export default function AdminDashboard() {
   const uniqueModels = Array.from(new Set(inventory.map((i) => i.model))).filter(Boolean).slice(0, 20);
 
   // ==========================================
-  // INVENTORY & SALES PRINT REPORT HANDLERS
+  // INVENTORY & SALES PDF DOWNLOAD HANDLERS
   // ==========================================
+  const handleDownloadInventoryPdf = () => {
+    try {
+      const itemsToPrint = filteredInventory.length > 0 ? filteredInventory : inventory;
+      const totalUnits = itemsToPrint.reduce((sum, i) => sum + (Number(i.stock) || 0), 0);
+      const totalAssetVal = itemsToPrint.reduce((sum, i) => sum + ((Number(i.price) || 0) * (Number(i.stock) || 0)), 0);
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      // Top branding banner
+      doc.setFillColor(5, 46, 128); // #052e80
+      doc.rect(0, 0, pageWidth, 60, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('FROSTTECH AIR CONDITIONING SERVICES', 40, 28);
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text('OFFICIAL INVENTORY VALUATION & AUDIT REPORT', 40, 44);
+
+      // Metadata details
+      const todayStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      doc.setTextColor(71, 85, 105);
+      doc.setFontSize(9);
+      doc.text(`Generated: ${todayStr}`, 40, 78);
+      doc.text(`Category Filter: ${invCategoryFilter}`, 220, 78);
+      doc.text(`Total SKU Items: ${itemsToPrint.length}`, 400, 78);
+
+      // Highlight boxes
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(40, 90, 220, 42, 6, 6, 'F');
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(100, 116, 139);
+      doc.text('TOTAL UNITS IN WAREHOUSE', 50, 106);
+      doc.setFontSize(14);
+      doc.setTextColor(5, 46, 128);
+      doc.text(`${totalUnits.toLocaleString()} Units`, 50, 124);
+
+      doc.setFillColor(240, 253, 244);
+      doc.roundedRect(280, 90, 280, 42, 6, 6, 'F');
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(22, 101, 52);
+      doc.text('TOTAL ASSET VALUATION (PHP)', 290, 106);
+      doc.setFontSize(14);
+      doc.setTextColor(21, 128, 61);
+      doc.text(`PHP ${totalAssetVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 290, 124);
+
+      // Table data
+      const tableData = itemsToPrint.map((item, idx) => {
+        const stockVal = (Number(item.price) || 0) * (Number(item.stock) || 0);
+        const status = item.stock > 5 ? 'In Stock' : item.stock > 0 ? 'Low Stock' : 'Out of Stock';
+        return [
+          String(idx + 1),
+          item.sku || 'N/A',
+          `${item.brand || ''} ${item.model || ''}`.trim(),
+          item.category || 'N/A',
+          item.horsepower || 'N/A',
+          `PHP ${Number(item.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+          String(item.stock),
+          `PHP ${stockVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+          status,
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 144,
+        head: [['#', 'SKU', 'Brand & Model', 'Category', 'HP', 'Unit Price', 'Stock', 'Asset Value', 'Status']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: {
+          fillColor: [5, 46, 128],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 8,
+          halign: 'left',
+        },
+        styles: {
+          fontSize: 7.5,
+          cellPadding: 4,
+          textColor: [30, 41, 59],
+        },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 25 },
+          1: { fontStyle: 'bold', cellWidth: 65 },
+          2: { cellWidth: 160 },
+          3: { cellWidth: 85 },
+          4: { halign: 'center', cellWidth: 40 },
+          5: { halign: 'right', cellWidth: 80 },
+          6: { halign: 'center', fontStyle: 'bold', cellWidth: 40 },
+          7: { halign: 'right', fontStyle: 'bold', textColor: [2, 132, 199], cellWidth: 85 },
+          8: { halign: 'center', cellWidth: 65 },
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        margin: { left: 40, right: 40 },
+        didDrawPage: (data) => {
+          const pageCount = doc.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.setTextColor(148, 163, 184);
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount} | FrostTech Inventory System`,
+            pageWidth / 2,
+            doc.internal.pageSize.getHeight() - 15,
+            { align: 'center' }
+          );
+        },
+      });
+
+      doc.save(`FrostTech_Inventory_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+      showAlert({ title: 'Download Complete', message: 'Inventory report PDF has been downloaded successfully to your device.', type: 'info' });
+    } catch (err) {
+      console.error('Failed to generate inventory PDF:', err);
+      showAlert({ title: 'PDF Error', message: 'Error generating inventory PDF.', type: 'warning' });
+    }
+  };
+
   const handlePrintInventoryReport = () => {
+    handleDownloadInventoryPdf();
+  };
+
+  const handlePrintInventoryHtml_deprecated = () => {
     const itemsToPrint = filteredInventory.length > 0 ? filteredInventory : inventory;
     const totalUnits = itemsToPrint.reduce((sum, i) => sum + (Number(i.stock) || 0), 0);
     const totalAssetVal = itemsToPrint.reduce((sum, i) => sum + ((Number(i.price) || 0) * (Number(i.stock) || 0)), 0);
@@ -883,7 +1010,192 @@ export default function AdminDashboard() {
     }
   };
 
-  const handlePrintSalesReport = async (period: string = reportsPeriod) => {
+  const handleDownloadSalesPdf = async (period: string = reportsPeriod) => {
+    try {
+      let data = reportsData;
+
+      // If reportsData is not loaded yet (e.g. clicked from Inventory tab), fetch it first
+      if (!data) {
+        try {
+          const res = await fetch(`/api/reports?period=${period}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              period,
+              orders,
+              dispatch,
+              maintenance,
+              invoices,
+            }),
+          });
+          if (res.ok) {
+            data = await res.json();
+            setReportsData(data);
+          } else {
+            const fallbackRes = await fetch(`/api/reports?period=${period}`);
+            if (fallbackRes.ok) {
+              data = await fallbackRes.json();
+              setReportsData(data);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to load reports for PDF:', err);
+        }
+      }
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      // Top branding banner
+      doc.setFillColor(5, 46, 128); // #052e80
+      doc.rect(0, 0, pageWidth, 60, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('FROSTTECH AIR CONDITIONING SERVICES', 40, 28);
+
+      const periodLabel = period === 'today' ? 'Today' : period === 'week' ? 'This Week' : period === 'month' ? 'This Month' : 'All Time';
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`OFFICIAL SALES & REVENUE REPORT (${periodLabel.toUpperCase()})`, 40, 44);
+
+      // Metadata
+      const todayStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      doc.setTextColor(71, 85, 105);
+      doc.setFontSize(9);
+      doc.text(`Report Period: ${periodLabel}`, 40, 78);
+      doc.text(`Generated Date: ${todayStr}`, 240, 78);
+
+      const totalRev = Number(data?.metrics?.totalRevenue ?? 0);
+      const unitsSold = data?.metrics?.unitsSold?.count ?? 0;
+      const unitsSoldRev = Number(data?.metrics?.unitsSold?.revenue ?? 0);
+      const cleanedCount = data?.metrics?.unitsCleaned?.count ?? 0;
+      const cleanedRev = Number(data?.metrics?.unitsCleaned?.revenue ?? 0);
+      const repairCount = data?.metrics?.unitsRepaired?.count ?? 0;
+      const repairRev = Number(data?.metrics?.unitsRepaired?.revenue ?? 0);
+      const partsCount = data?.metrics?.sparePartsPurchased?.count ?? 0;
+      const partsRev = Number(data?.metrics?.sparePartsPurchased?.revenue ?? 0);
+
+      // Total Revenue Banner
+      doc.setFillColor(240, 253, 244);
+      doc.roundedRect(40, 90, pageWidth - 80, 44, 6, 6, 'F');
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(22, 101, 52);
+      doc.text('TOTAL AUDITED BUSINESS REVENUE', 52, 105);
+      doc.setFontSize(16);
+      doc.setTextColor(21, 128, 61);
+      doc.text(`PHP ${totalRev.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 52, 124);
+
+      // 4 Metric Summary Boxes
+      const boxW = (pageWidth - 80 - 30) / 4;
+      const boxY = 144;
+      const metrics = [
+        { label: 'AC UNITS SOLD', val: `${unitsSold} Units`, sub: `PHP ${unitsSoldRev.toLocaleString()}`, bg: [238, 242, 255], col: [67, 56, 202] },
+        { label: 'UNITS CLEANED', val: `${cleanedCount} Units`, sub: `PHP ${cleanedRev.toLocaleString()}`, bg: [240, 253, 250], col: [15, 118, 110] },
+        { label: 'UNITS REPAIRED', val: `${repairCount} Units`, sub: `PHP ${repairRev.toLocaleString()}`, bg: [254, 242, 242], col: [185, 28, 28] },
+        { label: 'PARTS PURCHASED', val: `${partsCount} Parts`, sub: `PHP ${partsRev.toLocaleString()}`, bg: [254, 249, 195], col: [161, 98, 7] },
+      ];
+
+      metrics.forEach((m, i) => {
+        const x = 40 + i * (boxW + 10);
+        doc.setFillColor(m.bg[0], m.bg[1], m.bg[2]);
+        doc.roundedRect(x, boxY, boxW, 44, 4, 4, 'F');
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(m.col[0], m.col[1], m.col[2]);
+        doc.text(m.label, x + 6, boxY + 13);
+        doc.setFontSize(10.5);
+        doc.text(m.val, x + 6, boxY + 26);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.text(m.sub, x + 6, boxY + 38);
+      });
+
+      // 1. AC Units Sold by Brand Table
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text('1. AC Units Sold by Brand', 40, 208);
+
+      const brandData = (data?.metrics?.unitsSold?.brandBreakdown || []).map((b: any, idx: number) => [
+        String(idx + 1),
+        b.brand || 'Unknown',
+        String(b.count || 0),
+        `PHP ${Number(b.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+        totalRev > 0 ? `${((Number(b.revenue || 0) / totalRev) * 100).toFixed(1)}%` : '0%',
+      ]);
+
+      autoTable(doc, {
+        startY: 215,
+        head: [['#', 'Brand', 'Units Sold', 'Total Revenue', 'Rev Share']],
+        body: brandData.length > 0 ? brandData : [['-', 'No AC sales recorded for this period', '0', 'PHP 0.00', '0%']],
+        theme: 'striped',
+        headStyles: { fillColor: [5, 46, 128], fontSize: 8, fontStyle: 'bold' },
+        styles: { fontSize: 7.5, cellPadding: 4 },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 30 },
+          1: { fontStyle: 'bold' },
+          2: { halign: 'center' },
+          3: { halign: 'right', fontStyle: 'bold', textColor: [5, 150, 105] },
+          4: { halign: 'right' },
+        },
+        margin: { left: 40, right: 40 },
+      });
+
+      // 2. Services Breakdown Table
+      const lastY = ((doc as any).lastAutoTable?.finalY || 350) + 18;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text('2. Cleaning & Repair Services Summary', 40, lastY);
+
+      const serviceData = [
+        ['Cleaning Services', String(cleanedCount), `PHP ${cleanedRev.toLocaleString('en-US', { minimumFractionDigits: 2 })}`],
+        ['Repair & Troubleshooting', String(repairCount), `PHP ${repairRev.toLocaleString('en-US', { minimumFractionDigits: 2 })}`],
+        ['Spare Parts & Refrigerant', String(partsCount), `PHP ${partsRev.toLocaleString('en-US', { minimumFractionDigits: 2 })}`],
+      ];
+
+      autoTable(doc, {
+        startY: lastY + 7,
+        head: [['Service Category', 'Units Serviced / Sold', 'Subtotal Revenue']],
+        body: serviceData,
+        theme: 'striped',
+        headStyles: { fillColor: [2, 132, 199], fontSize: 8, fontStyle: 'bold' },
+        styles: { fontSize: 7.5, cellPadding: 5 },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 200 },
+          1: { halign: 'center', cellWidth: 150 },
+          2: { halign: 'right', fontStyle: 'bold', textColor: [5, 150, 105] },
+        },
+        margin: { left: 40, right: 40 },
+        didDrawPage: (data) => {
+          const pageCount = doc.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.setTextColor(148, 163, 184);
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount} | FrostTech Financial System`,
+            pageWidth / 2,
+            doc.internal.pageSize.getHeight() - 15,
+            { align: 'center' }
+          );
+        },
+      });
+
+      doc.save(`FrostTech_Sales_Report_${period}_${new Date().toISOString().split('T')[0]}.pdf`);
+      showAlert({ title: 'Download Complete', message: 'Sales report PDF has been downloaded successfully to your device.', type: 'info' });
+    } catch (err) {
+      console.error('Failed to generate sales PDF:', err);
+      showAlert({ title: 'PDF Error', message: 'Error generating sales PDF.', type: 'warning' });
+    }
+  };
+
+  const handlePrintSalesReport = (period: string = reportsPeriod) => {
+    handleDownloadSalesPdf(period);
+  };
+
+  const handlePrintSalesHtml_deprecated = async (period: string = reportsPeriod) => {
     let data = reportsData;
 
     // If reportsData is not loaded yet (e.g. clicked from Inventory tab), fetch it first
@@ -3842,7 +4154,7 @@ export default function AdminDashboard() {
 
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   <button
-                    onClick={handlePrintInventoryReport}
+                    onClick={handleDownloadInventoryPdf}
                     style={{
                       padding: '0.65rem 1.1rem',
                       background: '#ffffff',
@@ -3857,11 +4169,11 @@ export default function AdminDashboard() {
                       gap: '8px',
                     }}
                   >
-                    <i className="fa-solid fa-boxes-stacked" style={{ color: '#0284c7' }}></i> Print Inventory
+                    <i className="fa-solid fa-file-pdf" style={{ color: '#ef4444' }}></i> Download Inventory PDF
                   </button>
 
                   <button
-                    onClick={() => handlePrintSalesReport()}
+                    onClick={() => handleDownloadSalesPdf()}
                     style={{
                       padding: '0.65rem 1.1rem',
                       background: '#ffffff',
@@ -3876,7 +4188,7 @@ export default function AdminDashboard() {
                       gap: '8px',
                     }}
                   >
-                    <i className="fa-solid fa-receipt" style={{ color: '#16a34a' }}></i> Print Sales Report
+                    <i className="fa-solid fa-file-pdf" style={{ color: '#ef4444' }}></i> Download Sales PDF
                   </button>
 
                   <button
@@ -7739,7 +8051,7 @@ export default function AdminDashboard() {
                   </div>
 
                   <button
-                    onClick={() => handlePrintSalesReport(reportsPeriod)}
+                    onClick={() => handleDownloadSalesPdf(reportsPeriod)}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -7755,7 +8067,7 @@ export default function AdminDashboard() {
                       boxShadow: '0 2px 6px rgba(2, 132, 199, 0.2)',
                     }}
                   >
-                    <i className="fa-solid fa-print"></i> Print Sales Report
+                    <i className="fa-solid fa-file-pdf"></i> Download Sales Report PDF
                   </button>
 
                   <button
