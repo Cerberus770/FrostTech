@@ -420,6 +420,12 @@ export default function AdminDashboard() {
   const [installmentScheduleNotes, setInstallmentScheduleNotes] = useState<string>('');
   const [isSubmittingInstallmentSchedule, setIsSubmittingInstallmentSchedule] = useState<boolean>(false);
 
+  // Credit Investigation (CI) Acceptance & Dispatch Modal State
+  const [selectedInstallmentForCi, setSelectedInstallmentForCi] = useState<Installment | null>(null);
+  const [ciAssignTechId, setCiAssignTechId] = useState<string>('');
+  const [ciInspectionNotes, setCiInspectionNotes] = useState<string>('');
+  const [isSubmittingCiAccept, setIsSubmittingCiAccept] = useState<boolean>(false);
+
   // Service Assignment & Scheduling Modal State
   const [selectedServiceToSchedule, setSelectedServiceToSchedule] = useState<MaintenanceItem | null>(null);
   const [scheduleTechId, setScheduleTechId] = useState<string>('');
@@ -2117,27 +2123,66 @@ export default function AdminDashboard() {
   };
 
   // ==========================================
-  // INSTALLMENT APPROVAL ACTIONS
+  // INSTALLMENT APPROVAL ACTIONS & CI DISPATCH
   // ==========================================
+  const handleOpenAcceptCiModal = (inst: Installment) => {
+    setSelectedInstallmentForCi(inst);
+    // Prefer assigning to an authorized CI Officer if available
+    const ciTech = technicians.find((t) => {
+      const isCi = (t.techRank && (t.techRank.toLowerCase().includes('ci') || t.techRank.toLowerCase().includes('investigat'))) ||
+        ((t as any).permissions && String((t as any).permissions).toLowerCase().includes('ci'));
+      return isCi;
+    }) || technicians[0];
+    setCiAssignTechId(ciTech ? ciTech.id : '');
+    const meta = parseInstallmentMeta(inst.issue);
+    setCiInspectionNotes(
+      meta.ciNotes ||
+      'Verify customer valid government ID & proof of billing. Inspect electrical line and circuit breaker (20A minimum) for AC load before delivery. Confirm physical residence.'
+    );
+  };
+
   const handleAcceptCI = async (inst: Installment) => {
-    const isConfirmed = await confirm({
-      title: 'Accept for CI',
-      message: `Accept application ${inst.appId} for Credit Investigation (CI)? Once accepted for CI, you can then assign a technician and schedule the installation.`,
-      confirmText: 'Accept for CI',
-    });
-    if (!isConfirmed) return;
+    handleOpenAcceptCiModal(inst);
+  };
+
+  const handleConfirmAcceptCi = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedInstallmentForCi) return;
+
+    setIsSubmittingCiAccept(true);
+    const assignedTechObj = technicians.find((t) => t.id === ciAssignTechId);
+    const assignedTechName = assignedTechObj ? `${assignedTechObj.firstName} ${assignedTechObj.lastName}` : 'Authorized CI Officer';
 
     try {
+      const meta = parseInstallmentMeta(selectedInstallmentForCi.issue);
+      meta.ciNotes = ciInspectionNotes.trim();
+      meta.assignedCiTechId = ciAssignTechId;
+      meta.assignedCiTechName = assignedTechName;
+      meta.ciAcceptedAt = new Date().toISOString();
+      const issueString = JSON.stringify(meta);
+
       const res = await fetch('/api/installments', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: inst.id, status: 'CI_ACCEPTED' }),
+        body: JSON.stringify({
+          id: selectedInstallmentForCi.id,
+          status: 'CI_ACCEPTED',
+          assignedTech: assignedTechName,
+          issue: issueString,
+        }),
       });
 
       if (res.ok) {
-        setInstallments((prev) => prev.map((i) => (i.id === inst.id ? { ...i, status: 'CI_ACCEPTED' } : i)));
-        setSelectedInstallment((prev) => (prev && prev.id === inst.id ? { ...prev, status: 'CI_ACCEPTED' } : prev));
-        showAlert({ title: 'CI Accepted', message: `Application ${inst.appId} is now accepted for CI! You can now proceed to Assign & Schedule.` });
+        setInstallments((prev) => prev.map((i) => (i.id === selectedInstallmentForCi.id ? { ...i, status: 'CI_ACCEPTED', assignedTech: assignedTechName, issue: issueString } : i)));
+        if (selectedInstallment && selectedInstallment.id === selectedInstallmentForCi.id) {
+          setSelectedInstallment({ ...selectedInstallment, status: 'CI_ACCEPTED', assignedTech: assignedTechName, issue: issueString });
+        }
+        showAlert({
+          title: 'Dispatched to CI Officer',
+          message: `Application ${selectedInstallmentForCi.appId} for ${selectedInstallmentForCi.name} is now accepted for CI and assigned to ${assignedTechName}! The inspection instructions have been forwarded to the technician page.`,
+          type: 'success',
+        });
+        setSelectedInstallmentForCi(null);
       } else {
         const errJson = await res.json().catch(() => ({}));
         showAlert({ title: 'Error', message: errJson.error || 'Failed to update installment status', type: 'error' });
@@ -2145,6 +2190,8 @@ export default function AdminDashboard() {
     } catch (err: any) {
       console.error(err);
       showAlert({ title: 'Error', message: err?.message || 'Failed to update installment status', type: 'error' });
+    } finally {
+      setIsSubmittingCiAccept(false);
     }
   };
 
@@ -10541,6 +10588,189 @@ export default function AdminDashboard() {
                 >
                   <i className={`fa-solid ${isSubmittingInstallmentSchedule ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
                   {isSubmittingInstallmentSchedule ? 'Dispatching...' : 'Confirm & Dispatch to Schedule'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ACCEPT INSTALLMENT FOR CREDIT INVESTIGATION (CI) & DISPATCH */}
+      {selectedInstallmentForCi && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1050,
+            padding: '1rem',
+          }}
+          onClick={() => setSelectedInstallmentForCi(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              padding: '1.75rem',
+              maxWidth: '560px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+              border: '1px solid #e2e8f0',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.85rem' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#052e80', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="fa-solid fa-user-shield" style={{ color: '#0284c7' }}></i>
+                  Accept for Credit Investigation (CI)
+                </h3>
+                <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                  Assign a CI Officer &amp; specify field inspection notes for AC delivery clearance.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedInstallmentForCi(null)}
+                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            {/* Application Summary Card */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem', marginBottom: '1.25rem', fontSize: '0.86rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>{selectedInstallmentForCi.name}</span>
+                <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800 }}>
+                  #{selectedInstallmentForCi.appId}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', color: '#475569', fontSize: '0.82rem' }}>
+                <div><strong>Financing AC:</strong> {selectedInstallmentForCi.item}</div>
+                <div><strong>Term:</strong> {selectedInstallmentForCi.term} Months</div>
+                <div><strong>Employer:</strong> {selectedInstallmentForCi.employer || 'Not specified'}</div>
+                <div><strong>Monthly Income:</strong> {selectedInstallmentForCi.income || 'Not specified'}</div>
+              </div>
+              <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1', color: '#334155', fontSize: '0.82rem' }}>
+                <i className="fa-solid fa-location-dot" style={{ color: '#ef4444', marginRight: '6px' }}></i>
+                <strong>Delivery Address:</strong> {(selectedInstallmentForCi.location || selectedInstallmentForCi.user?.phone || 'Customer Address').split('| COORDS:')[0].trim()}
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmAcceptCi} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+              {/* Select CI Officer */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  <i className="fa-solid fa-id-card-clip" style={{ color: '#0284c7', marginRight: '5px' }}></i>
+                  Assign CI Officer / Field Technician:
+                </label>
+                <select
+                  value={ciAssignTechId}
+                  onChange={(e) => setCiAssignTechId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.88rem',
+                    color: '#0f172a',
+                    fontWeight: 600,
+                    outline: 'none',
+                    background: '#ffffff',
+                  }}
+                >
+                  {technicians.map((tech) => {
+                    const isCi = (tech.techRank && (tech.techRank.toLowerCase().includes('ci') || tech.techRank.toLowerCase().includes('investigat'))) ||
+                      ((tech as any).permissions && String((tech as any).permissions).toLowerCase().includes('ci'));
+                    return (
+                      <option key={tech.id} value={tech.id}>
+                        {tech.firstName} {tech.lastName} {isCi ? '★ (Authorized CI Officer)' : `(${tech.techRank || 'Technician'})`}
+                      </option>
+                    );
+                  })}
+                </select>
+                <small style={{ color: '#64748b', fontSize: '0.74rem', marginTop: '4px', display: 'block' }}>
+                  Technicians marked with ★ have official Credit Investigator authorization.
+                </small>
+              </div>
+
+              {/* CI Inspection Instructions & Delivery Notes */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  <i className="fa-solid fa-clipboard-list" style={{ color: '#052e80', marginRight: '5px' }}></i>
+                  CI Inspection Notes &amp; Delivery Instructions for Technician:
+                </label>
+                <textarea
+                  rows={4}
+                  value={ciInspectionNotes}
+                  onChange={(e) => setCiInspectionNotes(e.target.value)}
+                  placeholder="Enter specific verification requirements, electrical load notes, or delivery inspection points..."
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.85rem',
+                    color: '#0f172a',
+                    outline: 'none',
+                    resize: 'vertical',
+                    lineHeight: '1.45',
+                  }}
+                />
+                <small style={{ color: '#0369a1', fontSize: '0.74rem', marginTop: '4px', display: 'block' }}>
+                  This note will appear prominently in the assigned technician&apos;s CI page so they know what to check when delivering the AC.
+                </small>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedInstallmentForCi(null)}
+                  style={{
+                    padding: '0.65rem 1.25rem',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    color: '#475569',
+                    fontSize: '0.86rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingCiAccept}
+                  style={{
+                    padding: '0.65rem 1.4rem',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #052e80 0%, #0284c7 100%)',
+                    color: '#ffffff',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    cursor: isSubmittingCiAccept ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
+                    opacity: isSubmittingCiAccept ? 0.7 : 1,
+                  }}
+                >
+                  <i className={`fa-solid ${isSubmittingCiAccept ? 'fa-spinner fa-spin' : 'fa-user-check'}`}></i>
+                  {isSubmittingCiAccept ? 'Dispatching to CI...' : 'Confirm & Dispatch to CI'}
                 </button>
               </div>
             </form>

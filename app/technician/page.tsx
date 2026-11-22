@@ -36,6 +36,50 @@ interface MaintenanceItem {
   status: string;
 }
 
+interface InstallmentItem {
+  id: string;
+  appId: string;
+  userId?: string;
+  name: string;
+  item: string;
+  date: string;
+  status: string;
+  issue: string;
+  term: number;
+  employer: string;
+  income: string;
+  idType: string;
+  location?: string;
+  assignedTech?: string | null;
+  scheduledDate?: string | null;
+  user?: {
+    id?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string | null;
+  };
+}
+
+function parseCiMeta(issueStr: string = '') {
+  try {
+    if (issueStr && issueStr.startsWith('{')) {
+      const parsed = JSON.parse(issueStr);
+      if (parsed.ciNotes && typeof parsed.ciNotes === 'string' && parsed.ciNotes.startsWith('{')) {
+        parsed.ciNotes = '';
+      }
+      return parsed;
+    }
+  } catch {}
+  return {
+    ciNotes: issueStr && !issueStr.startsWith('{') ? issueStr : '',
+    fieldNotes: '',
+    checklist: { address: false, id: false, electrical: false, reference: false },
+    ciVerified: false,
+    assignedCiTechName: '',
+  };
+}
+
 function GeocodedMap({ address }: { address: string }) {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,17 +134,25 @@ export default function TechnicianDashboard() {
   const { confirm, showAlert, prompt, ModalComponent } = useConfirmModal();
   const router = useRouter();
 
-  // Navigation tab: 'dashboard' | 'assigned' | 'services'
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'assigned' | 'services'>('dashboard');
+  // Navigation tab: 'dashboard' | 'assigned' | 'services' | 'ci'
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'assigned' | 'services' | 'ci'>('dashboard');
 
   // Technician Data
   const [tasks, setTasks] = useState<DispatchItem[]>([]);
   const [maintenanceTasks, setMaintenanceTasks] = useState<MaintenanceItem[]>([]);
+  const [ciInstallments, setCiInstallments] = useState<InstallmentItem[]>([]);
   const [techName, setTechName] = useState('Carlos Rivera');
   const [techRank, setTechRank] = useState('Senior Tech');
   const [isCiOfficerTech, setIsCiOfficerTech] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [kebabOpen, setKebabOpen] = useState(false);
+
+  // CI Filter & Inspection States
+  const [ciSearchQuery, setCiSearchQuery] = useState('');
+  const [ciFilter, setCiFilter] = useState<'ALL' | 'MY_CI' | 'PENDING' | 'VERIFIED'>('ALL');
+  const [savingCiId, setSavingCiId] = useState<string | null>(null);
+  const [selectedCiDetails, setSelectedCiDetails] = useState<InstallmentItem | null>(null);
+  const [fieldNotesInputs, setFieldNotesInputs] = useState<Record<string, string>>({});
 
   // Filters
   const [serviceFilter, setServiceFilter] = useState<'All' | 'Maintenance' | 'Cleaning' | 'Repair'>('All');
@@ -191,11 +243,132 @@ export default function TechnicianDashboard() {
         }
       })
       .catch(() => {});
+
+    // Fetch Installments for Credit Investigation (CI)
+    fetch('/api/installments')
+      .then(r => r.json())
+      .then((data: InstallmentItem[]) => {
+        if (Array.isArray(data)) {
+          setCiInstallments(data);
+          // Pre-populate field notes input map from parsed issues
+          const initialNotes: Record<string, string> = {};
+          data.forEach(item => {
+            const meta = parseCiMeta(item.issue);
+            initialNotes[item.id] = meta.fieldNotes || '';
+          });
+          setFieldNotesInputs(initialNotes);
+        }
+      })
+      .catch(console.error);
   };
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Credit Investigation Handlers
+  const handleSaveCiFieldNotes = async (inst: InstallmentItem, notesText: string) => {
+    setSavingCiId(inst.id);
+    try {
+      const meta = parseCiMeta(inst.issue);
+      meta.fieldNotes = notesText;
+      meta.lastUpdatedByTech = techName;
+      meta.lastUpdatedAt = new Date().toISOString();
+      const issueString = JSON.stringify(meta);
+
+      const res = await fetch('/api/installments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: inst.id,
+          issue: issueString,
+        }),
+      });
+
+      if (res.ok) {
+        setCiInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, issue: issueString } : i));
+        showAlert({
+          title: 'CI Notes Saved',
+          message: 'Your field inspection notes have been recorded successfully.',
+          type: 'success',
+        });
+      } else {
+        throw new Error('Failed to save field notes');
+      }
+    } catch (e: any) {
+      showAlert({ title: 'Error', message: e?.message || 'Failed to save field notes', type: 'error' });
+    } finally {
+      setSavingCiId(null);
+    }
+  };
+
+  const handleToggleCiChecklist = async (inst: InstallmentItem, key: string) => {
+    try {
+      const meta = parseCiMeta(inst.issue);
+      meta.checklist = meta.checklist || {};
+      meta.checklist[key] = !meta.checklist[key];
+      const issueString = JSON.stringify(meta);
+
+      const res = await fetch('/api/installments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: inst.id,
+          issue: issueString,
+        }),
+      });
+
+      if (res.ok) {
+        setCiInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, issue: issueString } : i));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleMarkCiVerified = async (inst: InstallmentItem) => {
+    const isConfirmed = await confirm({
+      title: 'Verify & Clear for Delivery',
+      message: `Confirm that you have completed the Credit Investigation and electrical/residence inspection for "${inst.name}" (#${inst.appId})?`,
+      confirmText: 'Confirm CI Clearance',
+    });
+    if (!isConfirmed) return;
+
+    try {
+      const meta = parseCiMeta(inst.issue);
+      meta.ciVerified = true;
+      meta.ciVerifiedBy = techName;
+      meta.ciVerifiedAt = new Date().toISOString();
+      meta.checklist = {
+        address: true,
+        id: true,
+        electrical: true,
+        reference: true,
+        ...(meta.checklist || {}),
+      };
+      const issueString = JSON.stringify(meta);
+
+      const res = await fetch('/api/installments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: inst.id,
+          issue: issueString,
+        }),
+      });
+
+      if (res.ok) {
+        setCiInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, issue: issueString } : i));
+        showAlert({
+          title: 'CI Clearance Complete',
+          message: `Customer ${inst.name} is now verified! The admin and dispatch team have been updated that the AC is cleared for delivery.`,
+          type: 'success',
+        });
+      }
+    } catch (e: any) {
+      showAlert({ title: 'Error', message: e?.message || 'Failed to update clearance', type: 'error' });
+    }
+  };
 
   // Update Status helper
   const handleUpdateStatus = async (jobId: string, newStatus: string, isMaint = false) => {
@@ -502,6 +675,41 @@ export default function TechnicianDashboard() {
   const inProgressJobsCount = tasks.filter(t => t.status === 'IN_PROGRESS' || t.status === 'ASSIGNED').length + maintenanceTasks.filter(m => m.status === 'Scheduled').length;
   const completedJobsCount = tasks.filter(t => t.status === 'COMPLETED').length + maintenanceTasks.filter(m => m.status === 'Completed').length;
 
+  // Credit Investigation (CI) Calculations
+  const activeCiItems = ciInstallments.filter((i) => i.status === 'CI_ACCEPTED');
+  const pendingCiCount = activeCiItems.filter((i) => {
+    const meta = parseCiMeta(i.issue);
+    return !meta.ciVerified;
+  }).length;
+
+  const filteredCiItems = activeCiItems.filter((i) => {
+    const meta = parseCiMeta(i.issue);
+    if (ciFilter === 'MY_CI') {
+      const isMyTech =
+        !i.assignedTech ||
+        i.assignedTech.toLowerCase().includes(techName.toLowerCase()) ||
+        i.assignedTech.toLowerCase().includes('authorized ci') ||
+        i.assignedTech.toLowerCase().includes('assigned ci') ||
+        i.assignedTech.toLowerCase().includes('all ci');
+      if (!isMyTech) return false;
+    } else if (ciFilter === 'PENDING') {
+      if (meta.ciVerified) return false;
+    } else if (ciFilter === 'VERIFIED') {
+      if (!meta.ciVerified) return false;
+    }
+
+    if (ciSearchQuery.trim()) {
+      const q = ciSearchQuery.toLowerCase().trim();
+      const name = (i.name || '').toLowerCase();
+      const appId = (i.appId || '').toLowerCase();
+      const item = (i.item || '').toLowerCase();
+      const loc = (i.location || '').toLowerCase();
+      const phone = (i.user?.phone || '').toLowerCase();
+      return name.includes(q) || appId.includes(q) || item.includes(q) || loc.includes(q) || phone.includes(q);
+    }
+    return true;
+  });
+
   // Calendar Helpers
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -720,6 +928,17 @@ export default function TechnicianDashboard() {
                 >
                   <i className="fa-solid fa-screwdriver-wrench" style={{ color: '#052e80' }}></i> Services
                 </button>
+                <button
+                  onClick={() => { setActiveTab('ci'); setKebabOpen(false); }}
+                  style={{ width: '100%', textAlign: 'left', padding: '0.75rem 1rem', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.85rem', cursor: 'pointer' }}
+                >
+                  <i className="fa-solid fa-id-card-clip" style={{ color: '#0284c7' }}></i> Credit Investigation (CI)
+                  {pendingCiCount > 0 && (
+                    <span style={{ marginLeft: 'auto', background: '#d97706', color: '#ffffff', fontSize: '0.7rem', padding: '1px 6px', borderRadius: '999px', fontWeight: 700 }}>
+                      {pendingCiCount}
+                    </span>
+                  )}
+                </button>
                 <div style={{ height: '1px', background: '#e2e8f0', margin: '0.3rem 0' }}></div>
                 <button
                   onClick={handleLogout}
@@ -870,6 +1089,40 @@ export default function TechnicianDashboard() {
             </span>
           </button>
 
+          {/* TAB 4: CREDIT INVESTIGATION (CI) */}
+          <button
+            onClick={() => setActiveTab('ci')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.85rem 1rem',
+              borderRadius: '10px',
+              border: 'none',
+              background: activeTab === 'ci' ? '#d8e9fd' : 'transparent',
+              color: activeTab === 'ci' ? '#052e80' : '#475569',
+              fontWeight: activeTab === 'ci' ? 700 : 500,
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              borderLeft: activeTab === 'ci' ? '4px solid #052e80' : '4px solid transparent'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <i className="fa-solid fa-id-card-clip" style={{ width: '18px', color: activeTab === 'ci' ? '#052e80' : '#94a3b8' }}></i>
+              <span>Credit Investigation (CI)</span>
+            </div>
+            {pendingCiCount > 0 ? (
+              <span style={{ fontSize: '0.75rem', background: '#d97706', color: '#ffffff', padding: '2px 7px', borderRadius: '999px', fontWeight: 700 }}>
+                {pendingCiCount}
+              </span>
+            ) : (
+              <span style={{ fontSize: '0.75rem', background: '#e2e8f0', color: '#64748b', padding: '2px 7px', borderRadius: '999px', fontWeight: 700 }}>
+                {activeCiItems.length}
+              </span>
+            )}
+          </button>
+
           {/* Bottom Shift Info Card */}
           <div style={{ marginTop: 'auto', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#052e80', fontWeight: 700, marginBottom: '0.4rem' }}>
@@ -898,15 +1151,41 @@ export default function TechnicianDashboard() {
                     Welcome back, <strong>{techName}</strong>. Check your month schedule and assigned workloads.
                   </p>
                 </div>
-                <div className="tech-banner-buttons" style={{ display: 'flex', gap: '0.5rem' }}>
+                <div className="tech-banner-buttons" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <button onClick={() => setActiveTab('assigned')} style={{ background: '#d8e9fd', color: '#052e80', border: '1px solid #bae6fd', padding: '0.55rem 1rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
                     <i className="fa-solid fa-truck" style={{ marginRight: '6px' }}></i> View Deliveries
                   </button>
                   <button onClick={() => setActiveTab('services')} style={{ background: '#052e80', color: '#ffffff', border: 'none', padding: '0.55rem 1rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
                     <i className="fa-solid fa-wrench" style={{ marginRight: '6px' }}></i> View Services
                   </button>
+                  <button onClick={() => setActiveTab('ci')} style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', padding: '0.55rem 1rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="fa-solid fa-id-card-clip"></i> CI Inspections ({pendingCiCount})
+                  </button>
                 </div>
               </div>
+
+              {/* CI Action Callout */}
+              {pendingCiCount > 0 && (
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderLeft: '4px solid #f59e0b', borderRadius: '12px', padding: '1rem 1.25rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <i className="fa-solid fa-bell" style={{ color: '#d97706', fontSize: '1.2rem' }}></i>
+                    <div>
+                      <strong style={{ color: '#92400e', fontSize: '0.92rem', display: 'block' }}>
+                        Credit Investigation Action Required: {pendingCiCount} Customer(s) Pending CI
+                      </strong>
+                      <span style={{ color: '#78350f', fontSize: '0.82rem' }}>
+                        Customer installment applications accepted for CI. Check inspection notes and verify residence/electrical breaker before AC delivery.
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('ci')}
+                    style={{ background: '#d97706', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}
+                  >
+                    Open CI Queue &rarr;
+                  </button>
+                </div>
+              )}
 
               {/* 4 STAT CARDS */}
               <div className="tech-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -1442,6 +1721,377 @@ export default function TechnicianDashboard() {
             </div>
           )}
 
+          {/* ======================================================== */}
+          {/* TAB 4: CREDIT INVESTIGATION (CI) & FIELD VERIFICATION */}
+          {/* ======================================================== */}
+          {activeTab === 'ci' && (
+            <div>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="fa-solid fa-id-card-clip" style={{ color: '#052e80' }}></i>
+                    Credit Investigation (CI) &amp; Field Verification Queue
+                  </h2>
+                  <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0.2rem 0 0' }}>
+                    Customer installment applications accepted for CI. Follow Admin instructions and verify customer details upon delivering the AC unit.
+                  </p>
+                </div>
+
+                {/* Filter Buttons */}
+                <div className="tech-filters-bar" style={{ display: 'flex', gap: '0.4rem', background: '#ffffff', padding: '4px', borderRadius: '10px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+                  {(['ALL', 'MY_CI', 'PENDING', 'VERIFIED'] as const).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setCiFilter(f)}
+                      style={{
+                        padding: '0.45rem 0.9rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: ciFilter === f ? '#052e80' : 'transparent',
+                        color: ciFilter === f ? '#ffffff' : '#64748b',
+                        fontWeight: ciFilter === f ? 700 : 500,
+                        fontSize: '0.85rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {f === 'ALL' ? 'All CI Customers' : f === 'MY_CI' ? 'Assigned to Me' : f === 'PENDING' ? `Pending (${pendingCiCount})` : 'Verified & Cleared'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Search Bar */}
+              <div style={{ marginBottom: '1.25rem', position: 'relative' }}>
+                <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}></i>
+                <input
+                  type="text"
+                  value={ciSearchQuery}
+                  onChange={(e) => setCiSearchQuery(e.target.value)}
+                  placeholder="Search CI customer name, App ID (#APP-...), AC model, address, or phone..."
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem 0.75rem 2.5rem',
+                    borderRadius: '12px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.9rem',
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    outline: 'none',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                  }}
+                />
+              </div>
+
+              {filteredCiItems.length === 0 ? (
+                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '4rem 2rem', textAlign: 'center', color: '#94a3b8' }}>
+                  <i className="fa-solid fa-user-shield" style={{ fontSize: '3rem', color: '#cbd5e1', marginBottom: '1rem', display: 'block' }}></i>
+                  <h4 style={{ color: '#334155', margin: 0 }}>No Credit Investigation customers found</h4>
+                  <p style={{ fontSize: '0.85rem', marginTop: '4px' }}>
+                    {ciSearchQuery.trim()
+                      ? `No customers match your search query "${ciSearchQuery}".`
+                      : 'When the Admin clicks "Accept for CI" on installment applications, they will appear here with inspection notes.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="tech-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))', gap: '1.5rem' }}>
+                  {filteredCiItems.map((inst) => {
+                    const meta = parseCiMeta(inst.issue);
+                    const isVerified = Boolean(meta.ciVerified);
+                    const phone = inst.user?.phone || '0917-123-4567';
+                    const cleanAddress = (inst.location || 'Customer Address').split('| COORDS:')[0].trim();
+                    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanAddress)}`;
+                    const checklist = meta.checklist || {};
+
+                    return (
+                      <div
+                        key={inst.id}
+                        style={{
+                          background: '#ffffff',
+                          borderRadius: '18px',
+                          border: isVerified ? '1.5px solid #86efac' : '1.5px solid #e2e8f0',
+                          padding: '1.4rem',
+                          boxShadow: '0 4px 14px rgba(15, 23, 42, 0.04)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          gap: '1rem',
+                        }}
+                      >
+                        {/* Top: Customer & Status Header */}
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.6rem' }}>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
+                                  {inst.name}
+                                </h3>
+                                <span style={{ background: '#0284c7', color: '#ffffff', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800 }}>
+                                  #{inst.appId}
+                                </span>
+                              </div>
+                              <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block', marginTop: '2px' }}>
+                                Applied: {inst.date} • Assigned to: <strong>{inst.assignedTech || meta.assignedCiTechName || 'CI Officer'}</strong>
+                              </span>
+                            </div>
+
+                            <span
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: '999px',
+                                fontSize: '0.75rem',
+                                fontWeight: 800,
+                                background: isVerified ? '#dcfce7' : '#fef3c7',
+                                color: isVerified ? '#15803d' : '#b45309',
+                                border: isVerified ? '1px solid #86efac' : '1px solid #fde68a',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                              }}
+                            >
+                              <i className={`fa-solid ${isVerified ? 'fa-circle-check' : 'fa-hourglass-half'}`}></i>
+                              {isVerified ? 'CI Verified & Cleared' : 'Pending CI Inspection'}
+                            </span>
+                          </div>
+
+                          {/* Financed AC Unit Banner */}
+                          <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px', padding: '0.75rem 0.9rem', marginBottom: '0.85rem' }}>
+                            <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                              Financed AC Unit to Deliver
+                            </div>
+                            <div style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0c4a6e', marginTop: '2px' }}>
+                              {inst.item}
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: '#0284c7', marginTop: '2px', fontWeight: 600 }}>
+                              Installment Term: {inst.term} Months • Employer: {inst.employer || 'Self-Employed'} • Monthly Income: {inst.income || '₱35,000'}
+                            </div>
+                          </div>
+
+                          {/* Customer Address & Contact Info */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.84rem', color: '#334155', background: '#f8fafc', padding: '0.75rem 0.9rem', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '0.85rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                              <div>
+                                <i className="fa-solid fa-location-dot" style={{ color: '#ef4444', marginRight: '6px' }}></i>
+                                <strong>Delivery Address:</strong> {cleanAddress}
+                              </div>
+                              <a
+                                href={googleMapsUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  background: '#e0f2fe',
+                                  color: '#0284c7',
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  textDecoration: 'none',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                <i className="fa-solid fa-diamond-turn-right"></i> Maps
+                              </a>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', paddingTop: '4px', borderTop: '1px dashed #e2e8f0' }}>
+                              <div>
+                                <i className="fa-solid fa-phone" style={{ color: '#0284c7', marginRight: '6px' }}></i>
+                                <strong>Contact:</strong> {phone}
+                              </div>
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                <a
+                                  href={`tel:${phone}`}
+                                  style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 600, textDecoration: 'none' }}
+                                >
+                                  <i className="fa-solid fa-phone"></i> Call
+                                </a>
+                                <a
+                                  href={`sms:${phone}`}
+                                  style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 600, textDecoration: 'none' }}
+                                >
+                                  <i className="fa-solid fa-comment-sms"></i> SMS
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* ⭐ ADMIN NOTE FOR CI INSPECTION (WHAT TO DO WHEN DELIVERING AC) */}
+                          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderLeft: '4px solid #f59e0b', borderRadius: '10px', padding: '0.85rem 1rem', marginBottom: '0.85rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#92400e', fontSize: '0.8rem', fontWeight: 800 }}>
+                              <i className="fa-solid fa-clipboard-check" style={{ color: '#d97706' }}></i>
+                              Admin CI Inspection Note (What to Check when Delivering AC):
+                            </div>
+                            <p style={{ margin: '4px 0 0', fontSize: '0.86rem', color: '#78350f', lineHeight: '1.45', fontWeight: 500 }}>
+                              {meta.ciNotes || 'Verify customer valid government ID & proof of billing. Inspect electrical line and circuit breaker (20A minimum) for AC load before delivery. Confirm physical residence.'}
+                            </p>
+                          </div>
+
+                          {/* Interactive CI Field Checklist */}
+                          <div style={{ marginBottom: '0.85rem' }}>
+                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <i className="fa-solid fa-list-check" style={{ color: '#0284c7' }}></i>
+                              Field Verification Checklist:
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                              {[
+                                { key: 'address', label: 'Residence & Delivery Address verified' },
+                                { key: 'id', label: 'Government ID & Billing inspected' },
+                                { key: 'electrical', label: 'Breaker (20A+) ready for AC' },
+                                { key: 'reference', label: 'Co-maker / Reference confirmed' },
+                              ].map((item) => {
+                                const checked = !!checklist[item.key];
+                                return (
+                                  <label
+                                    key={item.key}
+                                    onClick={() => handleToggleCiChecklist(inst, item.key)}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '7px',
+                                      padding: '6px 8px',
+                                      borderRadius: '8px',
+                                      background: checked ? '#f0fdf4' : '#f8fafc',
+                                      border: checked ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
+                                      fontSize: '0.74rem',
+                                      fontWeight: checked ? 700 : 500,
+                                      color: checked ? '#166534' : '#64748b',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                  >
+                                    <i className={`fa-solid ${checked ? 'fa-square-check' : 'fa-square'}`} style={{ color: checked ? '#16a34a' : '#cbd5e1', fontSize: '0.9rem' }}></i>
+                                    {item.label}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Field Findings & Technician Notes Input */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                              Technician Field Inspection Findings:
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={fieldNotesInputs[inst.id] !== undefined ? fieldNotesInputs[inst.id] : (meta.fieldNotes || '')}
+                              onChange={(e) => setFieldNotesInputs({ ...fieldNotesInputs, [inst.id]: e.target.value })}
+                              placeholder="Type field observations (e.g. Breaker 25A inspected, ID matched payslip, clear delivery route)..."
+                              style={{
+                                width: '100%',
+                                padding: '0.55rem 0.75rem',
+                                borderRadius: '8px',
+                                border: '1px solid #cbd5e1',
+                                fontSize: '0.82rem',
+                                outline: 'none',
+                                resize: 'vertical',
+                                color: '#0f172a',
+                              }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                              <button
+                                onClick={() => handleSaveCiFieldNotes(inst, fieldNotesInputs[inst.id] || '')}
+                                disabled={savingCiId === inst.id}
+                                style={{
+                                  background: '#052e80',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  padding: '4px 10px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  cursor: savingCiId === inst.id ? 'not-allowed' : 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <i className={`fa-solid ${savingCiId === inst.id ? 'fa-spinner fa-spin' : 'fa-floppy-disk'}`}></i>
+                                {savingCiId === inst.id ? 'Saving...' : 'Save Field Notes'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bottom Action Buttons */}
+                        <div style={{ display: 'flex', gap: '0.6rem', borderTop: '1px solid #f1f5f9', paddingTop: '0.85rem', flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => setSelectedCiDetails(inst)}
+                            style={{
+                              flex: 1,
+                              background: '#f8fafc',
+                              color: '#334155',
+                              border: '1px solid #cbd5e1',
+                              padding: '0.6rem 0.85rem',
+                              borderRadius: '8px',
+                              fontSize: '0.82rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                            }}
+                          >
+                            <i className="fa-solid fa-address-book"></i> Dossier Details
+                          </button>
+
+                          {!isVerified ? (
+                            <button
+                              onClick={() => handleMarkCiVerified(inst)}
+                              style={{
+                                flex: 1.5,
+                                background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
+                                color: '#ffffff',
+                                border: 'none',
+                                padding: '0.6rem 0.85rem',
+                                borderRadius: '8px',
+                                fontSize: '0.82rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                boxShadow: '0 2px 6px rgba(22, 163, 74, 0.25)',
+                              }}
+                            >
+                              <i className="fa-solid fa-circle-check"></i> Mark CI Verified &amp; Cleared
+                            </button>
+                          ) : (
+                            <button
+                              disabled
+                              style={{
+                                flex: 1.5,
+                                background: '#dcfce7',
+                                color: '#15803d',
+                                border: '1px solid #86efac',
+                                padding: '0.6rem 0.85rem',
+                                borderRadius: '8px',
+                                fontSize: '0.82rem',
+                                fontWeight: 800,
+                                cursor: 'default',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                              }}
+                            >
+                              <i className="fa-solid fa-shield-check"></i> CI Cleared by {meta.ciVerifiedBy || 'Tech'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
         </main>
       </div>
 
@@ -1742,6 +2392,118 @@ export default function TechnicianDashboard() {
         </div>
       )}
 
+      {/* ======================================================== */}
+      {/* CI CUSTOMER DOSSIER & DETAILS MODAL */}
+      {/* ======================================================== */}
+      {selectedCiDetails && (() => {
+        const meta = parseCiMeta(selectedCiDetails.issue);
+        const cleanAddress = (selectedCiDetails.location || 'Customer Address').split('| COORDS:')[0].trim();
+        const phone = selectedCiDetails.user?.phone || '0917-123-4567';
+
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 120, padding: '1rem' }} onClick={() => setSelectedCiDetails(null)}>
+            <div style={{ background: '#ffffff', borderRadius: '20px', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)', border: '1px solid #e2e8f0' }} onClick={(e) => e.stopPropagation()}>
+              <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#052e80', color: '#ffffff', borderTopLeftRadius: '20px', borderTopRightRadius: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 800 }}>
+                    {selectedCiDetails.name.charAt(0)}
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>{selectedCiDetails.name}</h3>
+                    <span style={{ fontSize: '0.75rem', opacity: 0.9 }}>Application #{selectedCiDetails.appId} • Credit Investigation</span>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedCiDetails(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#ffffff', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {/* AC Delivery Info Banner */}
+                <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px', padding: '1rem' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase' }}>AC Unit &amp; Delivery Target</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0c4a6e', marginTop: '3px' }}>{selectedCiDetails.item}</div>
+                  <div style={{ fontSize: '0.82rem', color: '#0284c7', marginTop: '2px' }}>
+                    Term: {selectedCiDetails.term} Months • Application Date: {selectedCiDetails.date}
+                  </div>
+                </div>
+
+                {/* Profile Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+                  <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Employer &amp; Workplace</span>
+                    <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{selectedCiDetails.employer || 'Self-Employed'}</strong>
+                  </div>
+                  <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Monthly Declared Income</span>
+                    <strong style={{ fontSize: '0.9rem', color: '#16a34a' }}>{selectedCiDetails.income || '₱35,000'}</strong>
+                  </div>
+                  <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>ID Type Presented</span>
+                    <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{selectedCiDetails.idType || 'Government ID'}</strong>
+                  </div>
+                  <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Phone Contact</span>
+                    <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{phone}</strong>
+                  </div>
+                </div>
+
+                {/* Address with Map Directions */}
+                <div style={{ background: '#f8fafc', padding: '0.9rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Delivery &amp; Residence Address</span>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanAddress)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ background: '#0284c7', color: '#ffffff', padding: '2px 8px', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 700, textDecoration: 'none' }}
+                    >
+                      <i className="fa-solid fa-diamond-turn-right" style={{ marginRight: '4px' }}></i> Open in Maps
+                    </a>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.88rem', color: '#0f172a', fontWeight: 600 }}>{cleanAddress}</p>
+                </div>
+
+                {/* Admin Note Box */}
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderLeft: '4px solid #f59e0b', borderRadius: '10px', padding: '0.9rem' }}>
+                  <strong style={{ fontSize: '0.82rem', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="fa-solid fa-clipboard-check"></i> Admin CI Inspection Notes &amp; Delivery Instructions:
+                  </strong>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#78350f', lineHeight: '1.45' }}>
+                    {meta.ciNotes || 'Verify customer valid government ID & proof of billing. Inspect electrical line and circuit breaker (20A minimum) for AC load before delivery.'}
+                  </p>
+                </div>
+
+                {/* Tech Field Findings */}
+                {meta.fieldNotes && (
+                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '0.9rem' }}>
+                    <strong style={{ fontSize: '0.82rem', color: '#166534', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <i className="fa-solid fa-user-pen"></i> Technician Field Findings:
+                    </strong>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#14532d', lineHeight: '1.45' }}>
+                      {meta.fieldNotes}
+                    </p>
+                    <small style={{ color: '#15803d', fontSize: '0.72rem', display: 'block', marginTop: '4px' }}>
+                      Recorded by: {meta.lastUpdatedByTech || 'Field Technician'} {meta.lastUpdatedAt ? `on ${new Date(meta.lastUpdatedAt).toLocaleDateString()}` : ''}
+                    </small>
+                  </div>
+                )}
+
+                {/* Close Button */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: '1rem' }}>
+                  <button
+                    onClick={() => setSelectedCiDetails(null)}
+                    style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '0.65rem 1.4rem', borderRadius: '10px', fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Close Dossier
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* MOBILE BOTTOM NAVIGATION BAR */}
       <nav
         className="tech-bottom-nav"
@@ -1835,6 +2597,32 @@ export default function TechnicianDashboard() {
           {allServiceJobs.length > 0 && (
             <span style={{ position: 'absolute', top: '6px', right: '28%', background: '#052e80', color: '#ffffff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: '999px', fontWeight: 700 }}>
               {allServiceJobs.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('ci')}
+          style={{
+            flex: 1,
+            height: '100%',
+            background: 'transparent',
+            border: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '3px',
+            color: activeTab === 'ci' ? '#052e80' : '#64748b',
+            cursor: 'pointer',
+            position: 'relative',
+          }}
+        >
+          <i className="fa-solid fa-id-card-clip" style={{ fontSize: '1.15rem' }}></i>
+          <span style={{ fontSize: '0.72rem', fontWeight: activeTab === 'ci' ? 700 : 500 }}>CI Officer</span>
+          {pendingCiCount > 0 && (
+            <span style={{ position: 'absolute', top: '6px', right: '28%', background: '#d97706', color: '#ffffff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: '999px', fontWeight: 700 }}>
+              {pendingCiCount}
             </span>
           )}
         </button>
