@@ -134,8 +134,8 @@ export default function TechnicianDashboard() {
   const { confirm, showAlert, prompt, ModalComponent } = useConfirmModal();
   const router = useRouter();
 
-  // Navigation tab: 'dashboard' | 'assigned' | 'services' | 'ci'
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'assigned' | 'services' | 'ci'>('dashboard');
+  // Navigation tab: 'dashboard' | 'assigned' | 'services' | 'ci' | 'earnings'
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'assigned' | 'services' | 'ci' | 'earnings'>('dashboard');
 
   // Technician Data
   const [tasks, setTasks] = useState<DispatchItem[]>([]);
@@ -146,6 +146,11 @@ export default function TechnicianDashboard() {
   const [isCiOfficerTech, setIsCiOfficerTech] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [kebabOpen, setKebabOpen] = useState(false);
+
+  // Earnings & Income State
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [earningsFilter, setEarningsFilter] = useState<'ALL' | 'COMPLETED' | 'PENDING' | 'DELIVERY' | 'SERVICE' | 'CI'>('ALL');
+  const [earningsSearch, setEarningsSearch] = useState('');
 
   // CI Filter & Inspection States
   const [ciSearchQuery, setCiSearchQuery] = useState('');
@@ -257,6 +262,16 @@ export default function TechnicianDashboard() {
             initialNotes[item.id] = meta.fieldNotes || '';
           });
           setFieldNotesInputs(initialNotes);
+        }
+      })
+      .catch(console.error);
+
+    // Fetch Invoices for actual billed earnings
+    fetch('/api/invoices')
+      .then(r => r.json())
+      .then((invs: any[]) => {
+        if (Array.isArray(invs)) {
+          setInvoices(invs);
         }
       })
       .catch(console.error);
@@ -710,6 +725,123 @@ export default function TechnicianDashboard() {
     return true;
   });
 
+  // Technician Total Income & Task Valuation Calculation
+  const getJobIncome = (job: any): number => {
+    if (!job) return 0;
+    // Check if there is an approved or billed invoice for this job
+    const matchedInvoice = invoices.find(inv =>
+      (inv.dispatchId && (inv.dispatchId === job.id || inv.dispatchId === job.dispatchNo)) ||
+      (inv.dispatchNo && (inv.dispatchNo === job.dispatchNo || inv.dispatchNo === job.id))
+    );
+    if (matchedInvoice && typeof matchedInvoice.amount === 'number' && matchedInvoice.amount > 0) {
+      return matchedInvoice.amount;
+    }
+
+    const typeLower = (job.type || job.serviceType || '').toLowerCase();
+    if (typeLower.includes('install')) return 3500;
+    if (typeLower.includes('coil wash') || typeLower.includes('chemical')) return 1800;
+    if (typeLower.includes('deep clean')) return 1500;
+    if (typeLower.includes('freon') || typeLower.includes('recharge')) return 1500;
+    if (typeLower.includes('part')) return 2500;
+    if (typeLower.includes('repair') || typeLower.includes('troubleshoot')) return 1200;
+    if (typeLower.includes('regular') || typeLower.includes('clean')) return 900;
+    if (typeLower.includes('preventive') || typeLower.includes('maintenance')) return 850;
+    if (typeLower.includes('delivery') || typeLower.includes('pickup') || typeLower.includes('pick up')) return 800;
+
+    return 1000;
+  };
+
+  const getCiIncome = (_ciItem?: any): number => {
+    return 500; // Standard ₱500 CI inspection honorarium/payout
+  };
+
+  const deliveryIncomeList = deliveryTasks.map(t => {
+    const isCompleted = t.status === 'COMPLETED' || t.status === 'Delivered';
+    return {
+      id: t.id,
+      refNo: t.dispatchNo || t.id,
+      title: t.item || 'AC Unit Delivery',
+      customerName: t.name || 'Customer',
+      location: t.location || 'Customer Address',
+      category: 'Delivery' as const,
+      serviceType: t.type || 'Delivery & Installation',
+      date: t.scheduledDate || 'Assigned',
+      status: t.status,
+      isCompleted,
+      amount: getJobIncome(t),
+      hasInvoice: invoices.some(inv => (inv.dispatchId && inv.dispatchId === t.id) || (inv.dispatchNo && inv.dispatchNo === t.dispatchNo)),
+    };
+  });
+
+  const serviceIncomeList = allServiceJobs.map(s => {
+    const isCompleted = s.status === 'COMPLETED' || s.status === 'Completed';
+    return {
+      id: s.id,
+      refNo: s.dispatchNo || s.id,
+      title: s.type || 'Service Job',
+      customerName: s.name || 'Customer',
+      location: s.location || 'Customer Address',
+      category: (s.source === 'maintenance' ? 'Maintenance' : 'Service') as 'Service' | 'Maintenance',
+      serviceType: s.type || 'Service',
+      date: s.scheduledDate || 'Assigned',
+      status: s.status,
+      isCompleted,
+      amount: getJobIncome(s),
+      hasInvoice: invoices.some(inv => (inv.dispatchId && inv.dispatchId === s.id) || (inv.dispatchNo && inv.dispatchNo === s.dispatchNo)),
+    };
+  });
+
+  const ciIncomeList = activeCiItems.map(c => {
+    const meta = parseCiMeta(c.issue);
+    const isVerified = Boolean(meta.ciVerified);
+    return {
+      id: c.id,
+      refNo: c.appId || c.id,
+      title: `Credit Investigation (${c.item || 'AC Unit'})`,
+      customerName: c.name || 'Applicant',
+      location: c.location || 'Applicant Residence',
+      category: 'CI' as const,
+      serviceType: 'Credit Investigation & Background Check',
+      date: c.date || 'Assigned',
+      status: isVerified ? 'Verified & Cleared' : 'Pending CI',
+      isCompleted: isVerified,
+      amount: getCiIncome(c),
+      hasInvoice: false,
+    };
+  });
+
+  const allIncomeEntries = [...deliveryIncomeList, ...serviceIncomeList, ...ciIncomeList];
+
+  const totalCompletedIncome = allIncomeEntries
+    .filter(item => item.isCompleted)
+    .reduce((sum, item) => sum + item.amount, 0);
+
+  const totalPendingIncome = allIncomeEntries
+    .filter(item => !item.isCompleted)
+    .reduce((sum, item) => sum + item.amount, 0);
+
+  const totalAssignedIncome = totalCompletedIncome + totalPendingIncome;
+
+  const filteredIncomeEntries = allIncomeEntries.filter(entry => {
+    if (earningsFilter === 'COMPLETED' && !entry.isCompleted) return false;
+    if (earningsFilter === 'PENDING' && entry.isCompleted) return false;
+    if (earningsFilter === 'DELIVERY' && entry.category !== 'Delivery') return false;
+    if (earningsFilter === 'SERVICE' && entry.category !== 'Service' && entry.category !== 'Maintenance') return false;
+    if (earningsFilter === 'CI' && entry.category !== 'CI') return false;
+
+    if (earningsSearch.trim()) {
+      const q = earningsSearch.toLowerCase().trim();
+      const match =
+        entry.refNo.toLowerCase().includes(q) ||
+        entry.title.toLowerCase().includes(q) ||
+        entry.customerName.toLowerCase().includes(q) ||
+        entry.location.toLowerCase().includes(q) ||
+        entry.serviceType.toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
   // Calendar Helpers
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -939,6 +1071,15 @@ export default function TechnicianDashboard() {
                     </span>
                   )}
                 </button>
+                <button
+                  onClick={() => { setActiveTab('earnings'); setKebabOpen(false); }}
+                  style={{ width: '100%', textAlign: 'left', padding: '0.75rem 1rem', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.85rem', cursor: 'pointer' }}
+                >
+                  <i className="fa-solid fa-wallet" style={{ color: '#16a34a' }}></i> My Earnings
+                  <span style={{ marginLeft: 'auto', background: '#dcfce7', color: '#15803d', fontSize: '0.7rem', padding: '1px 6px', borderRadius: '999px', fontWeight: 700 }}>
+                    ₱{totalCompletedIncome.toLocaleString()}
+                  </span>
+                </button>
                 <div style={{ height: '1px', background: '#e2e8f0', margin: '0.3rem 0' }}></div>
                 <button
                   onClick={handleLogout}
@@ -998,6 +1139,33 @@ export default function TechnicianDashboard() {
                   </span>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Quick Total Income Widget */}
+          <div
+            onClick={() => setActiveTab('earnings')}
+            style={{
+              padding: '0.9rem 1rem',
+              background: 'linear-gradient(135deg, #052e80 0%, #0369a1 100%)',
+              borderRadius: '12px',
+              color: '#ffffff',
+              boxShadow: '0 4px 14px rgba(5,46,128,0.18)',
+              cursor: 'pointer',
+              marginBottom: '0.5rem',
+              transition: 'transform 0.15s ease',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: 0.85, fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <span>Total Earned Income</span>
+              <i className="fa-solid fa-coins" style={{ color: '#fde047' }}></i>
+            </div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, margin: '4px 0 2px' }}>
+              ₱{totalCompletedIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', opacity: 0.9 }}>
+              <span>Pending: ₱{totalPendingIncome.toLocaleString()}</span>
+              <span style={{ fontWeight: 700, textDecoration: 'underline' }}>Ledger &rarr;</span>
             </div>
           </div>
 
@@ -1123,6 +1291,34 @@ export default function TechnicianDashboard() {
             )}
           </button>
 
+          {/* TAB 5: MY EARNINGS & PAYOUT */}
+          <button
+            onClick={() => setActiveTab('earnings')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.85rem 1rem',
+              borderRadius: '10px',
+              border: 'none',
+              background: activeTab === 'earnings' ? '#d8e9fd' : 'transparent',
+              color: activeTab === 'earnings' ? '#052e80' : '#475569',
+              fontWeight: activeTab === 'earnings' ? 700 : 500,
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              borderLeft: activeTab === 'earnings' ? '4px solid #052e80' : '4px solid transparent'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <i className="fa-solid fa-wallet" style={{ width: '18px', color: activeTab === 'earnings' ? '#052e80' : '#94a3b8' }}></i>
+              <span>My Earnings</span>
+            </div>
+            <span style={{ fontSize: '0.75rem', background: '#16a34a', color: '#ffffff', padding: '2px 7px', borderRadius: '999px', fontWeight: 700 }}>
+              ₱{totalCompletedIncome >= 1000 ? `${(totalCompletedIncome / 1000).toFixed(1)}k` : totalCompletedIncome}
+            </span>
+          </button>
+
           {/* Bottom Shift Info Card */}
           <div style={{ marginTop: 'auto', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#052e80', fontWeight: 700, marginBottom: '0.4rem' }}>
@@ -1160,6 +1356,9 @@ export default function TechnicianDashboard() {
                   </button>
                   <button onClick={() => setActiveTab('ci')} style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', padding: '0.55rem 1rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     <i className="fa-solid fa-id-card-clip"></i> CI Inspections ({pendingCiCount})
+                  </button>
+                  <button onClick={() => setActiveTab('earnings')} style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '0.55rem 1rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="fa-solid fa-wallet"></i> My Earnings (₱{totalCompletedIncome.toLocaleString()})
                   </button>
                 </div>
               </div>
@@ -1231,6 +1430,74 @@ export default function TechnicianDashboard() {
                   </div>
                   <div className="stat-num" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#16a34a', marginTop: '0.5rem' }}>{completedJobsCount}</div>
                   <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Finished tasks</span>
+                </div>
+              </div>
+
+              {/* Total Income Highlight & Compensation Ledger Callout */}
+              <div style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                color: '#ffffff',
+                borderRadius: '16px',
+                padding: '1.5rem',
+                marginBottom: '1.5rem',
+                boxShadow: '0 4px 20px rgba(15,23,42,0.08)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '1.25rem',
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Admin Task Compensation
+                    </span>
+                    <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Real-time technician earnings</span>
+                  </div>
+                  <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#f8fafc' }}>
+                    Total Income Earned: <span style={{ color: '#4ade80' }}>₱{totalCompletedIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </h3>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#94a3b8' }}>
+                    Calculated from completed deliveries, services, and approved credit investigations.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+                  <div style={{ textAlign: 'right', borderRight: '1px solid #334155', paddingRight: '1.25rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#cbd5e1', textTransform: 'uppercase', fontWeight: 700 }}>Pending Payout</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f59e0b' }}>
+                      ₱{totalPendingIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{allIncomeEntries.filter(i => !i.isCompleted).length} jobs queued</span>
+                  </div>
+
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#cbd5e1', textTransform: 'uppercase', fontWeight: 700 }}>Total Admin Value</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#38bdf8' }}>
+                      ₱{totalAssignedIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{allIncomeEntries.length} assigned jobs</span>
+                  </div>
+
+                  <button
+                    onClick={() => setActiveTab('earnings')}
+                    style={{
+                      background: '#0284c7',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '0.75rem 1.25rem',
+                      borderRadius: '10px',
+                      fontWeight: 700,
+                      fontSize: '0.86rem',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      transition: 'background 0.15s ease',
+                    }}
+                  >
+                    <i className="fa-solid fa-wallet"></i> View Earnings Ledger &rarr;
+                  </button>
                 </div>
               </div>
 
@@ -1342,17 +1609,22 @@ export default function TechnicianDashboard() {
                         const isPick = isPickupTask(job);
                         return (
                           <div key={job.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.85rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                              <span style={{
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                padding: '2px 8px',
-                                borderRadius: '999px',
-                                background: isPick ? '#fef3c7' : isDeliv ? '#dbeafe' : '#e0e7ff',
-                                color: isPick ? '#92400e' : isDeliv ? '#1d4ed8' : '#3730a3'
-                              }}>
-                                {isPick ? 'Store Pick Up' : isDeliv ? 'AC Delivery' : job.type}
-                              </span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '4px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <span style={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '999px',
+                                  background: isPick ? '#fef3c7' : isDeliv ? '#dbeafe' : '#e0e7ff',
+                                  color: isPick ? '#92400e' : isDeliv ? '#1d4ed8' : '#3730a3'
+                                }}>
+                                  {isPick ? 'Store Pick Up' : isDeliv ? 'AC Delivery' : job.type}
+                                </span>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#166534', background: '#dcfce7', padding: '1px 6px', borderRadius: '4px' }}>
+                                  ₱{getJobIncome(job).toLocaleString()}
+                                </span>
+                              </div>
                               <span style={{
                                 fontSize: '0.75rem',
                                 color: job.status === 'MODIFICATION_PENDING' ? '#b45309' : '#64748b',
@@ -1489,6 +1761,9 @@ export default function TechnicianDashboard() {
                                   <i className="fa-solid fa-truck" style={{ fontSize: '0.7rem' }}></i> Delivery & Install
                                 </span>
                               )}
+                              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#166534', background: '#dcfce7', padding: '2px 8px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <i className="fa-solid fa-coins"></i> ₱{getJobIncome(job).toLocaleString()} Payout
+                              </span>
                             </div>
                             <span style={{
                               fontSize: '0.75rem',
@@ -1638,17 +1913,22 @@ export default function TechnicianDashboard() {
                       >
                         <div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                            <span style={{
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              background: job.type.includes('Clean') ? '#dbeafe' : job.type.includes('Repair') ? '#fee2e2' : '#fef3c7',
-                              color: job.type.includes('Clean') ? '#1d4ed8' : job.type.includes('Repair') ? '#b91c1c' : '#b45309'
-                            }}>
-                              <i className="fa-solid fa-wrench" style={{ marginRight: '4px' }}></i>
-                              {job.type}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span style={{
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                background: job.type.includes('Clean') ? '#dbeafe' : job.type.includes('Repair') ? '#fee2e2' : '#fef3c7',
+                                color: job.type.includes('Clean') ? '#1d4ed8' : job.type.includes('Repair') ? '#b91c1c' : '#b45309'
+                              }}>
+                                <i className="fa-solid fa-wrench" style={{ marginRight: '4px' }}></i>
+                                {job.type}
+                              </span>
+                              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#166534', background: '#dcfce7', padding: '2px 8px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <i className="fa-solid fa-coins"></i> ₱{getJobIncome(job).toLocaleString()} Payout
+                              </span>
+                            </div>
                             <span style={{
                               fontSize: '0.75rem',
                               fontWeight: 700,
@@ -1828,6 +2108,9 @@ export default function TechnicianDashboard() {
                                 </h3>
                                 <span style={{ background: '#0284c7', color: '#ffffff', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800 }}>
                                   #{inst.appId}
+                                </span>
+                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#166534', background: '#dcfce7', padding: '2px 8px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <i className="fa-solid fa-coins"></i> ₱{getCiIncome(inst).toLocaleString()} CI Fee
                                 </span>
                               </div>
                               <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block', marginTop: '2px' }}>
@@ -2089,6 +2372,341 @@ export default function TechnicianDashboard() {
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* TAB 5: MY EARNINGS & PAYOUT BREAKDOWN (Job Compensation)  */}
+          {/* ======================================================== */}
+          {activeTab === 'earnings' && (
+            <div>
+              {/* Header / Banner */}
+              <div style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '16px',
+                padding: '1.5rem',
+                marginBottom: '1.5rem',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '1rem',
+              }}>
+                <div>
+                  <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="fa-solid fa-wallet" style={{ color: '#16a34a' }}></i>
+                    Technician Earnings & Task Compensation
+                  </h2>
+                  <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0.3rem 0 0' }}>
+                    Itemized pay ledger computed from all jobs, AC installations, service tasks, and CI field investigations assigned by admin.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => window.print()}
+                    style={{
+                      background: '#f8fafc',
+                      color: '#334155',
+                      border: '1px solid #cbd5e1',
+                      padding: '0.55rem 1rem',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <i className="fa-solid fa-print"></i> Print Statement
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('dashboard')}
+                    style={{
+                      background: '#d8e9fd',
+                      color: '#052e80',
+                      border: '1px solid #bae6fd',
+                      padding: '0.55rem 1rem',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <i className="fa-solid fa-arrow-left" style={{ marginRight: '6px' }}></i> Back to Dashboard
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Summary Stat Cards for Earnings */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #bbf7d0', boxShadow: '0 2px 8px rgba(34,197,94,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.82rem', color: '#166534', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Earned Income</span>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className="fa-solid fa-coins"></i>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#15803d', marginTop: '0.5rem' }}>
+                    ₱{totalCompletedIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: '#166534', fontWeight: 600 }}>
+                    {allIncomeEntries.filter(i => i.isCompleted).length} tasks completed & ready for disbursement
+                  </span>
+                </div>
+
+                <div style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #fde68a', boxShadow: '0 2px 8px rgba(245,158,11,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.82rem', color: '#92400e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pending Payout</span>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className="fa-solid fa-hourglass-half"></i>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#b45309', marginTop: '0.5rem' }}>
+                    ₱{totalPendingIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: '#92400e', fontWeight: 600 }}>
+                    {allIncomeEntries.filter(i => !i.isCompleted).length} active/assigned tasks in field
+                  </span>
+                </div>
+
+                <div style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #bae6fd', boxShadow: '0 2px 8px rgba(2,132,199,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.82rem', color: '#0369a1', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Admin Value</span>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#d8e9fd', color: '#052e80', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className="fa-solid fa-receipt"></i>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#052e80', marginTop: '0.5rem' }}>
+                    ₱{totalAssignedIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: '#0369a1', fontWeight: 600 }}>
+                    {allIncomeEntries.length} total tasks allocated by admin
+                  </span>
+                </div>
+
+                <div style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Completion Rate</span>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#f1f5f9', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className="fa-solid fa-chart-pie"></i>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0f172a', marginTop: '0.5rem' }}>
+                    {allIncomeEntries.length > 0 ? Math.round((allIncomeEntries.filter(i => i.isCompleted).length / allIncomeEntries.length) * 100) : 0}%
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                    {allIncomeEntries.filter(i => i.isCompleted).length} of {allIncomeEntries.length} jobs finished
+                  </span>
+                </div>
+              </div>
+
+              {/* Filters & Search Toolbar */}
+              <div style={{ background: '#ffffff', padding: '1rem', borderRadius: '14px', border: '1px solid #e2e8f0', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  {[
+                    { id: 'ALL', label: `All Tasks (${allIncomeEntries.length})` },
+                    { id: 'COMPLETED', label: `Earned / Completed (${allIncomeEntries.filter(i => i.isCompleted).length})` },
+                    { id: 'PENDING', label: `Pending Payout (${allIncomeEntries.filter(i => !i.isCompleted).length})` },
+                    { id: 'DELIVERY', label: `Deliveries (${deliveryIncomeList.length})` },
+                    { id: 'SERVICE', label: `Services (${serviceIncomeList.length})` },
+                    { id: 'CI', label: `CI Inspections (${ciIncomeList.length})` },
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setEarningsFilter(tab.id as any)}
+                      style={{
+                        padding: '0.45rem 0.85rem',
+                        borderRadius: '8px',
+                        border: earningsFilter === tab.id ? '1px solid #052e80' : '1px solid #e2e8f0',
+                        background: earningsFilter === tab.id ? '#052e80' : '#ffffff',
+                        color: earningsFilter === tab.id ? '#ffffff' : '#475569',
+                        fontWeight: earningsFilter === tab.id ? 700 : 500,
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ position: 'relative', minWidth: '240px' }}>
+                  <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }}></i>
+                  <input
+                    type="text"
+                    value={earningsSearch}
+                    onChange={(e) => setEarningsSearch(e.target.value)}
+                    placeholder="Search by ref, customer, type..."
+                    style={{
+                      width: '100%',
+                      padding: '0.45rem 0.75rem 0.45rem 2rem',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.8rem',
+                      outline: 'none'
+                    }}
+                  />
+                  {earningsSearch && (
+                    <button
+                      onClick={() => setEarningsSearch('')}
+                      style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.8rem' }}
+                    >
+                      &times;
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Itemized Earnings Ledger Table */}
+              <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+                {filteredIncomeEntries.length === 0 ? (
+                  <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: '#94a3b8' }}>
+                    <i className="fa-solid fa-receipt" style={{ fontSize: '3rem', marginBottom: '0.75rem', opacity: 0.4 }}></i>
+                    <h4 style={{ margin: '0 0 0.3rem', color: '#334155' }}>No earnings records found</h4>
+                    <p style={{ margin: 0, fontSize: '0.85rem' }}>No task compensations match the selected filter or search keyword.</p>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          <th style={{ padding: '0.85rem 1.25rem', fontWeight: 700 }}>Ref / Job No</th>
+                          <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Task & Service</th>
+                          <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Customer / Address</th>
+                          <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Assigned Date</th>
+                          <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Status</th>
+                          <th style={{ padding: '0.85rem 1.25rem', fontWeight: 700, textAlign: 'right' }}>Tech Payout</th>
+                          <th style={{ padding: '0.85rem 1rem', fontWeight: 700, textAlign: 'center' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredIncomeEntries.map((item, idx) => {
+                          const isEven = idx % 2 === 0;
+                          return (
+                            <tr
+                              key={item.id}
+                              style={{
+                                borderBottom: '1px solid #f1f5f9',
+                                background: isEven ? '#ffffff' : '#fafafa',
+                                transition: 'background 0.15s ease'
+                              }}
+                            >
+                              <td style={{ padding: '0.9rem 1.25rem', verticalAlign: 'middle' }}>
+                                <span style={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  color: '#052e80',
+                                  background: '#d8e9fd',
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  fontFamily: 'monospace'
+                                }}>
+                                  {item.refNo}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.9rem 1rem', verticalAlign: 'middle' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 800,
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    background:
+                                      item.category === 'Delivery' ? '#e0f2fe' :
+                                      item.category === 'CI' ? '#fef3c7' : '#dcfce7',
+                                    color:
+                                      item.category === 'Delivery' ? '#0369a1' :
+                                      item.category === 'CI' ? '#b45309' : '#15803d',
+                                    textTransform: 'uppercase'
+                                  }}>
+                                    {item.category}
+                                  </span>
+                                  <strong style={{ color: '#0f172a' }}>{item.title}</strong>
+                                </div>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginTop: '2px' }}>
+                                  {item.serviceType}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.9rem 1rem', verticalAlign: 'middle' }}>
+                                <strong style={{ color: '#1e293b', display: 'block' }}>{item.customerName}</strong>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                  {item.location.split('| COORDS:')[0].trim()}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.9rem 1rem', verticalAlign: 'middle', color: '#475569', fontSize: '0.8rem' }}>
+                                {item.date}
+                              </td>
+                              <td style={{ padding: '0.9rem 1rem', verticalAlign: 'middle' }}>
+                                <span style={{
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  padding: '3px 8px',
+                                  borderRadius: '999px',
+                                  background: item.isCompleted ? '#dcfce7' : '#fef3c7',
+                                  color: item.isCompleted ? '#166534' : '#92400e',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}>
+                                  <i className={item.isCompleted ? 'fa-solid fa-circle-check' : 'fa-solid fa-hourglass-half'}></i>
+                                  {item.isCompleted ? 'Earned' : (item.status || 'Pending')}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.9rem 1.25rem', verticalAlign: 'middle', textAlign: 'right' }}>
+                                <div style={{ fontSize: '1rem', fontWeight: 800, color: item.isCompleted ? '#15803d' : '#0f172a' }}>
+                                  ₱{item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </div>
+                                {item.hasInvoice && (
+                                  <span style={{ fontSize: '0.65rem', color: '#0284c7', fontWeight: 700, display: 'block' }}>
+                                    Custom Invoiced
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ padding: '0.9rem 1rem', verticalAlign: 'middle', textAlign: 'center' }}>
+                                <button
+                                  onClick={() => {
+                                    if (item.category === 'Delivery') setActiveTab('assigned');
+                                    else if (item.category === 'CI') setActiveTab('ci');
+                                    else setActiveTab('services');
+                                  }}
+                                  style={{
+                                    background: '#f1f5f9',
+                                    color: '#052e80',
+                                    border: '1px solid #cbd5e1',
+                                    padding: '0.35rem 0.65rem',
+                                    borderRadius: '6px',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  View Job &rarr;
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
+                          <td colSpan={5} style={{ padding: '1rem 1.25rem', fontWeight: 800, color: '#0f172a' }}>
+                            Ledger Total ({filteredIncomeEntries.length} Items)
+                          </td>
+                          <td style={{ padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 800, fontSize: '1.1rem', color: '#052e80' }}>
+                            ₱{filteredIncomeEntries.reduce((s, i) => s + i.amount, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -2625,6 +3243,27 @@ export default function TechnicianDashboard() {
               {pendingCiCount}
             </span>
           )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('earnings')}
+          style={{
+            flex: 1,
+            height: '100%',
+            background: 'transparent',
+            border: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '3px',
+            color: activeTab === 'earnings' ? '#16a34a' : '#64748b',
+            cursor: 'pointer',
+            position: 'relative',
+          }}
+        >
+          <i className="fa-solid fa-wallet" style={{ fontSize: '1.15rem' }}></i>
+          <span style={{ fontSize: '0.72rem', fontWeight: activeTab === 'earnings' ? 700 : 500 }}>Earnings</span>
         </button>
       </nav>
 
