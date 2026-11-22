@@ -159,9 +159,18 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
     );
   }
 
+  const isCustomerAuth = () => {
+    if (typeof window === 'undefined') return false;
+    const loggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+    const userId = sessionStorage.getItem('userId');
+    const role = sessionStorage.getItem('userRole');
+    const isCust = sessionStorage.getItem('isCustomer') === 'true' || role === 'CUSTOMER';
+    return Boolean(loggedIn && userId && userId !== 'guest' && isCust);
+  };
+
   const handleAddToCart = async () => {
-    // 1. Force register or login if not logged in
-    if (sessionStorage.getItem('isLoggedIn') !== 'true') {
+    // 1. Force registration if guest (not authenticated as customer)
+    if (!isCustomerAuth()) {
       setPendingAction('cart');
       setShowAuthModal(true);
       return;
@@ -223,7 +232,7 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
   };
 
   const handleBuyNow = () => {
-    if (sessionStorage.getItem('isLoggedIn') !== 'true') {
+    if (!isCustomerAuth()) {
       setPendingAction('buy');
       setShowAuthModal(true);
       return;
@@ -1028,11 +1037,12 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
         </div>
       )}
 
-      {/* Guest Auth Modal */}
+      {/* Guest Auth Modal - Force Registration */}
       <AuthModal
         isOpen={showAuthModal}
+        initialMode="signup"
         onClose={() => setShowAuthModal(false)}
-        actionPrompt="Please sign in or create an account to proceed with this purchase."
+        actionPrompt="Please create an account or sign in to proceed with this purchase."
         onSuccess={() => {
           if (pendingAction === 'cart') {
             handleAddToCart();

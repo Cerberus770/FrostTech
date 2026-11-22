@@ -345,10 +345,12 @@ export default function CartPage() {
       alert('Please check at least one item using the checkbox to proceed to checkout.');
       return;
     }
-    const isLoggedIn = sessionStorage.getItem('isLoggedIn');
+    const userId = sessionStorage.getItem('userId');
+    const isCustomer = sessionStorage.getItem('isCustomer') === 'true' || sessionStorage.getItem('userRole') === 'CUSTOMER';
+    const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true' && Boolean(userId) && userId !== 'guest' && isCustomer;
     if (!isLoggedIn) {
       alert('Please log in or sign up to continue to checkout.');
-      router.push('/login');
+      router.push('/login?mode=signup');
       return;
     }
     setShowCheckoutModal(true);

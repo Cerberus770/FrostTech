@@ -323,13 +323,23 @@ export default function HomePage() {
     setTimeout(() => { setToastVisible(false); }, 2500);
   };
 
+  // Helper to verify if the user is a registered, authenticated customer (not a guest or admin)
+  const isCustomerAuth = () => {
+    if (typeof window === 'undefined') return false;
+    const loggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+    const userId = sessionStorage.getItem('userId');
+    const role = sessionStorage.getItem('userRole');
+    const isCust = sessionStorage.getItem('isCustomer') === 'true' || role === 'CUSTOMER';
+    return Boolean(loggedIn && userId && userId !== 'guest' && isCust);
+  };
+
   const addToCart = async (name: string, price: number, brand?: string, image?: string, productId?: string, skipModal?: boolean) => {
     const actualProductId = productId || 'PROD-' + Date.now();
     const itemImage = image || '/hero-bg.png';
     const itemBrand = brand || '';
 
-    // 1. Force login/register: if guest, prompt AuthModal immediately
-    if (sessionStorage.getItem('isLoggedIn') !== 'true') {
+    // 1. Force registration/login: if guest (not authenticated as a customer), prompt registration modal immediately
+    if (!isCustomerAuth()) {
       setPendingAuthCartItem({ name, price, brand: itemBrand, image: itemImage, productId: actualProductId });
       setShowAuthModal(true);
       return;
@@ -337,7 +347,7 @@ export default function HomePage() {
 
     const userId = sessionStorage.getItem('userId');
 
-    // Check if it's an AC (price > 10000 heuristic)
+    // 2. Customer is authenticated! Check if AC needs first-time buyer 15% downpayment
     if (price > 10000 && !skipModal) {
       // Dynamically fetch status to ensure it's up-to-date
       let isNew = isNewCustomer;
@@ -345,11 +355,9 @@ export default function HomePage() {
         try {
           const res = await fetch(`/api/user/status?userId=${userId}`);
           const data = await res.json();
-          isNew = data.isNewCustomer;
+          isNew = Boolean(data.isNewCustomer);
           setIsNewCustomer(isNew);
         } catch (e) { }
-      } else {
-        isNew = true; // Guests are considered new customers for downpayment purposes
       }
 
       if (isNew) {
@@ -930,26 +938,26 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Auth Modal for guest add-to-cart */}
+      {/* Auth Modal for guest add-to-cart - Force Registration */}
       <AuthModal
         isOpen={showAuthModal}
+        initialMode="signup"
         onClose={() => {
           setShowAuthModal(false);
           setPendingAuthCartItem(null);
         }}
         onSuccess={() => {
           setShowAuthModal(false);
-          // After successful login, retry the pending add-to-cart
+          // After successful registration, retry add-to-cart which will now check first-time downpayment
           if (pendingAuthCartItem) {
             const item = pendingAuthCartItem;
             setPendingAuthCartItem(null);
-            // Small delay to ensure session is set
             setTimeout(() => {
               addToCart(item.name, item.price, item.brand, item.image, item.productId);
             }, 300);
           }
         }}
-        actionPrompt="Please sign in or create an account to add items to your cart."
+        actionPrompt="Please create an account or sign in to add products to your cart."
       />
 
       {/* Toast Notification */}

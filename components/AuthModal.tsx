@@ -66,6 +66,8 @@ export default function AuthModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    setMode(initialMode);
+    setError('');
 
     const clientId = '1037203276384-91thq0li7fl7n49hljrf3dte0ickuv04.apps.googleusercontent.com';
 
