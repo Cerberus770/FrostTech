@@ -798,51 +798,122 @@ export default function AdminDashboard() {
 </body>
 </html>`;
 
-    // Try window.open first; use hidden iframe as fallback if popup is blocked
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.open();
-      printWindow.document.write(htmlContent);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        try { printWindow.print(); } catch {}
-      }, 600);
-    } else {
-      // Fallback: use a hidden iframe to bypass popup blocker
+    printHtml(htmlContent);
+  };
+
+  // Helper to reliably print HTML reports without being blocked by browser popup blockers on Vercel/HTTPS
+  const printHtml = (htmlContent: string) => {
+    // 1. Try window.open popup first
+    let printWindow: Window | null = null;
+    try {
+      printWindow = window.open('', '_blank');
+    } catch {
+      printWindow = null;
+    }
+
+    if (printWindow && !printWindow.closed) {
+      try {
+        printWindow.document.open();
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          try { printWindow?.print(); } catch {}
+        }, 500);
+        return;
+      } catch (err) {
+        console.warn('Direct popup write failed, falling back to hidden iframe:', err);
+      }
+    }
+
+    // 2. Hidden iframe print fallback (completely bypasses popup blockers on Vercel/production)
+    try {
+      const oldFrame = document.getElementById('frosttech-print-frame');
+      if (oldFrame) {
+        try { document.body.removeChild(oldFrame); } catch {}
+      }
+
       const printFrame = document.createElement('iframe');
-      printFrame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;';
+      printFrame.id = 'frosttech-print-frame';
+      printFrame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
       document.body.appendChild(printFrame);
 
-      const frameWin = printFrame.contentWindow;
-      if (frameWin) {
-        frameWin.document.open();
-        frameWin.document.write(htmlContent);
-        frameWin.document.close();
-        printFrame.onload = () => {
+      const frameDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
+      if (frameDoc && printFrame.contentWindow) {
+        frameDoc.open();
+        frameDoc.write(htmlContent);
+        frameDoc.close();
+
+        setTimeout(() => {
           try {
-            frameWin.focus();
-            frameWin.print();
-          } catch {
-            showAlert({ title: 'Print Blocked', message: 'Please allow popups in your browser to print the Inventory Report.', type: 'warning' });
+            printFrame.contentWindow?.focus();
+            printFrame.contentWindow?.print();
+          } catch (e) {
+            console.error('Iframe print error:', e);
+            showAlert({ title: 'Print Notice', message: 'If the print dialog did not open, please allow popups in your browser settings.', type: 'info' });
           }
-          setTimeout(() => { try { document.body.removeChild(printFrame); } catch {} }, 2000);
-        };
-      } else {
-        document.body.removeChild(printFrame);
-        showAlert({ title: 'Print Blocked', message: 'Please allow popups in your browser to print the Inventory Report.', type: 'warning' });
+          setTimeout(() => {
+            try {
+              if (document.body.contains(printFrame)) {
+                document.body.removeChild(printFrame);
+              }
+            } catch {}
+          }, 3000);
+        }, 400);
+        return;
       }
+    } catch (err) {
+      console.error('Hidden iframe print error:', err);
+    }
+
+    // 3. Blob URL fallback if both direct popup and iframe fail
+    try {
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const blobUrl = URL.createObjectURL(blob);
+      const tempLink = document.createElement('a');
+      tempLink.href = blobUrl;
+      tempLink.target = '_blank';
+      tempLink.rel = 'noopener noreferrer';
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      document.body.removeChild(tempLink);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    } catch (e) {
+      showAlert({ title: 'Print Blocked', message: 'Please allow popups or enable printing in your browser.', type: 'warning' });
     }
   };
 
-  const handlePrintSalesReport = (period: string = reportsPeriod) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert('Please allow popups in your browser to print the Sales Report.');
-      return;
-    }
+  const handlePrintSalesReport = async (period: string = reportsPeriod) => {
+    let data = reportsData;
 
-    const data = reportsData;
+    // If reportsData is not loaded yet (e.g. clicked from Inventory tab), fetch it first
+    if (!data) {
+      try {
+        const res = await fetch(`/api/reports?period=${period}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            period,
+            orders,
+            dispatch,
+            maintenance,
+            invoices,
+          }),
+        });
+        if (res.ok) {
+          data = await res.json();
+          setReportsData(data);
+        } else {
+          const fallbackRes = await fetch(`/api/reports?period=${period}`);
+          if (fallbackRes.ok) {
+            data = await fallbackRes.json();
+            setReportsData(data);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load reports for printing:', err);
+      }
+    }
     const periodLabel = period === 'today' ? 'Today' : period === 'week' ? 'This Week' : period === 'month' ? 'This Month' : 'All Time';
     const totalRev = Number(data?.metrics?.totalRevenue ?? 0);
     const unitsSold = data?.metrics?.unitsSold?.count ?? 0;
@@ -1017,13 +1088,7 @@ export default function AdminDashboard() {
 </body>
 </html>`;
 
-    printWindow.document.open();
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      try { printWindow.print(); } catch (e) {}
-    }, 500);
+    printHtml(htmlContent);
   };
 
   // Filtered Orders for Order & Services tab
