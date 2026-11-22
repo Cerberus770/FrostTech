@@ -42,9 +42,9 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
     barangay: '',
     postalCode: '',
     city: '',
-    region: '',
-    lat: 14.5995,
-    lng: 120.9842,
+    region: 'Region X (Northern Mindanao)',
+    lat: 8.4864,
+    lng: 124.6521,
   });
   const [showMap, setShowMap] = useState(false);
 
@@ -892,19 +892,38 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
                     <div style={{ width: '100%', height: '250px', marginTop: '1rem', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
                       <GoogleMap
                         mapContainerStyle={{ width: '100%', height: '100%' }}
-                        center={{ lat: Number(checkoutForm.lat) || 14.5995, lng: Number(checkoutForm.lng) || 120.9842 }}
-                        zoom={14}
+                        center={{ lat: Number(checkoutForm.lat) || 8.4864, lng: Number(checkoutForm.lng) || 124.6521 }}
+                        zoom={13}
+                        options={{
+                          restriction: {
+                            latLngBounds: { north: 9.45, south: 7.35, east: 125.45, west: 123.35 },
+                            strictBounds: true,
+                          },
+                          minZoom: 9,
+                        }}
                         onClick={(e) => {
                           if (e.latLng) {
-                            updateForm('lat', e.latLng.lat().toString());
-                            updateForm('lng', e.latLng.lng().toString());
+                            const lat = e.latLng.lat();
+                            const lng = e.latLng.lng();
+                            if (lat >= 7.35 && lat <= 9.45 && lng >= 123.35 && lng <= 125.45) {
+                              updateForm('lat', lat.toString());
+                              updateForm('lng', lng.toString());
+                            } else {
+                              alert('Please select a location within Region 10 (Northern Mindanao).');
+                            }
                           }
                         }}
                       >
                         <Marker position={{ lat: Number(checkoutForm.lat), lng: Number(checkoutForm.lng) }} draggable={true} onDragEnd={(e) => {
                           if (e.latLng) {
-                            updateForm('lat', e.latLng.lat().toString());
-                            updateForm('lng', e.latLng.lng().toString());
+                            const lat = e.latLng.lat();
+                            const lng = e.latLng.lng();
+                            if (lat >= 7.35 && lat <= 9.45 && lng >= 123.35 && lng <= 125.45) {
+                              updateForm('lat', lat.toString());
+                              updateForm('lng', lng.toString());
+                            } else {
+                              alert('Please drag the pin within Region 10 (Northern Mindanao).');
+                            }
                           }
                         }} />
                       </GoogleMap>

@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   try {
     const placesResponse = await fetch(
-      `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&key=${apiKey}`
+      `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&location=8.4864,124.6521&radius=150000&components=country:ph&key=${apiKey}`
     );
     
     const data = await placesResponse.json();

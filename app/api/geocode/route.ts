@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&region=ph&key=${apiKey}`;
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&region=ph&bounds=7.35,123.35|9.45,125.45&key=${apiKey}`;
     const res = await fetch(url);
     const data = await res.json();
 

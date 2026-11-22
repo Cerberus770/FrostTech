@@ -15,8 +15,26 @@ const defaultIcon = L.icon({
   shadowSize: [41, 41],
 });
 
-// Default center: Manila, Philippines
-const defaultCenter: [number, number] = [14.5995, 120.9842];
+// ========================================================
+// REGION 10 (Northern Mindanao) Geographic Boundaries
+// Coverage:
+// - Misamis Oriental (Cagayan de Oro, Gingoog, El Salvador)
+// - Bukidnon (Malaybalay, Valencia, Maramag, Manolo Fortich)
+// - Lanao del Norte (Iligan City, Tubod, Kapatagan)
+// - Misamis Occidental (Ozamiz, Oroquieta, Tangub)
+// - Camiguin Island (Mambajao, Catarman)
+// ========================================================
+export const REGION_10_BOUNDS: [[number, number], [number, number]] = [
+  [7.35, 123.35], // Southwest corner (Southern Bukidnon / Western MisOcc)
+  [9.45, 125.45], // Northeast corner (Camiguin / Eastern MisOr)
+];
+
+// Default Center: Cagayan de Oro City Center, Region 10
+export const REGION_10_DEFAULT_CENTER: [number, number] = [8.4864, 124.6521];
+
+export function isWithinRegion10(lat: number, lng: number): boolean {
+  return lat >= 7.35 && lat <= 9.45 && lng >= 123.35 && lng <= 125.45;
+}
 
 interface MapComponentProps {
   center?: { lat: number; lng: number };
@@ -36,30 +54,61 @@ export default function MapComponent({
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
-  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(markerPosition || null);
+  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(
+    markerPosition && isWithinRegion10(markerPosition.lat, markerPosition.lng)
+      ? markerPosition
+      : markerPosition || null
+  );
+  const [warningMsg, setWarningMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
-    const mapCenter: [number, number] = center 
-      ? [center.lat, center.lng] 
-      : defaultCenter;
+    // Default to Region 10 center (Cagayan de Oro) if outside or omitted
+    const mapCenter: [number, number] =
+      center && isWithinRegion10(center.lat, center.lng)
+        ? [center.lat, center.lng]
+        : REGION_10_DEFAULT_CENTER;
 
     const map = L.map(mapRef.current, {
       center: mapCenter,
-      zoom: 17,
+      zoom: 13,
+      minZoom: 9, // Strictly prevent zooming out beyond Northern Mindanao
+      maxZoom: 19,
+      maxBounds: REGION_10_BOUNDS, // Confine map exclusively to Region 10
+      maxBoundsViscosity: 1.0, // Hard bounce-back: users CANNOT drag or pan outside Region 10
       zoomControl: true,
     });
 
     // Google Maps tile layer (roadmap)
     L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-      attribution: '&copy; Google Maps',
+      attribution: '&copy; Google Maps (Region 10 Only)',
       maxZoom: 20,
+    }).addTo(map);
+
+    // Subtle boundary indicator for Region 10
+    L.rectangle(REGION_10_BOUNDS, {
+      color: '#0284c7',
+      weight: 1.5,
+      fillColor: '#0284c7',
+      fillOpacity: 0.02,
+      dashArray: '5, 5',
     }).addTo(map);
 
     if (pinnable) {
       map.on('click', (e: L.LeafletMouseEvent) => {
-        const coords = { lat: e.latlng.lat, lng: e.latlng.lng };
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+
+        // Restrict pin placement strictly to Region 10
+        if (!isWithinRegion10(lat, lng)) {
+          setWarningMsg('⚠️ Pin location is outside Region 10. Service is restricted to Northern Mindanao (CDO, MisOr, MisOcc, Bukidnon, Lanao del Norte, Camiguin).');
+          setTimeout(() => setWarningMsg(null), 4500);
+          return;
+        }
+
+        setWarningMsg(null);
+        const coords = { lat, lng };
         setPin(coords);
 
         if (markerRef.current) {
@@ -76,7 +125,14 @@ export default function MapComponent({
 
     // Add initial marker if provided
     if (markerPosition) {
-      markerRef.current = L.marker([markerPosition.lat, markerPosition.lng], { icon: defaultIcon }).addTo(map);
+      const initialLat = isWithinRegion10(markerPosition.lat, markerPosition.lng)
+        ? markerPosition.lat
+        : REGION_10_DEFAULT_CENTER[0];
+      const initialLng = isWithinRegion10(markerPosition.lat, markerPosition.lng)
+        ? markerPosition.lng
+        : REGION_10_DEFAULT_CENTER[1];
+
+      markerRef.current = L.marker([initialLat, initialLng], { icon: defaultIcon }).addTo(map);
     }
 
     mapInstanceRef.current = map;
@@ -125,7 +181,10 @@ export default function MapComponent({
   // Update center when prop changes
   useEffect(() => {
     if (center && mapInstanceRef.current) {
-      mapInstanceRef.current.setView([center.lat, center.lng], 15);
+      const targetCenter = isWithinRegion10(center.lat, center.lng)
+        ? center
+        : { lat: REGION_10_DEFAULT_CENTER[0], lng: REGION_10_DEFAULT_CENTER[1] };
+      mapInstanceRef.current.setView([targetCenter.lat, targetCenter.lng], 15);
       setTimeout(() => mapInstanceRef.current?.invalidateSize(), 100);
     }
   }, [centerKey]);
@@ -143,6 +202,60 @@ export default function MapComponent({
         }}
       />
 
+      {/* Region 10 Lock Badge */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          background: 'rgba(255, 255, 255, 0.94)',
+          backdropFilter: 'blur(4px)',
+          border: '1px solid #bae6fd',
+          color: '#0369a1',
+          padding: '4px 10px',
+          borderRadius: '20px',
+          fontSize: '0.74rem',
+          fontWeight: 700,
+          boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          pointerEvents: 'none',
+        }}
+        title="Covered Areas: Cagayan de Oro, Misamis Oriental, Misamis Occidental, Bukidnon, Lanao del Norte, Camiguin"
+      >
+        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#16a34a', display: 'inline-block' }}></span>
+        Region 10 (Northern Mindanao)
+      </div>
+
+      {/* Out of Region Warning Toast */}
+      {warningMsg && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '44px',
+            left: '10px',
+            right: '10px',
+            background: '#fef2f2',
+            border: '1px solid #fca5a5',
+            color: '#991b1b',
+            padding: '8px 12px',
+            borderRadius: '8px',
+            fontSize: '0.78rem',
+            fontWeight: 600,
+            zIndex: 1001,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <i className="fa-solid fa-triangle-exclamation" style={{ color: '#dc2626' }}></i>
+          <span>{warningMsg}</span>
+        </div>
+      )}
+
       {/* Coordinates display */}
       {pin && (
         <div
@@ -150,16 +263,21 @@ export default function MapComponent({
             position: 'absolute',
             bottom: '8px',
             left: '8px',
-            background: 'rgba(0,0,0,0.7)',
+            background: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(4px)',
             color: 'white',
             padding: '4px 10px',
-            borderRadius: '4px',
-            fontSize: '0.8rem',
-            fontWeight: 500,
+            borderRadius: '6px',
+            fontSize: '0.75rem',
+            fontWeight: 600,
             zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
           }}
         >
-          📍 {pin.lat.toFixed(6)}, {pin.lng.toFixed(6)}
+          <span style={{ color: '#38bdf8' }}>📍 Region 10:</span>
+          <span>{pin.lat.toFixed(5)}, {pin.lng.toFixed(5)}</span>
         </div>
       )}
     </div>

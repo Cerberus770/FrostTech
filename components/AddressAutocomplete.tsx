@@ -69,7 +69,7 @@ export default function AddressAutocomplete({
 
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ph&limit=5&addressdetails=1`,
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ph&viewbox=123.35,9.45,125.45,7.35&bounded=1&limit=5&addressdetails=1`,
         { headers: { 'Accept-Language': 'en' } }
       );
       const data = await res.json();

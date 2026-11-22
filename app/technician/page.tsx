@@ -107,11 +107,11 @@ function GeocodedMap({ address }: { address: string }) {
         if (data.lat && data.lng) {
           setCoords({ lat: data.lat, lng: data.lng });
         } else {
-          setCoords({ lat: 14.6091, lng: 121.0223 });
+          setCoords({ lat: 8.4864, lng: 124.6521 });
         }
       })
       .catch(() => {
-        setCoords({ lat: 14.6091, lng: 121.0223 });
+        setCoords({ lat: 8.4864, lng: 124.6521 });
       })
       .finally(() => setLoading(false));
   }, [address]);

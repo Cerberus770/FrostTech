@@ -17,21 +17,30 @@ function GeocodedMap({ address, onLocationSelect }: { address: string; onLocatio
   useEffect(() => {
     if (!address || address.length < 5) return;
     const timeout = setTimeout(() => {
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', Philippines')}&limit=1`)
+      // Query OpenStreetMap Nominatim restricted to Region 10 (Northern Mindanao)
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', Northern Mindanao, Philippines')}&viewbox=123.35,9.45,125.45,7.35&limit=1`)
         .then(r => r.json())
         .then(data => {
           if (data && data.length > 0) {
             const newCoords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
             setCoords(newCoords);
             if (onLocationSelect) onLocationSelect(newCoords);
+          } else {
+            // Default center: Cagayan de Oro City, Region 10
+            const cdoCoords = { lat: 8.4864, lng: 124.6521 };
+            setCoords(cdoCoords);
+            if (onLocationSelect) onLocationSelect(cdoCoords);
           }
         })
-        .catch(console.error);
+        .catch(() => {
+          const cdoCoords = { lat: 8.4864, lng: 124.6521 };
+          setCoords(cdoCoords);
+        });
     }, 800);
     return () => clearTimeout(timeout);
   }, [address]);
 
-  return <GoogleMap height="220px" center={coords || undefined} markerPosition={coords || undefined} pinnable={true} onLocationSelect={onLocationSelect} />;
+  return <GoogleMap height="220px" center={coords || { lat: 8.4864, lng: 124.6521 }} markerPosition={coords || { lat: 8.4864, lng: 124.6521 }} pinnable={true} onLocationSelect={onLocationSelect} />;
 }
 
 export default function CartPage() {
@@ -101,8 +110,8 @@ export default function CartPage() {
       return `/product/${item.productId}`;
     }
     const cleanItemName = item.name.toLowerCase().trim();
-    const found = dbProducts.find(p => 
-      p.id === item.productId || 
+    const found = dbProducts.find(p =>
+      p.id === item.productId ||
       (p.slug && p.slug === item.productId) ||
       p.name.toLowerCase().trim() === cleanItemName ||
       `${p.brand} ${p.name}`.toLowerCase().trim() === cleanItemName ||
@@ -125,7 +134,7 @@ export default function CartPage() {
     fetch('/api/products')
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setDbProducts(data); })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Real-time automatic removal of expired cart items
@@ -142,7 +151,7 @@ export default function CartPage() {
 
       // Automatically release from database and restore inventory stock
       expiredList.forEach(exp => {
-        fetch(`/api/cart?id=${exp.id}`, { method: 'DELETE' }).catch(() => {});
+        fetch(`/api/cart?id=${exp.id}`, { method: 'DELETE' }).catch(() => { });
       });
 
       setExpiredNoticeCount(prev => prev + expiredList.length);
@@ -165,7 +174,7 @@ export default function CartPage() {
       fetch(`/api/addresses?userId=${userId}`)
         .then(res => res.json())
         .then(data => { if (Array.isArray(data)) setSavedAddresses(data); })
-        .catch(() => {});
+        .catch(() => { });
 
       // Fetch from API if logged in
       fetch(`/api/cart?userId=${userId}`)
@@ -191,7 +200,7 @@ export default function CartPage() {
                     image: loc.image,
                     quantity: loc.quantity || 1
                   })
-                }).catch(() => {});
+                }).catch(() => { });
               }
             });
           } else {
@@ -210,7 +219,7 @@ export default function CartPage() {
                   image: loc.image,
                   quantity: loc.quantity || 1
                 })
-              }).catch(() => {});
+              }).catch(() => { });
             });
           }
 
@@ -219,7 +228,7 @@ export default function CartPage() {
           const expiredCount = merged.length - activeItems.length;
           if (expiredCount > 0) {
             merged.filter(i => isItemExpired(i)).forEach(exp => {
-              fetch(`/api/cart?id=${exp.id}`, { method: 'DELETE' }).catch(() => {});
+              fetch(`/api/cart?id=${exp.id}`, { method: 'DELETE' }).catch(() => { });
             });
             setExpiredNoticeCount(prev => prev + expiredCount);
             merged = activeItems;
@@ -289,7 +298,7 @@ export default function CartPage() {
     calculateTotal(updated);
     localStorage.setItem('frostTechCart', JSON.stringify(updated));
     window.dispatchEvent(new Event('storage'));
-    
+
     if (userId) {
       try {
         await fetch(`/api/cart?id=${id}`, { method: 'DELETE' });
@@ -354,12 +363,12 @@ export default function CartPage() {
       alert('Please select at least one item to proceed.');
       return;
     }
-    const isAcInCart = selectedItems.some(item => 
+    const isAcInCart = selectedItems.some(item =>
       (item.price && item.price >= 8000) ||
       (item.category && (item.category.toLowerCase().includes('ac') || item.category.toLowerCase().includes('air'))) ||
       (item.name && (
-        item.name.toLowerCase().includes('inverter') || 
-        item.name.toLowerCase().includes('split') || 
+        item.name.toLowerCase().includes('inverter') ||
+        item.name.toLowerCase().includes('split') ||
         item.name.toLowerCase().includes('conditioner') ||
         item.name.toLowerCase().includes('ac') ||
         item.name.toLowerCase().includes('aircon')
@@ -375,11 +384,11 @@ export default function CartPage() {
     const userId = sessionStorage.getItem('userId') || 'CUS-NEW';
     // Use Date.now() and a random suffix to ensure uniqueness and prevent Prisma P2002 error
     const orderNo = `ORD-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
-    
+
     // Append coordinates if pinpoint was used
     const coordsString = deliveryCoords ? ` | COORDS:${deliveryCoords.lat},${deliveryCoords.lng}` : '';
     const finalLocation = `${checkoutAddress}${checkoutCity ? ', ' + checkoutCity : ''}${coordsString}`;
-    
+
     const isInstallment = checkoutPayment === 'Installment';
 
     try {
@@ -425,9 +434,9 @@ export default function CartPage() {
       if (!res.ok) {
         throw new Error('Failed to create purchase');
       }
-      
+
       const savedOrder = await res.json();
-      
+
       const newState = {
         ...state,
         orders: [savedOrder, ...state.orders]
@@ -807,227 +816,227 @@ FrostTech Representative: ______________  Date: ___________
               {cartItems.map((item) => {
                 const productUrl = getProductDetailUrl(item);
                 return (
-                <div key={item.id} className="cart-item-card" style={{
-                  background: 'var(--bg-card)',
-                  border: selectedItemIds.includes(item.id) ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(255,255,255,0.06)',
-                  borderRadius: 'var(--radius-lg)',
-                  padding: '1.25rem',
-                  display: 'flex',
-                  gap: '1.25rem',
-                  alignItems: 'center',
-                  opacity: selectedItemIds.includes(item.id) ? 1 : 0.65,
-                  transition: 'all 0.2s ease',
-                }}>
-                  {/* Item Selection Checkbox */}
-                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '0.25rem' }} title={selectedItemIds.includes(item.id) ? "Uncheck to exclude from checkout" : "Check to include in checkout"}>
-                    <input
-                      type="checkbox"
-                      checked={selectedItemIds.includes(item.id)}
-                      onChange={() => toggleSelectItem(item.id)}
-                      style={{
-                        width: '20px',
-                        height: '20px',
-                        accentColor: '#0284c7',
-                        cursor: 'pointer',
-                      }}
-                    />
-                  </label>
-                  {/* Clickable Product Image */}
-                  <Link
-                    href={productUrl}
-                    title={`View ${item.name} details`}
-                    style={{
-                      width: '100px',
-                      height: '100px',
-                      background: 'var(--media-bg)',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--border-color)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '0.5rem',
-                      flexShrink: 0,
-                      cursor: 'pointer',
-                      transition: 'border-color 0.2s, transform 0.2s',
-                      textDecoration: 'none',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--primary)';
-                      e.currentTarget.style.transform = 'scale(1.02)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--border-color)';
-                      e.currentTarget.style.transform = 'scale(1)';
-                    }}
-                  >
-                    <Image
-                      src={item.image || '/hero-bg.png'}
-                      alt={item.name}
-                      width={80}
-                      height={80}
-                      style={{ objectFit: 'contain' }}
-                    />
-                  </Link>
-
-                  {/* Product Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                      <span style={{
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        color: 'var(--primary)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                      }}>
-                        {item.brand}
-                      </span>
-                      <Link
-                        href={productUrl}
+                  <div key={item.id} className="cart-item-card" style={{
+                    background: 'var(--bg-card)',
+                    border: selectedItemIds.includes(item.id) ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: '1.25rem',
+                    display: 'flex',
+                    gap: '1.25rem',
+                    alignItems: 'center',
+                    opacity: selectedItemIds.includes(item.id) ? 1 : 0.65,
+                    transition: 'all 0.2s ease',
+                  }}>
+                    {/* Item Selection Checkbox */}
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '0.25rem' }} title={selectedItemIds.includes(item.id) ? "Uncheck to exclude from checkout" : "Check to include in checkout"}>
+                      <input
+                        type="checkbox"
+                        checked={selectedItemIds.includes(item.id)}
+                        onChange={() => toggleSelectItem(item.id)}
                         style={{
-                          fontSize: '0.75rem',
-                          color: 'var(--primary)',
-                          fontWeight: 600,
-                          textDecoration: 'none',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '3px',
+                          width: '20px',
+                          height: '20px',
+                          accentColor: '#0284c7',
+                          cursor: 'pointer',
                         }}
-                      >
-                        <i className="fa-solid fa-arrow-up-right-from-square" style={{ fontSize: '0.65rem' }}></i> View Details
-                      </Link>
-                    </div>
-
+                      />
+                    </label>
+                    {/* Clickable Product Image */}
                     <Link
                       href={productUrl}
                       title={`View ${item.name} details`}
-                      style={{ textDecoration: 'none' }}
-                    >
-                      <h3 style={{
-                        fontSize: '1.05rem',
-                        fontWeight: 700,
-                        color: 'var(--text-dark)',
-                        marginBottom: '0.4rem',
-                        lineHeight: 1.3,
+                      style={{
+                        width: '100px',
+                        height: '100px',
+                        background: 'var(--media-bg)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-color)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '0.5rem',
+                        flexShrink: 0,
                         cursor: 'pointer',
-                        transition: 'color 0.2s',
+                        transition: 'border-color 0.2s, transform 0.2s',
+                        textDecoration: 'none',
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--primary)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-dark)')}
-                      >
-                        {item.name}
-                      </h3>
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--primary)';
+                        e.currentTarget.style.transform = 'scale(1.02)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border-color)';
+                        e.currentTarget.style.transform = 'scale(1)';
+                      }}
+                    >
+                      <Image
+                        src={item.image || '/hero-bg.png'}
+                        alt={item.name}
+                        width={80}
+                        height={80}
+                        style={{ objectFit: 'contain' }}
+                      />
                     </Link>
 
-                    <p style={{
-                      fontFamily: 'var(--font-display)',
-                      fontSize: '1.2rem',
-                      fontWeight: 800,
-                      color: 'var(--accent-red)',
-                      marginBottom: 0,
-                    }}>
-                      ₱{(item.price * item.quantity).toLocaleString()}
-                      {item.quantity > 1 && (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-light)', fontWeight: 500, marginLeft: '0.5rem' }}>
-                          (₱{item.price.toLocaleString()} each)
-                        </span>
-                      )}
-                    </p>
-
-                    {/* 3-Day Hold Countdown Pill */}
-                    {(() => {
-                      const hold = getHoldTimeRemaining(item);
-                      return (
-                        <div style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          marginTop: '0.45rem',
-                          padding: '4px 10px',
-                          borderRadius: '6px',
-                          fontSize: '0.78rem',
+                    {/* Product Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                        <span style={{
+                          fontSize: '0.75rem',
                           fontWeight: 700,
-                          background: hold.expired ? 'rgba(239, 68, 68, 0.2)' : hold.hasNotice ? 'rgba(234, 88, 12, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                          color: hold.expired ? '#ef4444' : hold.hasNotice ? '#ea580c' : '#f59e0b',
-                          border: hold.expired ? '1px solid rgba(239, 68, 68, 0.4)' : hold.hasNotice ? '1px solid rgba(234, 88, 12, 0.5)' : '1px solid rgba(245, 158, 11, 0.4)',
+                          color: 'var(--primary)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
                         }}>
-                          <i className={`fa-solid ${hold.expired ? 'fa-triangle-exclamation' : hold.hasNotice ? 'fa-bell' : 'fa-hourglass-half'}`}></i>
-                          <span>
-                            {hold.expired
-                              ? 'Expired — releasing back to stock...'
-                              : hold.hasNotice
-                              ? `3-Day Admin Notice: ${hold.text} remaining to checkout`
-                              : `Cart Hold: ${hold.text} to proceed for payment`}
-                          </span>
-                        </div>
-                      );
-                    })()}
-                  </div>
+                          {item.brand}
+                        </span>
+                        <Link
+                          href={productUrl}
+                          style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--primary)',
+                            fontWeight: 600,
+                            textDecoration: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                          }}
+                        >
+                          <i className="fa-solid fa-arrow-up-right-from-square" style={{ fontSize: '0.65rem' }}></i> View Details
+                        </Link>
+                      </div>
 
-                  {/* Quantity + Delete */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem' }}>
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      title="Remove Item"
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-light)',
-                        cursor: 'pointer',
-                        fontSize: '0.9rem',
-                        padding: '4px',
-                        transition: 'color 0.2s',
-                      }}
-                      onMouseOver={(e) => (e.currentTarget.style.color = 'var(--accent-red)')}
-                      onMouseOut={(e) => (e.currentTarget.style.color = 'var(--text-light)')}
-                    >
-                      <i className="fa-solid fa-trash"></i>
-                    </button>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '8px',
-                      overflow: 'hidden',
-                    }}>
-                      <button
-                        onClick={() => updateQuantity(item.id, -1)}
-                        style={{
-                          background: 'var(--bg-card-alt)',
-                          border: 'none',
-                          color: 'var(--text-light)',
-                          padding: '0.4rem 0.75rem',
-                          cursor: 'pointer',
-                          fontSize: '1rem',
+                      <Link
+                        href={productUrl}
+                        title={`View ${item.name} details`}
+                        style={{ textDecoration: 'none' }}
+                      >
+                        <h3 style={{
+                          fontSize: '1.05rem',
                           fontWeight: 700,
+                          color: 'var(--text-dark)',
+                          marginBottom: '0.4rem',
+                          lineHeight: 1.3,
+                          cursor: 'pointer',
+                          transition: 'color 0.2s',
                         }}
-                      >−</button>
-                      <span style={{
-                        padding: '0.4rem 0.9rem',
-                        fontSize: '0.9rem',
-                        fontWeight: 600,
-                        color: 'var(--text-dark)',
-                        minWidth: '2rem',
-                        textAlign: 'center',
+                          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--primary)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-dark)')}
+                        >
+                          {item.name}
+                        </h3>
+                      </Link>
+
+                      <p style={{
+                        fontFamily: 'var(--font-display)',
+                        fontSize: '1.2rem',
+                        fontWeight: 800,
+                        color: 'var(--accent-red)',
+                        marginBottom: 0,
                       }}>
-                        {item.quantity}
-                      </span>
+                        ₱{(item.price * item.quantity).toLocaleString()}
+                        {item.quantity > 1 && (
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-light)', fontWeight: 500, marginLeft: '0.5rem' }}>
+                            (₱{item.price.toLocaleString()} each)
+                          </span>
+                        )}
+                      </p>
+
+                      {/* 3-Day Hold Countdown Pill */}
+                      {(() => {
+                        const hold = getHoldTimeRemaining(item);
+                        return (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            marginTop: '0.45rem',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            background: hold.expired ? 'rgba(239, 68, 68, 0.2)' : hold.hasNotice ? 'rgba(234, 88, 12, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                            color: hold.expired ? '#ef4444' : hold.hasNotice ? '#ea580c' : '#f59e0b',
+                            border: hold.expired ? '1px solid rgba(239, 68, 68, 0.4)' : hold.hasNotice ? '1px solid rgba(234, 88, 12, 0.5)' : '1px solid rgba(245, 158, 11, 0.4)',
+                          }}>
+                            <i className={`fa-solid ${hold.expired ? 'fa-triangle-exclamation' : hold.hasNotice ? 'fa-bell' : 'fa-hourglass-half'}`}></i>
+                            <span>
+                              {hold.expired
+                                ? 'Expired — releasing back to stock...'
+                                : hold.hasNotice
+                                  ? `3-Day Admin Notice: ${hold.text} remaining to checkout`
+                                  : `Cart Hold: ${hold.text} to proceed for payment`}
+                            </span>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Quantity + Delete */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem' }}>
                       <button
-                        onClick={() => updateQuantity(item.id, 1)}
+                        onClick={() => removeItem(item.id)}
+                        title="Remove Item"
                         style={{
-                          background: 'var(--bg-card-alt)',
+                          background: 'none',
                           border: 'none',
                           color: 'var(--text-light)',
-                          padding: '0.4rem 0.75rem',
                           cursor: 'pointer',
-                          fontSize: '1rem',
-                          fontWeight: 700,
+                          fontSize: '0.9rem',
+                          padding: '4px',
+                          transition: 'color 0.2s',
                         }}
-                      >+</button>
+                        onMouseOver={(e) => (e.currentTarget.style.color = 'var(--accent-red)')}
+                        onMouseOut={(e) => (e.currentTarget.style.color = 'var(--text-light)')}
+                      >
+                        <i className="fa-solid fa-trash"></i>
+                      </button>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                      }}>
+                        <button
+                          onClick={() => updateQuantity(item.id, -1)}
+                          style={{
+                            background: 'var(--bg-card-alt)',
+                            border: 'none',
+                            color: 'var(--text-light)',
+                            padding: '0.4rem 0.75rem',
+                            cursor: 'pointer',
+                            fontSize: '1rem',
+                            fontWeight: 700,
+                          }}
+                        >−</button>
+                        <span style={{
+                          padding: '0.4rem 0.9rem',
+                          fontSize: '0.9rem',
+                          fontWeight: 600,
+                          color: 'var(--text-dark)',
+                          minWidth: '2rem',
+                          textAlign: 'center',
+                        }}>
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateQuantity(item.id, 1)}
+                          style={{
+                            background: 'var(--bg-card-alt)',
+                            border: 'none',
+                            color: 'var(--text-light)',
+                            padding: '0.4rem 0.75rem',
+                            cursor: 'pointer',
+                            fontSize: '1rem',
+                            fontWeight: 700,
+                          }}
+                        >+</button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
             </div>
 
             {/* Order Summary */}
@@ -1263,15 +1272,15 @@ FrostTech Representative: ______________  Date: ___________
 
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-light)', marginBottom: '0.3rem' }}>Street Address <span style={{ color: 'var(--accent-red)' }}>*</span></label>
-                  <AddressAutocomplete 
+                  <AddressAutocomplete
                     value={checkoutAddress}
                     onChange={setCheckoutAddress}
                     onPlaceSelected={(addr) => setCheckoutAddress(addr)}
-                    placeholder="123 Main St, Brgy. San Antonio" 
+                    placeholder="123 Main St, Brgy. San Antonio"
                     style={{
                       width: '100%', padding: '0.7rem 0.9rem', border: '1px solid var(--border-color)', borderRadius: '8px',
                       fontSize: '0.9rem', fontFamily: 'inherit', background: 'rgba(255,255,255,0.03)', color: 'var(--text-dark)',
-                    }} 
+                    }}
                   />
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
@@ -1284,8 +1293,8 @@ FrostTech Representative: ______________  Date: ___________
 
                 {/* Save to address book option */}
                 <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '8px', margin: '0.25rem 0' }}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     id="saveToAddressBook"
                     checked={saveToAddressBook}
                     onChange={e => setSaveToAddressBook(e.target.checked)}
@@ -1298,12 +1307,12 @@ FrostTech Representative: ______________  Date: ___________
 
                 {/* Pinpoint on Map */}
                 <div style={{ gridColumn: '1 / -1', marginTop: '0.25rem' }}>
-                  <button 
+                  <button
                     type="button"
-                    onClick={() => setShowDeliveryMap(!showDeliveryMap)} 
-                    style={{ 
-                      background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', 
-                      padding: '0.55rem 1rem', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', 
+                    onClick={() => setShowDeliveryMap(!showDeliveryMap)}
+                    style={{
+                      background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)',
+                      padding: '0.55rem 1rem', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer',
                       display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'inherit', fontWeight: 600,
                       transition: 'all 0.2s',
                     }}
@@ -1313,13 +1322,13 @@ FrostTech Representative: ______________  Date: ___________
                   </button>
                   {showDeliveryMap && (
                     <div style={{ marginTop: '0.75rem', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                      <GeocodedMap 
-                        address={`${checkoutAddress} ${checkoutCity}`} 
-                        onLocationSelect={(coords) => setDeliveryCoords(coords)} 
+                      <GeocodedMap
+                        address={`${checkoutAddress} ${checkoutCity}`}
+                        onLocationSelect={(coords) => setDeliveryCoords(coords)}
                       />
                       {deliveryCoords && (
-                        <div style={{ 
-                          padding: '0.5rem 0.75rem', background: 'rgba(0,155,213,0.08)', 
+                        <div style={{
+                          padding: '0.5rem 0.75rem', background: 'rgba(0,155,213,0.08)',
                           fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 600,
                           display: 'flex', alignItems: 'center', gap: '6px',
                         }}>
@@ -1352,12 +1361,11 @@ FrostTech Representative: ______________  Date: ___________
                       {method === 'GCash / E-Wallet' && <p style={{ fontSize: '0.75rem', color: 'var(--text-light)', margin: '0.15rem 0 0' }}>GCash, Maya, GrabPay</p>}
                       {method === 'Installment' && <p style={{ fontSize: '0.75rem', color: 'var(--text-light)', margin: '0.15rem 0 0' }}>6, 12, or 24 months — approval required</p>}
                     </div>
-                    <i className={`fa-solid ${
-                      method === 'Cash on Delivery' ? 'fa-money-bill-wave' :
-                      method === 'Credit Card' ? 'fa-credit-card' :
-                      method === 'GCash / E-Wallet' ? 'fa-mobile-screen-button' :
-                      'fa-calendar-check'
-                    }`} style={{ color: checkoutPayment === method ? 'var(--primary)' : 'var(--text-light)', fontSize: '1.1rem' }}></i>
+                    <i className={`fa-solid ${method === 'Cash on Delivery' ? 'fa-money-bill-wave' :
+                        method === 'Credit Card' ? 'fa-credit-card' :
+                          method === 'GCash / E-Wallet' ? 'fa-mobile-screen-button' :
+                            'fa-calendar-check'
+                      }`} style={{ color: checkoutPayment === method ? 'var(--primary)' : 'var(--text-light)', fontSize: '1.1rem' }}></i>
                   </label>
                 ))}
               </div>
@@ -1398,33 +1406,33 @@ FrostTech Representative: ______________  Date: ___________
               </div>
 
               {/* Downpayment Proof Upload */}
-              {isNewCustomer && selectedItems.some(item => 
+              {isNewCustomer && selectedItems.some(item =>
                 (item.price && item.price >= 8000) ||
                 (item.category && (item.category.toLowerCase().includes('ac') || item.category.toLowerCase().includes('air'))) ||
                 (item.name && (item.name.toLowerCase().includes('inverter') || item.name.toLowerCase().includes('split') || item.name.toLowerCase().includes('conditioner') || item.name.toLowerCase().includes('aircon')))
               ) && (
-                <div style={{ marginBottom: '1.5rem', background: 'rgba(56, 189, 248, 0.08)', padding: '1rem', borderRadius: '10px', border: '1px dashed #38bdf8' }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8', marginBottom: '0.5rem' }}>
-                    <i className="fa-solid fa-file-invoice-dollar"></i> Upload Proof of Downpayment (Required)
-                  </label>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '0.8rem' }}>Please upload a screenshot or photo of your 15% downpayment receipt.</p>
-                  <input type="file" accept="image/*" onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      const reader = new FileReader();
-                      reader.onloadend = () => setDownpaymentProof(reader.result as string);
-                      reader.readAsDataURL(file);
-                    } else {
-                      setDownpaymentProof(null);
-                    }
-                  }} style={{ width: '100%', fontSize: '0.85rem' }} />
-                  {downpaymentProof && (
-                    <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#28a745', fontSize: '0.8rem', fontWeight: 600 }}>
-                      <i className="fa-solid fa-check-circle"></i> Image uploaded successfully
-                    </div>
-                  )}
-                </div>
-              )}
+                  <div style={{ marginBottom: '1.5rem', background: 'rgba(56, 189, 248, 0.08)', padding: '1rem', borderRadius: '10px', border: '1px dashed #38bdf8' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8', marginBottom: '0.5rem' }}>
+                      <i className="fa-solid fa-file-invoice-dollar"></i> Upload Proof of Downpayment (Required)
+                    </label>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '0.8rem' }}>Please upload a screenshot or photo of your 15% downpayment receipt.</p>
+                    <input type="file" accept="image/*" onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => setDownpaymentProof(reader.result as string);
+                        reader.readAsDataURL(file);
+                      } else {
+                        setDownpaymentProof(null);
+                      }
+                    }} style={{ width: '100%', fontSize: '0.85rem' }} />
+                    {downpaymentProof && (
+                      <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#28a745', fontSize: '0.8rem', fontWeight: 600 }}>
+                        <i className="fa-solid fa-check-circle"></i> Image uploaded successfully
+                      </div>
+                    )}
+                  </div>
+                )}
 
               {/* Order Total */}
               <div style={{
@@ -1439,9 +1447,9 @@ FrostTech Representative: ______________  Date: ___________
                   <span>Delivery</span>
                   <span style={{ color: '#28a745', fontWeight: 600 }}>FREE</span>
                 </div>
-                
+
                 {(() => {
-                  const acTotal = selectedItems.filter(item => 
+                  const acTotal = selectedItems.filter(item =>
                     (item.price && item.price >= 8000) ||
                     (item.category && (item.category.toLowerCase().includes('ac') || item.category.toLowerCase().includes('air'))) ||
                     (item.name && (item.name.toLowerCase().includes('inverter') || item.name.toLowerCase().includes('split') || item.name.toLowerCase().includes('conditioner') || item.name.toLowerCase().includes('aircon')))

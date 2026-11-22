@@ -116,8 +116,8 @@ export default function ProfilePage() {
   // Register New AC in Settings
   const [showRegisterForm, setShowRegisterForm] = useState(false);
     const [regYearAcquired, setRegYearAcquired] = useState('2025');
-  const [regLat, setRegLat] = useState<number | null>(14.6091);
-  const [regLng, setRegLng] = useState<number | null>(121.0223);
+  const [regLat, setRegLat] = useState<number | null>(8.4864);
+  const [regLng, setRegLng] = useState<number | null>(124.6521);
   const [regBrandModel, setRegBrandModel] = useState('');
   const [regAcType, setRegAcType] = useState('Window Type');
   const [regHorsepower, setRegHorsepower] = useState('1.0 HP');
@@ -3327,14 +3327,14 @@ export default function ProfilePage() {
                           <i className="fa-solid fa-location-dot" style={{ color: '#0284c7' }}></i> Pin Point AC Location on Map
                         </label>
                         <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                          Coordinates: {regLat ? regLat.toFixed(5) : '14.6091'}, {regLng ? regLng.toFixed(5) : '121.0223'}
+                          Coordinates: {regLat ? regLat.toFixed(5) : '8.4864'}, {regLng ? regLng.toFixed(5) : '124.6521'}
                         </span>
                       </div>
                       <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                         <GoogleMap
                           height="220px"
-                          center={regLat && regLng ? { lat: regLat, lng: regLng } : { lat: 14.6091, lng: 121.0223 }}
-                          markerPosition={regLat && regLng ? { lat: regLat, lng: regLng } : { lat: 14.6091, lng: 121.0223 }}
+                          center={regLat && regLng ? { lat: regLat, lng: regLng } : { lat: 8.4864, lng: 124.6521 }}
+                          markerPosition={regLat && regLng ? { lat: regLat, lng: regLng } : { lat: 8.4864, lng: 124.6521 }}
                           pinnable={true}
                           onLocationSelect={(coords) => {
                             setRegLat(coords.lat);
