@@ -75,13 +75,13 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
     if (saved) {
       try {
         setCheckoutForm(JSON.parse(saved));
-      } catch {}
+      } catch { }
     }
     // Fetch reviews for this product
     fetch(`/api/reviews?productId=${id}`)
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setReviews(data); })
-      .catch(() => {});
+      .catch(() => { });
 
     // Fetch product from DB
     fetch('/api/products')
@@ -99,7 +99,7 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
           }
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [id]);
 
   const handleSubmitReview = async () => {
@@ -306,7 +306,7 @@ export default function ProductDetailsPage({ params }: { params: Promise<{ id: s
       if (!res.ok) throw new Error('Failed to submit');
 
       setShowBuyModal(false);
-      alert(paymentMode === 'installment' 
+      alert(paymentMode === 'installment'
         ? `Thank you! Your installment application has been submitted.\nPlease visit our store to complete the requirements.`
         : `Thank you! Your order has been placed.\nPayment: ${paymentLabels[paymentMode]}\nTotal: ₱${((product?.price || 0) * quantity).toLocaleString()}`);
       router.push('/');

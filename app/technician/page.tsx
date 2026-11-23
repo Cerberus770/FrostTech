@@ -1142,34 +1142,7 @@ export default function TechnicianDashboard() {
             </div>
           </div>
 
-          {/* Quick Total Income Widget */}
-          <div
-            onClick={() => setActiveTab('earnings')}
-            style={{
-              padding: '0.9rem 1rem',
-              background: 'linear-gradient(135deg, #052e80 0%, #0369a1 100%)',
-              borderRadius: '12px',
-              color: '#ffffff',
-              boxShadow: '0 4px 14px rgba(5,46,128,0.18)',
-              cursor: 'pointer',
-              marginBottom: '0.5rem',
-              transition: 'transform 0.15s ease',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: 0.85, fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              <span>Total Earned Income</span>
-              <i className="fa-solid fa-coins" style={{ color: '#fde047' }}></i>
-            </div>
-            <div style={{ fontSize: '1.35rem', fontWeight: 800, margin: '4px 0 2px' }}>
-              ₱{totalCompletedIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', opacity: 0.9 }}>
-              <span>Pending: ₱{totalPendingIncome.toLocaleString()}</span>
-              <span style={{ fontWeight: 700, textDecoration: 'underline' }}>Ledger &rarr;</span>
-            </div>
-          </div>
-
-          <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', paddingLeft: '0.5rem' }}>
+          <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', paddingLeft: '0.5rem', marginTop: '0.5rem' }}>
             Menu Navigation
           </div>
 
@@ -1291,34 +1264,6 @@ export default function TechnicianDashboard() {
             )}
           </button>
 
-          {/* TAB 5: MY EARNINGS & PAYOUT */}
-          <button
-            onClick={() => setActiveTab('earnings')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0.85rem 1rem',
-              borderRadius: '10px',
-              border: 'none',
-              background: activeTab === 'earnings' ? '#d8e9fd' : 'transparent',
-              color: activeTab === 'earnings' ? '#052e80' : '#475569',
-              fontWeight: activeTab === 'earnings' ? 700 : 500,
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-              borderLeft: activeTab === 'earnings' ? '4px solid #052e80' : '4px solid transparent'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <i className="fa-solid fa-wallet" style={{ width: '18px', color: activeTab === 'earnings' ? '#052e80' : '#94a3b8' }}></i>
-              <span>My Earnings</span>
-            </div>
-            <span style={{ fontSize: '0.75rem', background: '#16a34a', color: '#ffffff', padding: '2px 7px', borderRadius: '999px', fontWeight: 700 }}>
-              ₱{totalCompletedIncome >= 1000 ? `${(totalCompletedIncome / 1000).toFixed(1)}k` : totalCompletedIncome}
-            </span>
-          </button>
-
           {/* Bottom Shift Info Card */}
           <div style={{ marginTop: 'auto', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#052e80', fontWeight: 700, marginBottom: '0.4rem' }}>
@@ -1357,7 +1302,7 @@ export default function TechnicianDashboard() {
                   <button onClick={() => setActiveTab('ci')} style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', padding: '0.55rem 1rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     <i className="fa-solid fa-id-card-clip"></i> CI Inspections ({pendingCiCount})
                   </button>
-                  <button onClick={() => setActiveTab('earnings')} style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '0.55rem 1rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <button onClick={() => { const el = document.getElementById('tech-earnings-section'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }} style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '0.55rem 1rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     <i className="fa-solid fa-wallet"></i> My Earnings (₱{totalCompletedIncome.toLocaleString()})
                   </button>
                 </div>
@@ -1453,7 +1398,7 @@ export default function TechnicianDashboard() {
               </div>
 
               {/* DASHBOARD EARNINGS & TASK COMPENSATION CENTER */}
-              <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', marginBottom: '1.5rem', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+              <div id="tech-earnings-section" style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', marginBottom: '1.5rem', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                   <div>
@@ -1475,12 +1420,6 @@ export default function TechnicianDashboard() {
                       style={{ background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1', padding: '0.5rem 0.9rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                     >
                       <i className="fa-solid fa-print"></i> Print Statement
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('earnings')}
-                      style={{ background: '#052e80', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                    >
-                      Full Earnings Tab &rarr;
                     </button>
                   </div>
                 </div>
@@ -3421,27 +3360,6 @@ export default function TechnicianDashboard() {
               {pendingCiCount}
             </span>
           )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('earnings')}
-          style={{
-            flex: 1,
-            height: '100%',
-            background: 'transparent',
-            border: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '3px',
-            color: activeTab === 'earnings' ? '#16a34a' : '#64748b',
-            cursor: 'pointer',
-            position: 'relative',
-          }}
-        >
-          <i className="fa-solid fa-wallet" style={{ fontSize: '1.15rem' }}></i>
-          <span style={{ fontSize: '0.72rem', fontWeight: activeTab === 'earnings' ? 700 : 500 }}>Earnings</span>
         </button>
       </nav>
 
